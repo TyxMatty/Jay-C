@@ -92,10 +92,12 @@ Servidor → cliente:
 
 | type | campos | |
 |---|---|---|
-| `joined` | `id`, `peers: [{id, name}]` | confirmação + quem já está na sala |
+| `joined` | `id`, `room`, `peers: [{id, name}]`, `iceServers` | confirmação, quem já está na sala e os STUN/TURN configurados no servidor (`ICE_SERVERS`) |
 | `peer-joined` / `peer-left` | `id`, `name` | |
 | `signal` | `from`, `data` | |
-| `error` | `code` (`room-full`, `bad-message`, `rate-limited`) | |
+| `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `not-in-room`, `unknown-peer`), `ref` opcional | |
+
+Configuração por variáveis de ambiente: `PORT` (3000), `HOST` (0.0.0.0), `MAX_PEERS_PER_ROOM` (4), `MAX_MESSAGE_BYTES` (65536), `HEARTBEAT_MS` (30000), `ALLOWED_ORIGINS` (vazio = qualquer), `ICE_SERVERS` (JSON).
 
 Proteções:
 - Mensagem de no máximo 64 KB, no máximo 4 peers por sala e limite de mensagens por segundo.

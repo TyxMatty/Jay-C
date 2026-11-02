@@ -1,0 +1,17 @@
+{
+  "name": "jay-c",
+  "private": true,
+  "description": "Jay-C — lightweight cross-platform screen-sharing and calling app",
+  "license": "MIT",
+  "workspaces": [
+    "signaling-server"
+  ],
+  "scripts": {
+    "server": "npm run start -w signaling-server",
+    "server:dev": "npm run dev -w signaling-server",
+    "test": "npm test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
