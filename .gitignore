@@ -1,0 +1,25 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+!.env.example
+
+# Rust / Tauri
+target/
+frontend/src-tauri/gen/schemas/
+
+# Android / iOS build output
+*.apk
+*.aab
+.gradle/
+local.properties
+xcuserdata/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
