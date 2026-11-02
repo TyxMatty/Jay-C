@@ -4,9 +4,12 @@
   "description": "Jay-C — lightweight cross-platform screen-sharing and calling app",
   "license": "MIT",
   "workspaces": [
-    "signaling-server"
+    "signaling-server",
+    "frontend"
   ],
   "scripts": {
+    "dev": "npm run tauri dev -w frontend",
+    "web": "npm run dev -w frontend",
     "server": "npm run start -w signaling-server",
     "server:dev": "npm run dev -w signaling-server",
     "test": "npm test --workspaces --if-present"

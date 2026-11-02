@@ -5,9 +5,18 @@ App leve e open-source de chamadas e compartilhamento de tela para desktop e mob
 | Pasta | Conteúdo |
 |---|---|
 | [`signaling-server/`](signaling-server/) | Servidor de sinalização WebRTC (Node.js + `ws`) e arquivos Docker |
-| `frontend/` | App Tauri v2 + Vanilla JS *(em construção)* |
+| [`frontend/`](frontend/) | App Tauri v2 + Vanilla JS (Vite) |
 | `plugins/tauri-plugin-pip/` | Plugin de Picture-in-Picture para Android/iOS *(em construção)* |
 | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Arquitetura, decisões técnicas e etapas |
+
+## Rodando o app
+
+```bash
+npm install
+npm run dev
+```
+
+Esse comando abre a janela do Jay-C (Tauri) com recarregamento automático. Para abrir só a interface no navegador, sem Tauri, use `npm run web`. A primeira compilação do Rust leva alguns minutos.
 
 ## Rodando o servidor localmente
 
