@@ -329,7 +329,281 @@ fieldset > h3 {
   border-top: 1px solid var(--border);
 }
 
+/* ---------- Views ---------- */
+
+.view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ---------- Call ---------- */
+
+.call {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px;
+  gap: 12px;
+}
+
+.call-banner {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+}
+
+.call-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 12px;
+  align-content: center;
+}
+
+/* Alone: own camera fills the stage. */
+.call-stage[data-layout='solo'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* 1:1 — remote fills the stage, self-view floats in a corner. */
+.call-stage[data-layout='duo'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.call-stage[data-layout='duo'] .tile:not(.tile-local) {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.call-stage[data-layout='duo'] .tile-local {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: clamp(120px, 22%, 260px);
+  z-index: 1;
+  box-shadow: var(--shadow);
+}
+
+/* 3–4 people: equal grid. */
+.call-stage[data-layout='grid'] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  max-height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.tile-local video {
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror the self-view */
+}
+
+.tile[data-video='off'] video {
+  visibility: hidden; /* keep playing so audio continues */
+}
+
+.tile-avatar {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  font-size: clamp(24px, 6vw, 56px);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.tile[data-video='off'] .tile-avatar {
+  display: grid;
+}
+
+.tile-label {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-muted {
+  display: inline-grid;
+  color: #fca5a5;
+}
+
+.tile-muted[hidden] {
+  display: none;
+}
+
+.tile-muted svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tile-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  font-weight: 600;
+}
+
+.tile-overlay[hidden] {
+  display: none;
+}
+
+.call-waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  color: var(--text-muted);
+}
+
+.call-waiting p {
+  margin: 0;
+}
+
+.room-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.room-chip code {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.room-chip .icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.room-chip .icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.call-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  z-index: 2;
+}
+
+.call-toast[hidden] {
+  display: none;
+}
+
+.call-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.control-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.control-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.control-btn.off {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.control-btn.danger {
+  border-color: transparent;
+  background: var(--danger);
+  color: #fff;
+}
+
+.control-btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 85%, #000);
+}
+
+.control-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
 @media (max-width: 480px) {
+  .call {
+    padding: 12px;
+  }
+
+  .call-stage[data-layout='duo'] .tile-local {
+    width: 34%;
+  }
+
   .topbar {
     padding: 10px 12px;
     gap: 8px;

@@ -107,7 +107,11 @@ Proteções:
 
 ## 5. Fluxos principais
 
-**Iniciar chamada.** O app conecta em `ws://<ip>:3000` e envia `join`. Para cada peer existente cria um `RTCPeerConnection` e adiciona as faixas locais. O `negotiationneeded` dispara a oferta, e o "polite peer" resolve colisões.
+**Iniciar chamada.** O app conecta em `ws://<ip>:3000` e envia `join`. Quem chega por último é quem oferece: para cada peer que já está na sala, cria um `RTCPeerConnection` com um data channel `control` e um transceiver `sendrecv` por tipo de mídia (áudio e vídeo). Isso dispara a oferta. Quem já estava na sala adota esses transceivers ao responder. Colisões posteriores seguem o "perfect negotiation": o recém-chegado é *impolite*.
+
+**Estado da mídia.** O data channel `control` carrega mensagens JSON como `{type: "media", audio, video}`. Elas são necessárias porque o Chrome não marca a faixa remota como *muted* quando o outro lado para de enviar com `replaceTrack(null)`. Com elas, o avatar e o ícone de microfone mudo aparecem na hora.
+
+**Queda do servidor.** As conexões P2P continuam durante a queda e um aviso aparece na tela. O cliente reconecta com backoff (1, 2, 4, 8 e 10 s) e recebe um novo id. Aí as conexões são refeitas com quem estiver na sala.
 
 **Compartilhar tela.** Chama `getDisplayMedia({video, audio})`. Se já existe um sender de vídeo, usa `replaceTrack()`. Senão, `addTrack()`, que renegocia automaticamente. Ajusta `track.contentHint` para `detail` (texto e código) ou `motion` (jogos e vídeo).
 

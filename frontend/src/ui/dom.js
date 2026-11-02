@@ -16,7 +16,8 @@ export function h(tag, props = {}, ...children) {
       Object.assign(el.dataset, value);
     } else if (key === 'html') {
       el.innerHTML = value;
-    } else if (key === 'value' || key === 'checked') {
+    } else if (key === 'value' || key === 'checked' || key === 'muted' || key === 'srcObject') {
+      // Properties, not attributes (e.g. the `muted` attribute doesn't mute a created <video>).
       el[key] = value;
     } else {
       el.setAttribute(key, value === true ? '' : String(value));

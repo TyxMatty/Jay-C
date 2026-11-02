@@ -173,7 +173,7 @@ export function startServer(config, { log = defaultLog } = {}) {
     await new Promise((resolve) => httpServer.close(resolve));
   }
 
-  return { ready, close, registry };
+  return { ready, close, registry, wss };
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
