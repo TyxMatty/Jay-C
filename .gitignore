@@ -26,3 +26,6 @@ desktop.ini
 
 # Local Claude Code tooling
 .claude/
+
+# Machine-local Cargo config (target-dir outside OneDrive)
+/.cargo/
