@@ -1,0 +1,29 @@
+# Jay-C signaling server
+#
+# Users: put this file in an empty folder and run `docker compose up -d`.
+# Developers (inside the repo): `docker compose up -d --build` builds from source.
+name: jay-c
+
+services:
+  signaling:
+    image: ghcr.io/tyxmatty/jay-c-signaling:latest
+    build:
+      context: ..
+      dockerfile: signaling-server/Dockerfile
+    container_name: jay-c-signaling
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      MAX_PEERS_PER_ROOM: 4
+      # Restrict which apps may connect (Windows/Android use http://tauri.localhost,
+      # macOS/iOS/Linux use tauri://localhost). Empty = accept any origin.
+      # ALLOWED_ORIGINS: "http://tauri.localhost,tauri://localhost"
+      # STUN/TURN servers handed to clients on join (only needed outside LAN/VPN).
+      # ICE_SERVERS: '[{"urls":"stun:stun.l.google.com:19302"}]'
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

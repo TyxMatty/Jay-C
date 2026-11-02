@@ -18,6 +18,16 @@ npm run server
 
 O servidor escuta em `ws://0.0.0.0:3000`. O health check fica em `http://localhost:3000/health`.
 
+## Rodando o servidor com Docker
+
+Dentro do repositório, o comando abaixo gera a imagem a partir do código-fonte:
+
+```bash
+docker compose -f signaling-server/docker-compose.yml up -d --build
+```
+
+Usuários finais só precisam do `docker-compose.yml` numa pasta vazia e de `docker compose up -d`. A imagem é baixada do registry, que ainda vai ser publicado na etapa de release.
+
 ## Testes
 
 ```bash

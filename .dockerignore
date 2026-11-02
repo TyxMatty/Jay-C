@@ -1,0 +1,6 @@
+# Only the signaling server goes into the image.
+*
+!package.json
+!package-lock.json
+!signaling-server/package.json
+!signaling-server/src/

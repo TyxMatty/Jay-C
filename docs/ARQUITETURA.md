@@ -20,7 +20,7 @@ flowchart LR
 ```
 
 - O servidor **só troca mensagens de sinalização**: oferta, resposta e candidatos ICE. Mídia nunca passa por ele, então ele consome quase nada de CPU e RAM.
-- A mídia vai direto entre os peers. Em LAN, ZeroTier ou Radmin VPN, os candidatos ICE do tipo *host* bastam, sem STUN ou TURN. Um STUN/TURN (coturn) fica como serviço **opcional** no compose, para quem quiser usar pela internet sem VPN.
+- A mídia vai direto entre os peers. Em LAN, ZeroTier ou Radmin VPN, os candidatos ICE do tipo *host* bastam, sem STUN ou TURN. Para uso pela internet sem VPN, o servidor repassa aos clientes os STUN/TURN definidos em `ICE_SERVERS`. Um serviço coturn opcional no compose fica para a etapa de release.
 - Topologia: **1:1 primeiro**. Depois, mesh para salas pequenas (até 4 pessoas). Acima disso precisaria de SFU, que está fora do escopo.
 
 ## 2. Decisões técnicas
