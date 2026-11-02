@@ -35,6 +35,7 @@ flowchart LR
 | Tema | CSS Custom Properties em `:root[data-theme]` | A troca é instantânea, só muda um atributo. Respeita `prefers-color-scheme` no primeiro uso. |
 | Markdown do guia | Renderer próprio (~80 linhas) | O conteúdo é nosso e controlado. Basta suportar títulos, negrito, `code`, imagens e parágrafos, sem dependência extra. Escapa HTML por padrão. |
 | Assets do guia | `frontend/public/assets/setup/*.png` | A pasta `public/` do Vite é servida na raiz pelo Tauri. `src-tauri/icons/` é só para ícones do app. |
+| Áudio das transmissões | **Captura nativa** (WASAPI process loopback) num plugin Tauri | O `getDisplayMedia` não exclui apps do áudio do sistema nem captura áudio de janela. Detalhes na seção 6. |
 | Persistência | `localStorage` | Guarda endereço do servidor, tema, preset de qualidade e nome. |
 
 ## 3. Estrutura do monorepo
@@ -71,6 +72,10 @@ JayC/
 │     ├─ tauri.conf.json, Cargo.toml, capabilities/default.json
 │     ├─ src/lib.rs, src/main.rs
 │     └─ gen/android, gen/apple # gerados por `tauri android|ios init`
+├─ plugins/tauri-plugin-system-audio/   # captura de áudio por processo (Windows; macOS depois)
+│  ├─ src/lib.rs, src/commands.rs
+│  ├─ src/windows/{loopback.rs, sessions.rs, mixer.rs}
+│  └─ guest-js/index.js        # listAudioApps(), startCapture(), stopCapture()
 └─ plugins/tauri-plugin-pip/
    ├─ src/lib.rs, src/mobile.rs, src/desktop.rs, src/commands.rs
    ├─ android/src/main/java/.../PipPlugin.kt
@@ -113,16 +118,70 @@ Proteções:
 
 **Queda do servidor.** As conexões P2P continuam durante a queda e um aviso aparece na tela. O cliente reconecta com backoff (1, 2, 4, 8 e 10 s) e recebe um novo id. Aí as conexões são refeitas com quem estiver na sala.
 
-**Compartilhar tela.** Chama `getDisplayMedia({video, audio})`. Se já existe um sender de vídeo, usa `replaceTrack()`. Senão, `addTrack()`, que renegocia automaticamente. Ajusta `track.contentHint` para `detail` (texto e código) ou `motion` (jogos e vídeo).
+## 6. Transmissões ("lives")
 
-**Mudar qualidade durante a chamada.**
+Ao iniciar uma transmissão, a pessoa escolhe um de dois modos:
+
+| Modo | Vídeo | Áudio transmitido |
+|---|---|---|
+| **Tela inteira** | um monitor, via `getDisplayMedia` | todo o áudio do sistema, **menos** o próprio Jay-C (as vozes da chamada) e os apps da lista de exclusão em Settings › Streaming (ex.: Discord) |
+| **Janela** | a janela de um aplicativo, via `getDisplayMedia` | **só** o áudio do processo dono daquela janela, incluindo os processos filhos dele |
+
+### Por que o áudio é nativo
+
+O áudio do `getDisplayMedia` não serve para esses dois modos:
+- **Tela inteira:** no Windows ele captura a mistura inteira do sistema. Isso inclui as vozes da chamada, o que gera eco, e o Discord. Não há como filtrar por aplicativo.
+- **Janela:** o Chromium não captura áudio de janela, só de aba do navegador.
+
+Por isso o vídeo continua vindo do `getDisplayMedia` e o **áudio é capturado em Rust**.
+
+### Pipeline de áudio (Windows)
+
+```
+WASAPI process loopback        mixer Rust                 tauri::ipc::Channel      AudioWorklet
+(1 stream por processo)  ──►  48 kHz estéreo f32,  ──►  (bytes, ~100 msg/s)  ──►  (ring buffer) ──► MediaStreamAudioDestinationNode
+                              blocos de 10 ms                                                            │
+                                                                                                         ▼
+                                                                                   faixa "screen-audio" → transceiver próprio
+```
+
+- **API do Windows:** `ActivateAudioInterfaceAsync` com `AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS`, disponível a partir do Windows 10 2004 (build 19041). Cada stream **inclui ou exclui uma única árvore de processos**.
+- **Tela inteira:**
+  - Se a lista de exclusão estiver vazia, basta um stream EXCLUDE da árvore do Jay-C. O WebView2 roda como filho dele, então as vozes da chamada já ficam de fora.
+  - Com exclusões: o app lista as sessões de áudio ativas (`IAudioSessionManager2`) e abre um stream INCLUDE por processo que não seja o Jay-C nem esteja na lista. A comparação é pelo nome do executável, também nos processos ancestrais. Os streams são misturados.
+  - Sessões que surgem durante a transmissão entram na mistura via `IAudioSessionNotification`.
+- **Janela:** obtém o processo dono da janela com HWND → `GetWindowThreadProcessId` e abre um stream INCLUDE dessa árvore.
+- **Plugin:** `plugins/tauri-plugin-system-audio`, em Rust com o crate `windows`. Comandos:
+  - `list_audio_apps()`: apps tocando som agora, para a tela de Settings
+  - `start_capture({ mode, windowHandle?, excludeExes[] }, channel)`
+  - `stop_capture()`
+
+  Em outras plataformas o plugin responde `unsupported` e a transmissão sai sem áudio. No macOS, o ScreenCaptureKit (`SCContentFilter` com `excludingApplications`) cobre os dois modos e fica para uma fase posterior.
+- **Descobrir qual janela foi escolhida:**
+  - O rótulo da faixa de vídeo do `getDisplayMedia` no Chromium identifica a fonte, como `window:<HWND>:0`. Isso ainda **precisa ser validado no WebView2** (spike).
+  - Plano B: um seletor de janelas próprio em Rust, com `EnumWindows` e miniaturas.
+
+### Mídia e sinalização
+
+- Quem chega à sala cria **4 transceivers**: microfone, câmera, vídeo da tela e áudio da tela. Assim, iniciar ou parar uma transmissão é só `replaceTrack()`, sem renegociar. Dá para transmitir a tela e manter a câmera ligada ao mesmo tempo.
+- O data channel `control` ganha a mensagem `{type: "screen", active, mode, hasAudio}`. Quem recebe passa a mostrar a tela em destaque, com as câmeras em miniatura.
+- O áudio da tela usa Opus **estéreo** a ~128 kbps. O Chrome envia mono por padrão, então é preciso acrescentar `stereo=1; sprop-stereo=1` ao fmtp do Opus no SDP.
+- `track.contentHint`: `detail` para texto e código, `motion` para jogos e vídeo.
+
+### Qualidade durante a transmissão
+
 1. `track.applyConstraints({width, height, frameRate})` muda a captura na origem.
 2. `sender.setParameters()` com `encodings[0].maxBitrate`, `maxFramerate` e `scaleResolutionDownBy` muda o encoder.
-3. Não há renegociação nem queda. Se o `applyConstraints` falhar (algumas WebViews não aceitam em tela), o fallback é capturar de novo e usar `replaceTrack()`.
+3. Não há renegociação nem queda. Se o `applyConstraints` falhar, o fallback é capturar de novo e usar `replaceTrack()`.
 
 Presets: resolução 360p, 480p, 720p, 1080p, 1440p ou original. FPS 5, 15, 24, 30 ou 60. Bitrate automático ou com teto.
 
-## 6. Picture-in-Picture
+### Settings › Streaming
+
+- **Lista de exclusão** de apps por nome de executável, guardada nas configurações. O botão "Adicionar" mostra os apps tocando som agora (`list_audio_apps`) e também aceita digitar um nome. Há sugestões rápidas: Discord, Teams e Zoom.
+- O Jay-C nunca é transmitido e não aparece na lista.
+
+## 7. Picture-in-Picture
 
 `core/pip.js` expõe uma única API, `pip.enter(videoEl)`, e escolhe a implementação:
 
@@ -134,7 +193,7 @@ Presets: resolução 360p, 480p, 720p, 1080p, 1440p ou original. FPS 5, 15, 24, 
 | Android | Plugin Kotlin: `activity.enterPictureInPictureMode(PictureInPictureParams)` com aspect ratio 16:9. `setAutoEnterEnabled(true)` (API 31+) ou `onUserLeaveHint` entram em PiP sozinhos quando o app vai para segundo plano. Manifest: `android:supportsPictureInPicture="true"` e `resizeableActivity`. |
 | iOS | Plugin Swift: `AVPictureInPictureController` com `AVPictureInPictureVideoCallViewController` (iOS 15+), `canStartPictureInPictureAutomaticallyFromInline = true` e background modes `audio` + `voip`. Alternativa mais simples a avaliar: `video.webkitSetPresentationMode('picture-in-picture')` do próprio WKWebView. |
 
-## 7. Riscos conhecidos (importante)
+## 8. Riscos conhecidos (importante)
 
 1. **Compartilhar tela no mobile não funciona via `getDisplayMedia`.** Android WebView e iOS WKWebView não implementam essa API.
    - Android exige captura nativa com `MediaProjection` + foreground service, e o vídeo precisa voltar para o WebRTC. Isso é complexo.
@@ -147,8 +206,14 @@ Presets: resolução 360p, 480p, 720p, 1080p, 1440p ou original. FPS 5, 15, 24, 
    - Para `docker compose up -d` "baixar o servidor automaticamente", a imagem precisa estar **publicada num registry** (GHCR ou Docker Hub). Isso exige um repositório GitHub público.
    - O comando atual é `docker compose` (com espaço). `docker-compose` é o v1, descontinuado. Vou ajustar o texto do guia.
 6. **Firewall do Windows** no host precisa liberar a porta 3000. Vale citar no guia.
+7. **Transmissões: pontos a validar no spike (etapa 6)**
+   - Se o `getDisplayMedia` funciona no Tauri/WebView2 e se dá para descobrir a janela escolhida pelo rótulo da faixa. Se não der, entra o Plano B (seletor próprio).
+   - Se a process loopback funciona dentro do processo do Tauri. Ela exige COM e uma thread dedicada.
+8. **Process loopback** só existe a partir do Windows 10 2004. Em versões anteriores, a transmissão sai sem áudio, com aviso.
+9. **Apps cujo áudio sai de outro processo** fora da árvore da janela, como alguns jogos e launchers. Nesses casos o modo janela captura silêncio, e o modo tela inteira continua funcionando.
+10. **Sincronia áudio/vídeo da tela:** o áudio nativo e o vídeo seguem caminhos diferentes até o WebRTC. A diferença precisa ser medida; ~50–100 ms é aceitável para transmissão.
 
-## 8. Ferramentas necessárias
+## 9. Ferramentas necessárias
 
 | Ferramenta | Para quê | Status nesta máquina |
 |---|---|---|
@@ -156,30 +221,33 @@ Presets: resolução 360p, 480p, 720p, 1080p, 1440p ou original. FPS 5, 15, 24, 
 | Git | versionamento | ✅ |
 | WebView2 | runtime do Tauri no Windows | ✅ 156 |
 | WSL2 | backend do Docker Desktop | ✅ (Ubuntu) |
-| **MS C++ Build Tools** (VS 2022, "Desktop development with C++") | linker do Rust no Windows | ❌ |
-| **Rust** (rustup, toolchain MSVC) | compilar Tauri e plugins | ❌ |
-| **Docker Desktop** | testar a imagem do servidor | ❌ |
-| **Android Studio** (inclui JDK) + SDK, NDK e cmdline-tools | build Android | ❌ |
-| Alvos Rust Android (`aarch64-linux-android` etc.) | build Android | ❌ (depois do Rust) |
+| MS C++ Build Tools (VS 2022, "Desktop development with C++") | linker do Rust no Windows e SDK do Windows (WASAPI) | ✅ |
+| Rust (rustup, toolchain MSVC) | compilar Tauri e plugins | ✅ 1.99 |
+| Docker Desktop | testar a imagem do servidor | ✅ 29.9 |
+| Android Studio (JDK) + SDK 36/37, NDK 30, emulador | build Android | ✅ |
+| Alvos Rust Android (`aarch64-linux-android` etc.) | build Android | ✅ |
 | Xcode | build iOS | ⛔ impossível no Windows |
 
 O Tauri CLI entra como `devDependency` (`@tauri-apps/cli`), sem instalação global.
 
-## 9. Etapas de implementação
+## 10. Etapas de implementação
 
 Cada etapa termina com algo testável.
 
 | # | Etapa | Pronto quando |
 |---|---|---|
-| 0 | Instalar ferramentas | `rustc`, `cargo`, `docker` e `java` respondem. `npx tauri info` sem erros. |
-| 1 | Scaffold do monorepo + `git init` | `npm install` na raiz funciona |
-| 2 | Servidor de sinalização + testes | `npm test` passa e dois clientes `wscat` trocam mensagens |
-| 3 | Docker do servidor | `docker compose up -d` sobe e `/health` responde 200 |
-| 4 | Frontend base: Vite + Tauri desktop, tema, settings | `npm run tauri dev` abre a janela e o tema alterna na hora |
-| 5 | Chamada 1:1 (câmera/mic) | duas instâncias do app se veem e se ouvem via servidor local |
-| 6 | Compartilhar tela + controles de qualidade | resolução e FPS mudam no meio da chamada sem cair (confirmado em `getStats()`) |
-| 7 | PiP desktop | o vídeo remoto flutua sobre outras janelas |
-| 8 | Modal do guia + renderer Markdown + imagens | o guia renderiza com as 5 imagens nos dois temas |
-| 9 | Android: `tauri android init`, permissões, plugin PiP Kotlin | o APK roda no emulador ou no celular, entra em chamada e vai para PiP ao minimizar |
-| 10 | iOS: plugin Swift (código) | código escrito; build pendente de um Mac |
-| 11 | Release: imagem no GHCR + bundles Tauri (`.msi`/`.exe`, `.apk`) | o guia de 5 passos funciona do zero numa máquina limpa |
+| 0 ✅ | Instalar ferramentas | `rustc`, `cargo`, `docker` e `java` respondem. `npx tauri info` sem erros. |
+| 1 ✅ | Scaffold do monorepo + `git init` | `npm install` na raiz funciona |
+| 2 ✅ | Servidor de sinalização + testes | `npm test` passa e dois clientes trocam mensagens |
+| 3 ✅ | Docker do servidor | `docker compose up -d` sobe e `/health` responde 200 |
+| 4 ✅ | Frontend base: Vite + Tauri desktop, tema, settings | `npm run tauri dev` abre a janela e o tema alterna na hora |
+| 5 ✅ | Chamadas (câmera/mic), 1:1 e até 4 pessoas | duas instâncias do app se veem e se ouvem via servidor local |
+| 6 | **Spike das transmissões** (Windows) | No Tauri: o `getDisplayMedia` abre o seletor e dá para descobrir a janela escolhida (ou o Plano B foi decidido). Um protótipo em Rust captura o áudio de um único processo. |
+| 7 | **Transmissão: vídeo** (tela inteira e janela) com 4 transceivers, estado pelo data channel, tela em destaque para quem assiste e controles de qualidade | resolução e FPS mudam durante a transmissão sem a chamada cair, confirmado em `getStats()` |
+| 8 | **Plugin `system-audio` (Windows):** process loopback, mixer, ponte Channel → AudioWorklet → faixa WebRTC, Opus estéreo | quem assiste ouve o áudio de um app escolhido, em estéreo |
+| 9 | **Modos completos + Settings › Streaming** | Tela inteira: com o Discord excluído, ninguém ouve o Discord nem as vozes da chamada. Janela: só o áudio daquele app é transmitido. |
+| 10 | PiP desktop | o vídeo remoto flutua sobre outras janelas |
+| 11 | Modal do guia + renderer Markdown + imagens | o guia renderiza com as 5 imagens nos dois temas |
+| 12 | Android: `tauri android init`, permissões, plugin PiP Kotlin | o APK roda no emulador ou no celular, entra em chamada e vai para PiP ao minimizar |
+| 13 | iOS: plugin Swift (código) | código escrito; build pendente de um Mac |
+| 14 | Release: imagem no GHCR + bundles Tauri (`.msi`/`.exe`, `.apk`) | o guia de 5 passos funciona do zero numa máquina limpa |
