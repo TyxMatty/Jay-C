@@ -21,7 +21,31 @@ flowchart LR
 
 - O servidor **só troca mensagens de sinalização**: oferta, resposta e candidatos ICE. Mídia nunca passa por ele, então ele consome quase nada de CPU e RAM.
 - A mídia vai direto entre os peers. Em LAN, ZeroTier ou Radmin VPN, os candidatos ICE do tipo *host* bastam, sem STUN ou TURN. Para uso pela internet sem VPN, o servidor repassa aos clientes os STUN/TURN definidos em `ICE_SERVERS`. Um serviço coturn opcional no compose fica para a etapa de release.
-- Topologia: **1:1 primeiro**. Depois, mesh para salas pequenas (até 4 pessoas). Acima disso precisaria de SFU, que está fora do escopo.
+- Topologia atual: **mesh**, em que cada pessoa envia a própria mídia direto para cada uma das outras. Funciona até 4 pessoas.
+- **Escopo final: salas de até 16 pessoas com SFU** (detalhes abaixo).
+
+### Topologia final: SFU (até 16 pessoas)
+
+Em mesh, cada participante envia N−1 cópias de cada faixa. Com 16 pessoas, quem transmite a tela em 1080p60 (~6 Mbps) precisaria de ~90 Mbps de upload. Com um **SFU** (*Selective Forwarding Unit*), cada pessoa envia **uma vez** para o servidor, que repassa para as outras sem decodificar.
+
+```mermaid
+flowchart LR
+  A[Jay-C A] -- "1× upload" --> S[(signaling + SFU<br/>mediasoup, Docker)]
+  B[Jay-C B] -- "1× upload" --> S
+  S -- "repasse" --> A
+  S -- "repasse" --> B
+  S -- "repasse" --> C[Jay-C C … P]
+```
+
+| Tema | Escolha | Motivo |
+|---|---|---|
+| SFU | **mediasoup** (Node.js + worker em C++) no **mesmo container** do servidor de sinalização | Reaproveita o servidor Node e o protocolo próprio. O self-hosting continua sendo um único `docker compose up -d`. |
+| Portas | **Uma porta UDP/TCP** para toda a mídia (`WebRtcServer` do mediasoup), além da 3000 da sinalização | É fácil de liberar no firewall, de mapear no Docker Desktop e de explicar no guia |
+| IP anunciado | O servidor anuncia o IP/host que o cliente usou para conectar (cabeçalho `Host` do WebSocket) | O usuário não precisa configurar o IP no compose. Isso precisa ser validado na etapa do SFU. |
+| Câmeras | **Simulcast** em 3 camadas | A grade de 16 recebe a camada baixa e quem está em destaque recebe a alta |
+| Mesh | Removido quando o SFU entrar. Todas as salas passam pelo SFU. | Um só caminho de mídia para manter. Na LAN ou VPN, o salto extra pelo servidor é desprezível. |
+
+Custo para quem hospeda: o servidor recebe cada faixa uma vez e reenvia para cada espectador. Uma tela em 1080p60 para 15 pessoas pede ~90 Mbps de **upload da máquina que hospeda**. Na LAN isso é tranquilo. Pela internet, via ZeroTier ou Radmin, o limite passa a ser a conexão do host, e o guia vai deixar isso claro.
 
 ## 2. Decisões técnicas
 
@@ -163,8 +187,9 @@ WASAPI process loopback        mixer Rust                 tauri::ipc::Channel   
 
 ### Mídia e sinalização
 
-- Quem chega à sala cria **4 transceivers**: microfone, câmera, vídeo da tela e áudio da tela. Assim, iniciar ou parar uma transmissão é só `replaceTrack()`, sem renegociar. Dá para transmitir a tela e manter a câmera ligada ao mesmo tempo.
-- O data channel `control` ganha a mensagem `{type: "screen", active, mode, hasAudio}`. Quem recebe passa a mostrar a tela em destaque, com as câmeras em miniatura.
+- Cada participante publica até **4 faixas**: microfone, câmera, vídeo da tela e áudio da tela. No SFU, cada uma é um *producer* do mediasoup. Iniciar ou parar uma transmissão é só `replaceTrack()`, sem renegociar, e dá para transmitir a tela com a câmera ligada.
+- O estado de cada pessoa (`{type: "media", …}` e `{type: "screen", active, mode, hasAudio}`) passa a ir pelo **servidor de sinalização**, como broadcast para a sala, em vez do data channel P2P, que não existe no SFU. Quem recebe mostra a tela em destaque, com as câmeras em miniatura.
+- `core/call.js` fala com uma interface de transporte. Assim a interface e as transmissões não dependem de a mídia ir por mesh ou SFU.
 - O áudio da tela usa Opus **estéreo** a ~128 kbps. O Chrome envia mono por padrão, então é preciso acrescentar `stereo=1; sprop-stereo=1` ao fmtp do Opus no SDP.
 - `track.contentHint`: `detail` para texto e código, `motion` para jogos e vídeo.
 
@@ -212,6 +237,10 @@ Presets: resolução 360p, 480p, 720p, 1080p, 1440p ou original. FPS 5, 15, 24, 
 8. **Process loopback** só existe a partir do Windows 10 2004. Em versões anteriores, a transmissão sai sem áudio, com aviso.
 9. **Apps cujo áudio sai de outro processo** fora da árvore da janela, como alguns jogos e launchers. Nesses casos o modo janela captura silêncio, e o modo tela inteira continua funcionando.
 10. **Sincronia áudio/vídeo da tela:** o áudio nativo e o vídeo seguem caminhos diferentes até o WebRTC. A diferença precisa ser medida; ~50–100 ms é aceitável para transmissão.
+11. **SFU com 16 pessoas:**
+    - A banda de upload de quem hospeda vira o limite (ver a seção 1).
+    - A imagem Docker cresce por causa do worker do mediasoup.
+    - O mapeamento UDP no Docker Desktop do Windows e o IP anunciado em VPNs (ZeroTier/Radmin) precisam de teste real.
 
 ## 9. Ferramentas necessárias
 
@@ -243,11 +272,12 @@ Cada etapa termina com algo testável.
 | 4 ✅ | Frontend base: Vite + Tauri desktop, tema, settings | `npm run tauri dev` abre a janela e o tema alterna na hora |
 | 5 ✅ | Chamadas (câmera/mic), 1:1 e até 4 pessoas | duas instâncias do app se veem e se ouvem via servidor local |
 | 6 | **Spike das transmissões** (Windows) | No Tauri: o `getDisplayMedia` abre o seletor e dá para descobrir a janela escolhida (ou o Plano B foi decidido). Um protótipo em Rust captura o áudio de um único processo. |
-| 7 | **Transmissão: vídeo** (tela inteira e janela) com 4 transceivers, estado pelo data channel, tela em destaque para quem assiste e controles de qualidade | resolução e FPS mudam durante a transmissão sem a chamada cair, confirmado em `getStats()` |
-| 8 | **Plugin `system-audio` (Windows):** process loopback, mixer, ponte Channel → AudioWorklet → faixa WebRTC, Opus estéreo | quem assiste ouve o áudio de um app escolhido, em estéreo |
-| 9 | **Modos completos + Settings › Streaming** | Tela inteira: com o Discord excluído, ninguém ouve o Discord nem as vozes da chamada. Janela: só o áudio daquele app é transmitido. |
-| 10 | PiP desktop | o vídeo remoto flutua sobre outras janelas |
-| 11 | Modal do guia + renderer Markdown + imagens | o guia renderiza com as 5 imagens nos dois temas |
-| 12 | Android: `tauri android init`, permissões, plugin PiP Kotlin | o APK roda no emulador ou no celular, entra em chamada e vai para PiP ao minimizar |
-| 13 | iOS: plugin Swift (código) | código escrito; build pendente de um Mac |
-| 14 | Release: imagem no GHCR + bundles Tauri (`.msi`/`.exe`, `.apk`) | o guia de 5 passos funciona do zero numa máquina limpa |
+| 7 | **SFU (mediasoup)** no container, interface de transporte no cliente, estado pela sinalização, simulcast; limite da sala vai a 16 | 16 abas ou instâncias numa sala se veem; cada cliente envia 1× (confirmado em `getStats()`); o Docker expõe só a 3000 e uma porta de mídia |
+| 8 | **Transmissão: vídeo** (tela inteira e janela), tela em destaque para quem assiste e controles de qualidade | resolução e FPS mudam durante a transmissão sem a chamada cair, confirmado em `getStats()` |
+| 9 | **Plugin `system-audio` (Windows):** process loopback, mixer, ponte Channel → AudioWorklet → faixa WebRTC, Opus estéreo | quem assiste ouve o áudio de um app escolhido, em estéreo |
+| 10 | **Modos completos + Settings › Streaming** | Tela inteira: com o Discord excluído, ninguém ouve o Discord nem as vozes da chamada. Janela: só o áudio daquele app é transmitido. |
+| 11 | PiP desktop | o vídeo remoto flutua sobre outras janelas |
+| 12 | Modal do guia + renderer Markdown + imagens (com a porta de mídia e a nota sobre banda) | o guia renderiza com as 5 imagens nos dois temas |
+| 13 | Android: `tauri android init`, permissões, plugin PiP Kotlin | o APK roda no emulador ou no celular, entra em chamada e vai para PiP ao minimizar |
+| 14 | iOS: plugin Swift (código) | código escrito; build pendente de um Mac |
+| 15 | Release: imagem no GHCR + bundles Tauri (`.msi`/`.exe`, `.apk`) | o guia de 5 passos funciona do zero numa máquina limpa |
