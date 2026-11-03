@@ -23,6 +23,14 @@ log = "0.4"
 tauri = { version = "2.12.5", features = [] }
 tauri-plugin-log = "2"
 
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.26"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [profile.release]
 # Smaller, leaner binaries.
 codegen-units = 1
