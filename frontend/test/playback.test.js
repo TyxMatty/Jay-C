@@ -66,7 +66,7 @@ test('per-key volume above 100%, mute, and levels that outlive the track', () =>
   mixer.close();
 });
 
-test('deafen silences every voice and stream, before or after they start, and comes back', () => {
+test('deafen silences every voice, before or after they start, and comes back; a live keeps playing', () => {
   const context = fakeContext();
   const gains = [];
   const realGain = context.createGain.bind(context);
@@ -84,6 +84,12 @@ test('deafen silences every voice and stream, before or after they start, and co
   assert.equal(bus.gain.value, 1);
   mixer.setDeafened(true); // and once already playing
   assert.equal(bus.gain.value, 0);
+  // A live's sound skips the voices bus: deafen mutes the call, not what you're watching.
+  mixer.play('ana:stream', { id: 's1' }, { stream: true });
+  const live = gains.at(-1);
+  assert.equal(live.connected[0], context.destination);
+  mixer.set('ana:stream', { volume: 1.8 });
+  assert.equal(live.gain.value, 1.8, 'its own volume still applies');
 });
 
 test('alert cues go straight to the speakers, so deafen leaves them alone', () => {

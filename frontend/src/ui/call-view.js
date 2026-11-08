@@ -421,7 +421,7 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
       sharing.delete(participant.id);
     }
     let tile = screenTiles.get(participant.id);
-    mixer.play(streamKey(participant), (participant.watching && participant.screenStream.getAudioTracks()[0]) || null);
+    mixer.play(streamKey(participant), (participant.watching && participant.screenStream.getAudioTracks()[0]) || null, { stream: true });
     if (!participant.media.screen || !participant.watching) {
       if (tile) {
         if (fullscreenElement() === tile.el) exitFullscreen(); // Android's pinned full screen outlives the element

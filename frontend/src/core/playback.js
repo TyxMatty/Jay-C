@@ -15,7 +15,7 @@ const ALERT_GAIN = 0.15;
 /** @param {() => AudioContext} [makeContext] */
 export function createMixer(makeContext = () => new AudioContext()) {
   let context = null;
-  /** Every voice and stream goes through this bus: deafen silences it (sounds of our own don't). */
+  /** Every voice goes through this bus: deafen silences it. A live's sound and our own cues don't. */
   let voices = null;
   let deafened = false;
   /** Our own alert cues: straight to the speakers, outside the voices bus. */
@@ -59,8 +59,9 @@ export function createMixer(makeContext = () => new AudioContext()) {
     /**
      * Plays `track` under `key`, replacing what played there before; null stops it.
      * `listenOnly`: measure its level (levelDb) without playing it, e.g. our own mic.
+     * `stream`: a live's sound, which deafen leaves playing (it mutes the call's voices only).
      */
-    play(key, track, { listenOnly = false } = {}) {
+    play(key, track, { listenOnly = false, stream = false } = {}) {
       if (playing.get(key)?.track === track) return;
       mixer.stop(key);
       if (!track) return;
@@ -71,7 +72,7 @@ export function createMixer(makeContext = () => new AudioContext()) {
       const analyser = context.createAnalyser();
       analyser.fftSize = 1024;
       source.connect(analyser);
-      if (!listenOnly) source.connect(gain).connect(voices);
+      if (!listenOnly) source.connect(gain).connect(stream ? context.destination : voices);
       playing.set(key, { track, source, gain, analyser, samples: new Float32Array(analyser.fftSize) });
       apply(key);
     },
@@ -101,7 +102,7 @@ export function createMixer(makeContext = () => new AudioContext()) {
       apply(key);
       return next;
     },
-    /** Deafen: nothing received plays (a ~15 ms fade, so it doesn't click). */
+    /** Deafen: the call's voices stop playing (a ~15 ms fade, so it doesn't click); lives don't. */
     setDeafened(on) {
       deafened = Boolean(on);
       if (!voices) return;

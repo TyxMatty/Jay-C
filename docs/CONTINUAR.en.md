@@ -150,6 +150,9 @@ iOS (milestone 15, code only) was left for after launch.
 - **How to regenerate:** `scripts/wolf-icon.ps1` and then `tauri icon` (see CLAUDE.md, "Ícone").
 - Shipped in installer 0.3.1.
 
+**After 0.4.3 (08/11/2026), no installer yet** (0.5 plan: `tasks/plan.md` and `tasks/todo.md`):
+- **Deafen only the call:** it silences the voices, and a watched live's sound keeps playing at its own volume (`core/playback.js`: a live goes straight to the output, outside the voices bus). Covered by a test; not measured at the speakers (a browser bot doesn't send screen sound).
+
 **Installer 0.4.3 (08/11/2026):** 0.4.2 with what's below, built by the installer workflow on GitHub (tag `v0.4.3`). The server didn't change. Anyone on 0.4.2 gets the update notice in the app.
 
 **Between 0.4.2 and 0.4.3 (07–08/11/2026):**
