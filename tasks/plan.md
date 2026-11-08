@@ -119,7 +119,14 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 - nenhuma regressão na live.
 
 ### Fase 4: GIFs, imagens e vídeos
-- **T12** GIFs do Tenor nos chats (M)
+- **T12** GIFs, zoom na câmera e o celular, em partes (pedido do usuário em 08/11/2026, B a G):
+  - A: GIFs do Tenor nos chats (M);
+  - B: zoom na câmera ou na live de alguém, só para si (M);
+  - C: deslizar abre as gavetas no celular (S; direção a confirmar);
+  - D: botões sem seleção de texto no celular (S);
+  - E: retorno de toque, sem o realce azul do Android (S);
+  - F: fechar o PiP do Android não fecha o app (M);
+  - G: o Voltar do Android manda o app para segundo plano (S).
 - **T13** Imagens e vídeos nos chats (M; pedido do usuário em 08/11/2026)
 
 **Checkpoint:**

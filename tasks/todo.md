@@ -194,8 +194,11 @@ Painel de membros do servidor (online por sala) à direita; no Android (tela est
 
 ## Fase 4: GIFs, imagens e vídeos
 
-### [ ] T12: GIFs do Tenor nos chats
-Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda o GIF escolhido. A busca e as imagens passam pelo servidor (decisão do usuário): o Tenor não vê o IP de quem assiste.
+### [ ] T12: GIFs, zoom na câmera e o celular
+Em partes, cada uma com commit e pergunta antes da próxima. A ordem sugerida começa pelo que o usuário viu quebrado no celular (D–G) e deixa os GIFs (A), que dependem da chave do Tenor, para o fim. As partes B a G foram pedidas pelo usuário em 08/11/2026.
+
+#### [ ] T12.A: GIFs do Tenor nos chats
+Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda o GIF escolhido. A busca e as imagens passam pelo servidor (decisão do usuário): o Tenor não vê o IP de quem assiste. Antes de começar: conferir se a API do Tenor ainda aceita chaves novas.
 
 **Critérios:**
 - [ ] Sem `TENOR_API_KEY` no servidor, o botão some (`features`).
@@ -208,6 +211,81 @@ Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda 
 - [ ] Manual com uma chave de teste.
 
 **Depende de:** chat da call (já existe); para os canais, T7 · **Arquivos:** `signaling-server/src/gifs.js` (novo), `server.js`, `ui/gif-picker.js` (novo), `ui/chat-panel.js`, `ui/markdown.js`, `tauri.conf.json` · **Tamanho:** M
+
+#### [ ] T12.B: Zoom na câmera de alguém
+Ampliar a câmera (ou a live) de outra pessoa só para si, sem mudar o que ela manda.
+
+**Critérios:**
+- [ ] Desktop: roda do mouse sobre o card (ou + e − no menu do botão direito) amplia e reduz; arrastar move a parte ampliada; duplo clique ou "Zoom normal" volta.
+- [ ] Celular: pinça com dois dedos amplia e arrasta; dois toques voltam.
+- [ ] Vale para um card por vez e não muda o tamanho do card; some quando a câmera desliga ou a pessoa sai.
+- [ ] Teclado: + e − com o card em foco, e o nível do zoom anunciado ao leitor de tela.
+
+**Verificação:**
+- [ ] `npm test`: a conta do zoom (limites de 1× a 4×, a área visível nunca sai do vídeo).
+- [ ] Manual: desktop com a roda e o arraste reais (CDP), e no celular com toques reais (`adb shell input` ou CDP `Input.dispatchTouchEvent`).
+
+**Arquivos:** `ui/call-view.js` (o card), `core/zoom.js` (novo, a conta), `ui/audio-menu.js` (o menu do botão direito), `styles/` · **Tamanho:** M
+
+#### [ ] T12.C: Deslizar abre as gavetas no celular
+Um gesto de deslizar abre a gaveta da esquerda (coluna dos servidores, "Chamada direta", calls e canais), como o botão ☰ de hoje.
+
+**Critérios:**
+- [ ] **Direção a confirmar com o usuário:** ele escreveu "swiping left". No Discord, deslizar o dedo **para a direita** (a partir da borda esquerda) abre a lista da esquerda, e para a esquerda abre os membros. Proposta: a mesma coisa.
+- [ ] Deslizar de volta fecha. O gesto não briga com a rolagem vertical (só conta se for mais de lado que para cima ou para baixo) nem com o zoom da T12.B e a barra arrastável da call.
+- [ ] Respeita "Animações: Desligado" (a gaveta abre sem acompanhar o dedo).
+
+**Verificação:**
+- [ ] `npm test`: a regra do gesto (distância, ângulo, borda).
+- [ ] Manual no celular, com toques reais.
+
+**Arquivos:** `ui/app-shell.js` (gavetas), `core/swipe.js` (novo), `styles/` · **Tamanho:** S
+
+#### [ ] T12.D: Botões sem seleção de texto no celular
+Segurar um botão no celular seleciona o texto dele (e o Android mostra o menu de copiar).
+
+**Critérios:**
+- [ ] Segurar qualquer botão, aba ou item da lista não seleciona texto nem abre o menu do sistema (`-webkit-user-select`, `-webkit-touch-callout`).
+- [ ] Campos de texto, mensagens do chat e o guia continuam selecionáveis (como no desktop, 0.3.4).
+
+**Verificação:** manual no celular (toque longo real) e no desktop (o arraste da 0.3.4 continua sem selecionar).
+
+**Arquivos:** `styles/app.css` · **Tamanho:** S
+
+#### [ ] T12.E: Feedback de toque, sem o realce azul
+Tocar ou segurar um botão no celular pinta o retângulo azul do Android (`-webkit-tap-highlight-color`), e não há outro sinal de que o toque pegou.
+
+**Critérios:**
+- [ ] Sem o retângulo azul em nenhum botão.
+- [ ] No lugar, um retorno próprio no estilo: o botão escurece ou encolhe um pouco enquanto o dedo está nele (`:active`), nos 3 estilos e nos dois temas. Com "Animações: Desligado", sem movimento, só a cor.
+- [ ] O contraste continua ≥ 4,5:1 no estado pressionado.
+
+**Verificação:** manual no celular; `contrast-audit.js` com o estado pressionado forçado (CDP `CSS.forcePseudoState`).
+
+**Arquivos:** `styles/app.css` · **Tamanho:** S
+
+#### [ ] T12.F: Fechar o PiP não fecha o app (Android)
+Visto pelo usuário em 08/11/2026 (Samsung SM-S711B, Android 16): fechar a mini-janela da live fecha o app inteiro. Deveria mandar o app para segundo plano, com a call seguindo (o som continua, e o app volta na mesma tela). No logcat, ao fechar: `stopped(true)` na activity e `pipModeChanged active=false`. No modo dev, a página perdeu a conexão com o Vite e recarregou ao voltar, e a call caiu: separar o que é do PiP e o que é só do Vite (testar também num APK que não seja dev).
+
+**Critérios:**
+- [ ] Fechar o PiP: o processo continua, a call continua (o outro lado ainda recebe o mic) e abrir o app volta à call.
+- [ ] Se o Android matar o processo de qualquer jeito, abrir de novo não deixa uma call fantasma.
+
+**Verificação:** manual no celular, com o logcat e um bot medindo os pacotes do mic do celular depois de fechar o PiP.
+
+**Arquivos:** `plugins/tauri-plugin-pip` (Kotlin), talvez `gen/android` (`MainActivity`) · **Tamanho:** M
+
+#### [ ] T12.G: Voltar manda o app para segundo plano (Android)
+O Voltar na tela inicial do app (sem gaveta aberta) fecha o app inteiro. Deveria mandar para segundo plano, como o Home, sem fechar (e, durante uma call, sem derrubar a call). Visto também 1 vez um crash nativo ao fechar assim (`FORTIFY: pthread_mutex_lock called on a destroyed mutex`, 08/11/2026).
+
+**Critérios:**
+- [ ] Voltar sem nada para fechar: o app vai para segundo plano (`moveTaskToBack`), e o processo continua.
+- [ ] O Voltar continua fechando gavetas, diálogos e o chat antes disso (T11).
+- [ ] O crash não aparece no logcat em 10 saídas seguidas.
+
+**Verificação:** manual no celular com `adb shell input keyevent KEYCODE_BACK` e o logcat.
+
+**Arquivos:** `gen/android` (`MainActivity`) ou um plugin, `ui/app-shell.js` (o histórico das gavetas) · **Tamanho:** S
 
 ### [ ] T13: Imagens e vídeos nos chats
 Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. O arquivo vai para o servidor, e o app só carrega mídia do próprio servidor. As decisões em aberto estão no `plan.md`, pergunta 8.
@@ -227,6 +305,7 @@ Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no cam
 
 ## Checkpoint 4
 - [ ] GIF na call e num canal; sem chave, o botão some.
+- [ ] No celular: zoom numa câmera, deslizar abre e fecha as gavetas, botões sem seleção nem realce azul e com retorno de toque, o PiP e o Voltar mandam para segundo plano com a call seguindo.
 - [ ] Imagem e vídeo nos dois chats; tipo ou tamanho errado é recusado.
 - [ ] Revisão com o usuário.
 
@@ -238,5 +317,5 @@ Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no cam
 
 - [x] **Live nativa não abre num notebook com duas placas (NVIDIA + Intel).** Corrigido em 08/11/2026: o codificador da NVIDIA não inicia nem com um device na NVIDIA; o app tenta os codificadores na ordem e usa o primeiro que inicia e aceita o device (aqui, o Intel Quick Sync, com a troca de tipo de saída aceita). Ver `docs/spikes/10-live-nativa.md`. Relato original: Visto em 08/11/2026 no notebook do usuário (RTX 3050 Laptop + Intel UHD, i5-13420H): `native live: H.264 encoder: Falha catastrófica (0x8000FFFF)`, e o app cai no seletor do sistema. Hipótese, não medida: o `create_device` (`native_live/mod.rs`) cria o D3D11 no adaptador padrão, e o `encoder.rs` pega o primeiro codificador H.264 de hardware da lista (`found[0]`) sem conferir se ele é do mesmo adaptador. Com dois codificadores, o `MFT_MESSAGE_SET_D3D_MANAGER` recebe um device de outra placa. Correção provável: escolher o codificador cujo `MFT_ENUM_ADAPTER_LUID` é o do adaptador do device, ou criar o device no adaptador do codificador. Antes, medir os LUIDs. A live nativa só tinha sido testada num PC com a NVIDIA sozinha.
 
-- [ ] **Android: fechar o PiP da live fecha o app inteiro** (visto pelo usuário em 08/11/2026, no Samsung SM-S711B com Android 16). Deveria só mandar o app para segundo plano, com a call seguindo. No logcat, ao fechar a mini-janela: `stopped(true)` na activity e `pipModeChanged active=false`. No modo dev, a página perdeu a conexão com o Vite e recarregou ao voltar, e a call caiu. Falta separar o que é do PiP e o que é só do Vite.
-- [ ] **Android: sair pelo Voltar derruba o processo ao fechar.** Visto 1 vez (08/11/2026, mesmo aparelho), com o Voltar no "Chamada direta", sem gaveta aberta: `FORTIFY: pthread_mutex_lock called on a destroyed mutex` no logcat, logo depois de a activity parar. Para quem usa, o app só fecha, mas é um crash nativo.
+- **Android: fechar o PiP fecha o app inteiro:** movido para a T12.F.
+- **Android: o Voltar fecha o app (e uma vez derrubou o processo):** movido para a T12.G.
