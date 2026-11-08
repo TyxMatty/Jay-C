@@ -179,7 +179,7 @@ Painel de membros do servidor (online por sala) à direita; no Android (tela est
 ## Checkpoint 3
 - [ ] Fluxo completo no desktop e no emulador; contraste; live sem regressão; revisão com o usuário.
 
-## Fase 4: GIFs
+## Fase 4: GIFs, imagens e vídeos
 
 ### [ ] T12: GIFs do Tenor nos chats
 Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda o GIF escolhido. A busca e as imagens passam pelo servidor (decisão do usuário): o Tenor não vê o IP de quem assiste.
@@ -196,8 +196,26 @@ Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda 
 
 **Depende de:** chat da call (já existe); para os canais, T7 · **Arquivos:** `signaling-server/src/gifs.js` (novo), `server.js`, `ui/gif-picker.js` (novo), `ui/chat-panel.js`, `ui/markdown.js`, `tauri.conf.json` · **Tamanho:** M
 
+### [ ] T13: Imagens e vídeos nos chats
+Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. O arquivo vai para o servidor, e o app só carrega mídia do próprio servidor. As decisões em aberto estão no `plan.md`, pergunta 8.
+
+**Critérios:**
+- [ ] Tipos aceitos conferidos pelo conteúdo (os primeiros bytes), não só pela extensão. O tamanho máximo vem do servidor (`features`), e um arquivo grande demais é recusado antes de subir.
+- [ ] A mensagem leva só o id do arquivo no servidor, validado; nenhuma URL arbitrária vira imagem ou vídeo.
+- [ ] Imagem com tamanho reservado (sem pular o chat ao carregar); vídeo sem tocar sozinho e sem som até clicar.
+- [ ] Arquivos de mensagens que saíram do histórico (ou de uma call que esvaziou) são apagados do disco.
+- [ ] Sem espaço no servidor ou com envio desligado pelo host, o botão some ou avisa.
+
+**Verificação:**
+- [ ] `npm test`: tipo pelo conteúdo, limite, id inválido, limpeza.
+- [ ] Manual: imagem e vídeo nos dois chats, no desktop e no Android; contraste da barra de envio.
+
+**Depende de:** T7 (e T12, se reaproveitar o caminho de mídia pelo servidor) · **Arquivos:** `signaling-server/src/media.js` (novo), `server.js`, `channels.js`, `ui/chat-log.js`, `ui/chat-panel.js`, `tauri.conf.json` (CSP de `img-src`/`media-src`), testes · **Tamanho:** M
+
 ## Checkpoint 4
-- [ ] GIF na call e num canal; sem chave, o botão some; revisão com o usuário.
+- [ ] GIF na call e num canal; sem chave, o botão some.
+- [ ] Imagem e vídeo nos dois chats; tipo ou tamanho errado é recusado.
+- [ ] Revisão com o usuário.
 
 ## Release 0.5.0
 - [ ] Docs (ARQUITETURA 4 e 10, CONTINUAR, guia do servidor com `DATA_DIR` e `TENOR_API_KEY`), versão, tag, notas.
