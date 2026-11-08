@@ -73,6 +73,56 @@ fn pack(hi: u32, lo: u32) -> u64 {
     ((hi as u64) << 32) | lo as u64
 }
 
+/// The first hardware H.264 encoder (NV12 in), in the system's order, that starts and takes
+/// `device`. Not just the first one listed: on a laptop with an NVIDIA and an Intel GPU (RTX 3050
+/// + UHD, measured), the NVIDIA MFT came first and failed to even start (`ActivateObject`
+/// 0x8000FFFF), with a device on either GPU, while the capture device was on the Intel GPU and its
+/// Quick Sync encoder took it. The encoders don't report their GPU (`MFT_ENUM_ADAPTER_LUID` was
+/// missing on all three), so each is tried with the device instead.
+unsafe fn open_hardware_encoder(device: &ID3D11Device) -> Result<(IMFActivate, IMFTransform, IMFDXGIDeviceManager, String)> {
+    let input_info = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_NV12 };
+    let output_info = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_H264 };
+    let mut activates: *mut Option<IMFActivate> = std::ptr::null_mut();
+    let mut count = 0u32;
+    MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, Some(&input_info), Some(&output_info), &mut activates, &mut count)?;
+    let found: Vec<IMFActivate> = std::slice::from_raw_parts_mut(activates, count as usize).iter_mut().filter_map(Option::take).collect();
+    CoTaskMemFree(Some(activates as _));
+
+    let mut last_error = windows::core::Error::new(E_FAIL, "no hardware H.264 encoder");
+    for activate in found {
+        let mut name = windows::core::PWSTR::null();
+        let mut len = 0;
+        let name_str = match activate.GetAllocatedString(&MFT_FRIENDLY_NAME_Attribute, &mut name, &mut len) {
+            Ok(()) => {
+                let s = name.to_string().unwrap_or_default();
+                CoTaskMemFree(Some(name.0 as _));
+                s
+            }
+            Err(_) => "H.264 encoder".into(),
+        };
+        let opened = (|| -> Result<(IMFTransform, IMFDXGIDeviceManager)> {
+            let transform: IMFTransform = activate.ActivateObject()?;
+            transform.GetAttributes()?.SetUINT32(&MF_TRANSFORM_ASYNC_UNLOCK, 1)?;
+            let mut token = 0u32;
+            let mut manager = None;
+            MFCreateDXGIDeviceManager(&mut token, &mut manager)?;
+            let manager: IMFDXGIDeviceManager = manager.unwrap();
+            manager.ResetDevice(device, token)?;
+            transform.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)?;
+            Ok((transform, manager))
+        })();
+        match opened {
+            Ok((transform, manager)) => return Ok((activate, transform, manager, name_str)),
+            Err(e) => {
+                log::warn!("native live: {name_str} can't be used here, trying the next encoder: {e}");
+                let _ = activate.ShutdownObject();
+                last_error = e;
+            }
+        }
+    }
+    Err(last_error)
+}
+
 impl Encoder {
     /// `input`: the capture size; `width` x `height` (even): what gets encoded; `rate_fps`: the most
     /// frames a second it will get; `fps`: how many it gets for now.
@@ -117,40 +167,7 @@ impl Encoder {
             ring.push((tex, view.unwrap()));
         }
 
-        // First hardware H.264 encoder that takes NV12.
-        let input_info = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_NV12 };
-        let output_info = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_H264 };
-        let mut activates: *mut Option<IMFActivate> = std::ptr::null_mut();
-        let mut count = 0u32;
-        MFTEnumEx(
-            MFT_CATEGORY_VIDEO_ENCODER,
-            MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
-            Some(&input_info),
-            Some(&output_info),
-            &mut activates,
-            &mut count,
-        )?;
-        assert!(count > 0, "no hardware H.264 encoder");
-        let found = std::slice::from_raw_parts_mut(activates, count as usize);
-        let activate = found[0].take().unwrap();
-        for a in found.iter_mut() {
-            drop(a.take());
-        }
-        CoTaskMemFree(Some(activates as _));
-        let mut name = windows::core::PWSTR::null();
-        let mut len = 0;
-        activate.GetAllocatedString(&MFT_FRIENDLY_NAME_Attribute, &mut name, &mut len)?;
-        let name_str = name.to_string().unwrap_or_default();
-        CoTaskMemFree(Some(name.0 as _));
-
-        let transform: IMFTransform = activate.ActivateObject()?;
-        transform.GetAttributes()?.SetUINT32(&MF_TRANSFORM_ASYNC_UNLOCK, 1)?;
-        let mut token = 0u32;
-        let mut manager = None;
-        MFCreateDXGIDeviceManager(&mut token, &mut manager)?;
-        let manager: IMFDXGIDeviceManager = manager.unwrap();
-        manager.ResetDevice(device, token)?;
-        transform.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)?;
+        let (activate, transform, manager, name_str) = open_hardware_encoder(device)?;
 
         // Before the media types: the NVIDIA MFT ignores GOP and CBR when they come after.
         let codec = transform.cast::<ICodecAPI>().ok();
@@ -242,9 +259,23 @@ impl Encoder {
                         buf[0].pSample = ManuallyDrop::new(Some(s));
                     }
                     let mut status = 0;
-                    self.transform.ProcessOutput(0, &mut buf, &mut status)?;
-                    let sample = ManuallyDrop::take(&mut buf[0].pSample).unwrap();
+                    let result = self.transform.ProcessOutput(0, &mut buf, &mut status);
+                    // Taken back whatever happened, so nothing leaks on an error.
+                    let sample = ManuallyDrop::take(&mut buf[0].pSample);
                     drop(ManuallyDrop::take(&mut buf[0].pEvents));
+                    match result {
+                        // The Intel Quick Sync MFT asks this before its first frame (measured; the
+                        // NVIDIA one never did): take the output type it offers now and go on.
+                        Err(e) if e.code() == MF_E_TRANSFORM_STREAM_CHANGE => {
+                            let offered = self.transform.GetOutputAvailableType(0, 0)?;
+                            self.transform.SetOutputType(0, &offered, 0)?;
+                            log::info!("native live: {} changed its output type; accepted", self.name);
+                            continue;
+                        }
+                        Err(e) => return Err(e),
+                        Ok(()) => {}
+                    }
+                    let Some(sample) = sample else { continue };
                     let media = sample.ConvertToContiguousBuffer()?;
                     let (mut ptr, mut len) = (std::ptr::null_mut(), 0u32);
                     media.Lock(&mut ptr, None, Some(&mut len))?;

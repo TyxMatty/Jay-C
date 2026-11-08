@@ -744,4 +744,87 @@ mod tests {
         assert_eq!(ladder_steps(&q(Some(1080), 60, false), capture)[1].height, 1080);
         assert_eq!(ladder_steps(&q(Some(1080), 60, true), capture)[1].height, 720);
     }
+
+    /// Diagnostic for PCs with two GPUs: which GPU the capture device lands on, which hardware
+    /// H.264 encoders there are (and on which GPU), and whether each takes that device.
+    /// `cargo test --lib -- --ignored --nocapture gpu_of_device_and_encoders`
+    #[test]
+    #[ignore]
+    fn gpu_of_device_and_encoders() {
+        use windows::Win32::Graphics::Dxgi::IDXGIAdapter;
+        use windows::Win32::Media::MediaFoundation::*;
+        unsafe {
+            MFStartup(MF_VERSION, MFSTARTUP_FULL).unwrap();
+            let (device, _) = create_device().unwrap();
+            let adapter: IDXGIAdapter = device.cast::<IDXGIDevice>().unwrap().GetAdapter().unwrap();
+            let desc = adapter.GetDesc().unwrap();
+            let name = String::from_utf16_lossy(&desc.Description).trim_end_matches('\0').to_string();
+            let luid = ((desc.AdapterLuid.HighPart as u64) << 32) | desc.AdapterLuid.LowPart as u64;
+            println!("capture device: {name} (luid {luid:#x})");
+
+            let input = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_NV12 };
+            let output = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_H264 };
+            let mut activates: *mut Option<IMFActivate> = std::ptr::null_mut();
+            let mut count = 0u32;
+            MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, Some(&input), Some(&output), &mut activates, &mut count).unwrap();
+            for (i, slot) in std::slice::from_raw_parts_mut(activates, count as usize).iter_mut().enumerate() {
+                let activate = slot.take().unwrap();
+                let mut text = windows::core::PWSTR::null();
+                let mut len = 0;
+                let _ = activate.GetAllocatedString(&MFT_FRIENDLY_NAME_Attribute, &mut text, &mut len);
+                let encoder_luid = activate.GetUINT64(&MFT_ENUM_ADAPTER_LUID).ok();
+                let label = format!("encoder {i}: {} (luid {})", text.to_string().unwrap_or_default(), encoder_luid.map_or("?".into(), |l| format!("{l:#x}")));
+                let transform: IMFTransform = match activate.ActivateObject() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        println!("{label} -> ActivateObject {:?}", e.code());
+                        continue;
+                    }
+                };
+                let _ = transform.GetAttributes().unwrap().SetUINT32(&MF_TRANSFORM_ASYNC_UNLOCK, 1);
+                let mut token = 0u32;
+                let mut manager = None;
+                MFCreateDXGIDeviceManager(&mut token, &mut manager).unwrap();
+                let manager = manager.unwrap();
+                manager.ResetDevice(&device, token).unwrap();
+                let takes = transform.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize);
+                println!("{label} -> SET_D3D_MANAGER {:?}", takes.map_err(|e| e.code()));
+                let _ = activate.ShutdownObject();
+            }
+
+            // The same encoders with a device made on each GPU.
+            use windows::Win32::Graphics::Direct3D::D3D_DRIVER_TYPE_UNKNOWN;
+            use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1};
+            let factory: IDXGIFactory1 = CreateDXGIFactory1().unwrap();
+            let mut a = 0;
+            while let Ok(adapter) = factory.EnumAdapters1(a) {
+                a += 1;
+                let desc = adapter.GetDesc1().unwrap();
+                let name = String::from_utf16_lossy(&desc.Description).trim_end_matches('\0').to_string();
+                let mut dev = None;
+                let made = D3D11CreateDevice(&adapter, D3D_DRIVER_TYPE_UNKNOWN, HMODULE::default(), D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_VIDEO_SUPPORT, None, D3D11_SDK_VERSION, Some(&mut dev), None, None);
+                let Some(dev) = dev.filter(|_| made.is_ok()) else {
+                    println!("adapter {name}: no device ({:?})", made.map_err(|e| e.code()));
+                    continue;
+                };
+                let mut activates: *mut Option<IMFActivate> = std::ptr::null_mut();
+                let mut count = 0u32;
+                MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, Some(&input), Some(&output), &mut activates, &mut count).unwrap();
+                for (i, slot) in std::slice::from_raw_parts_mut(activates, count as usize).iter_mut().enumerate() {
+                    let activate = slot.take().unwrap();
+                    let result = activate.ActivateObject::<IMFTransform>().and_then(|transform| {
+                        transform.GetAttributes()?.SetUINT32(&MF_TRANSFORM_ASYNC_UNLOCK, 1)?;
+                        let mut token = 0u32;
+                        let mut manager = None;
+                        MFCreateDXGIDeviceManager(&mut token, &mut manager)?;
+                        let manager = manager.unwrap();
+                        manager.ResetDevice(&dev, token)?;
+                        transform.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)
+                    });
+                    println!("adapter {name}: encoder {i} -> {:?}", result.map_err(|e| e.code()));
+                    let _ = activate.ShutdownObject();
+                }
+            }
+        }
+    }
 }

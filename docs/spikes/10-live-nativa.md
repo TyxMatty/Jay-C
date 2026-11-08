@@ -441,3 +441,29 @@ O texto do HUD em 1080p30 a ~3,7 Mbps ficou legível linha a linha, onde o 1080p
 
 - **No jogo,** as quedas de qps vieram de leituras baixas de quem assiste (630–1.029 kbps). O ritmo ficou em ~3,9–4,0 Mbps e a fila de envio em 0. Uma rodada só não separa isso de ruído.
 - **O que sobra:** cada mensagem no chat ainda segura a imagem ~0,36 s. É o tempo de um quadro de rolagem passar por 1,5 Mbps.
+
+## Notebook com duas placas: o codificador da NVIDIA não inicia (08/11/2026)
+
+**Sintoma:** num notebook com RTX 3050 Laptop + Intel UHD (i5-13420H, driver NVIDIA 32.0.16.2101), a live nativa não abria. O log dizia `native live: H.264 encoder: Falha catastrófica (0x8000FFFF)`, e o app caía no seletor do sistema.
+
+**Medido** (`cargo test --lib -- --ignored --nocapture gpu_of_device_and_encoders`, em `src-tauri`):
+
+| | Device da captura (Intel, o adaptador padrão) | Device criado na NVIDIA |
+|---|---|---|
+| 0: NVIDIA H.264 Encoder MFT | `ActivateObject` falha (0x8000FFFF) | `ActivateObject` falha (0x8000FFFF) |
+| 1 e 2: Intel Quick Sync H.264 | aceita o device | recusa o device (0x80070057) |
+
+- **O device da captura fica na Intel** (`D3D11CreateDevice` com o adaptador padrão), que é a placa da tela.
+- **O código pegava o primeiro da lista** (`found[0]`), que é o da NVIDIA. Ele não inicia neste processo **nem com um device na própria NVIDIA**, então a causa não é só o par device/codificador. Suspeita, não medida: o Optimus roda o app na Intel, e o MFT da NVIDIA recusa.
+- **Os codificadores não dizem a placa:** `MFT_ENUM_ADAPTER_LUID` veio vazio nos três, então não dá para casar pelo LUID.
+
+**Correção** (`encoder.rs`, `open_hardware_encoder`): os codificadores são tentados na ordem do sistema, e vale o primeiro que inicia **e** aceita o device da captura. Num PC só com NVIDIA, continua sendo o primeiro. Aqui vira o Intel Quick Sync.
+
+**O Quick Sync pede a troca do tipo de saída antes do primeiro quadro** (`ProcessOutput` → `MF_E_TRANSFORM_STREAM_CHANGE`, 0xC00D6D61). O da NVIDIA nunca pediu. O app aceita o tipo oferecido (`GetOutputAvailableType` + `SetOutputType`) e segue.
+
+**Medido depois, no app de dev (build debug), tela inteira 1920×1080, um bot no navegador assistindo pelo servidor de teste:**
+- **Quem transmite:** captura a 54 qps, codifica 1080p15 a 1,1 Mbps (orçamento de 2 Mbps), fila de envio 0, nenhum quadro pulado. Depois que o bot passou a assistir, a escada subiu para 1080p30 a 4,5 Mbps com o mesmo codificador (o `set_fps` funciona no Quick Sync).
+- **Quem assiste:** H.264 1920×1080, 12 qps decodificados e mostrados (a tela mudava pouco), 1 Mbps, 0 pacotes perdidos, 0 congelamentos, maior intervalo entre quadros de 208 ms.
+- **CPU, não comparável com a da NVIDIA:** `jay-c.exe` em 1,05 núcleo e, com os 8 processos do WebView2, 3,65. É o build debug, outra placa, e o WebView também tocava a live do bot e decodificava a própria live no card.
+- **Não medido:** as regras afinadas na NVIDIA (QP mínimo 26, buffer de 50 ms, quadro-chave só quando pedido) no Quick Sync, e o tamanho dos quadros-chave dele.
+- **Ao parar a live,** o log mostrou `WebRTC: lost the connection to the server`, no momento em que ela fechou. Não investigado.

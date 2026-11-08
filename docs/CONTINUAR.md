@@ -165,6 +165,9 @@ O iOS (etapa 15, só o código) ficou para depois do lançamento.
   - o vídeo do PiP ocupava só 84% da mini-janela: a barra do topo, escondida, passava da largura dela (~211 px) e a WebView diminuía o zoom. No PiP, o conteúdo escondido agora fica com `overflow: clip` (medido: vídeo de 211×119 numa janela de 211 px);
   - bugs achados no Android, para depois: fechar o PiP fecha o app inteiro, e sair pelo Voltar derrubou o processo (lista em `tasks/todo.md`).
 
+- **Live nativa num notebook com duas placas (NVIDIA + Intel):** não abria (`0x8000FFFF`). O codificador da NVIDIA não inicia no processo, mesmo com um device na NVIDIA. Agora o app tenta os codificadores na ordem e usa o primeiro que inicia e aceita o device da captura; neste notebook, o Intel Quick Sync, que pede uma troca do tipo de saída antes do primeiro quadro (aceita). Medido: 1080p, 0 perdas e 0 congelamentos para quem assiste. Detalhes e o que falta medir em `docs/spikes/10-live-nativa.md`, "Notebook com duas placas".
+- **Checkpoint 3 da 0.5:** fluxo completo no desktop e num celular (Samsung, pelo cabo), contraste sem falhas; resultados em `tasks/todo.md`.
+
 **Instalador 0.4.3 (08/11/2026):** a 0.4.2 com o que está abaixo, gerado pelo workflow do instalador no GitHub (tag `v0.4.3`). O servidor não mudou. Quem está na 0.4.2 recebe o aviso de atualização no app.
 
 **Entre a 0.4.2 e a 0.4.3 (07–08/11/2026):**
