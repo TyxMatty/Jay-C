@@ -88,7 +88,7 @@ Na lista, a sala com senha mostra o cadeado e pede a senha; a invisível entra p
 
 ## Fase 2: canais de texto
 
-### [ ] T6: Canais de texto no servidor, com histórico
+### [x] T6: Canais de texto no servidor, com histórico
 Canais de texto por servidor: listar, criar e apagar (admin), mensagens ao vivo para quem está na sessão de servidor e as últimas 500 mensagens de cada canal guardadas.
 
 **Critérios:**

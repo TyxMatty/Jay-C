@@ -683,5 +683,59 @@ describe('server session: the room list (Jay-C 0.5)', () => {
     assert.equal(open.msg.room, 'geral', 'a room without a password needs none');
     open.client.close();
   });
+
 });
 
+describe('text channels (Jay-C 0.5)', () => {
+  let server;
+  let port;
+  let dataDir;
+
+  before(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'jayc-channels-srv-'));
+    server = startServer({ ...baseConfig, dataDir, adminKey: 'chave-do-host' }, { log: () => {} });
+    port = await server.ready;
+  });
+
+  after(async () => {
+    await server.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  const watcher = async () => {
+    const client = connect(port);
+    await client.open();
+    client.send({ type: 'hello', name: 'Wanda' });
+    return { client, state: await client.next('server-state') };
+  };
+
+  test('text channels: the admin makes one, messages reach everyone on the server, history pages back', async () => {
+    const { client: admin } = await watcher();
+    admin.send({ type: 'admin', key: 'chave-do-host' });
+    await admin.next('admin');
+    await admin.next('server-state');
+    const { client: w } = await watcher();
+    assert.equal((await admin.request('channel-create', { name: 'papo' })).ok, true);
+    assert.deepEqual((await w.next('server-state')).channels, [{ name: 'papo', lastId: 0 }]);
+    await admin.next('server-state');
+
+    w.send({ type: 'channel-send', channel: 'papo', text: '  oi\npessoal  ' });
+    const got = await admin.next('channel-message');
+    assert.equal(got.channel, 'papo');
+    assert.deepEqual({ ...got.message, at: 0 }, { id: 1, at: 0, name: 'Wanda', text: 'oi\npessoal' });
+    assert.equal((await w.next('channel-message')).message.id, 1, 'the sender gets it too');
+
+    w.send({ type: 'channel-send', channel: 'nada', text: 'x' });
+    assert.deepEqual(await w.next('error'), { type: 'error', code: 'unknown-channel', ref: 'channel-send' });
+    const outsider = connect(port);
+    await outsider.open();
+    outsider.send({ type: 'channel-send', channel: 'papo', text: 'x' });
+    assert.deepEqual(await outsider.next('error'), { type: 'error', code: 'not-in-server', ref: 'channel-send' });
+
+    const page = await w.request('channel-history', { channel: 'papo' });
+    assert.deepEqual(page.data.messages.map((m) => m.text), ['oi\npessoal']);
+    assert.deepEqual((await w.request('channel-history', { channel: 'papo', before: 1 })).data.messages, []);
+    assert.equal((await outsider.request('channel-history', { channel: 'papo' })).error, 'not-in-server');
+    for (const c of [admin, w, outsider]) c.close();
+  });
+});

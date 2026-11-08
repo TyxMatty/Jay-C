@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { RoomRegistry, describePeer } from './rooms.js';
 import { Directory, ROOM_RE, checkPassword } from './directory.js';
+import { Channels } from './channels.js';
 import { TokenBucket } from './rate-limit.js';
 import { loadConfig } from './config.js';
 import { Sfu, resolveAnnouncedAddress } from './sfu.js';
@@ -16,8 +17,15 @@ const MAX_PREVIEW_LENGTH = 48_000;
 // Raster images only (an SVG can carry scripts), inline only (a remote URL would track viewers).
 const AVATAR_RE = /^data:image\/(?:webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
 
-/** The host's changes to the fixed rooms (Jay-C 0.5): request type -> Directory.change kind. */
-const ADMIN_REQUESTS = { 'room-create': 'create', 'room-edit': 'edit', 'room-delete': 'delete' };
+/** The host's changes (Jay-C 0.5): request type -> [what it changes, the change]. */
+const ADMIN_REQUESTS = {
+  'room-create': ['rooms', 'create'],
+  'room-edit': ['rooms', 'edit'],
+  'room-delete': ['rooms', 'delete'],
+  'channel-create': ['channels', 'create'],
+  'channel-edit': ['channels', 'edit'],
+  'channel-delete': ['channels', 'delete'],
+};
 
 /** Compares two secrets in constant time (hashing first evens out their lengths). */
 const sameSecret = (a, b) => timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
@@ -97,6 +105,7 @@ function cleanImage(value, maxLength = MAX_AVATAR_LENGTH) {
 export function startServer(config, { log = defaultLog } = {}) {
   const registry = new RoomRegistry({ maxPeersPerRoom: config.maxPeersPerRoom });
   const directory = new Directory({ dataDir: config.dataDir ?? null, log });
+  const channels = new Channels({ dataDir: config.dataDir ?? null, log });
   /** Connections that said `hello`: they get the room list and its changes (Jay-C 0.5). */
   const watchers = new Set();
   /** Wrong admin keys per IP: 5 tries, then one every 10 s. */
@@ -131,6 +140,7 @@ export function startServer(config, { log = defaultLog } = {}) {
   const stateFor = (peer) => ({
     type: 'server-state',
     rooms: (peer.admin ? directory.all() : directory.listed()).map((room) => describeRoom(room.name)),
+    channels: channels.all(),
     features,
     ...(peer.admin ? { admin: true } : {}),
   });
@@ -270,6 +280,10 @@ export function startServer(config, { log = defaultLog } = {}) {
       const avatar = cleanImage(msg.avatar);
       const color = cleanColor(msg.color);
       if (!name || avatar === undefined || color === undefined) return fail('bad-message', 'hello');
+      // Shown on their channel messages (a call they join later sends its own).
+      peer.name = name;
+      peer.avatar = avatar;
+      peer.color = color;
       watchers.add(peer);
       peer.send(stateFor(peer));
     }
@@ -293,8 +307,9 @@ export function startServer(config, { log = defaultLog } = {}) {
       const data = msg.data && typeof msg.data === 'object' ? msg.data : {};
       // A room people are in keeps its name: their call runs under it.
       if (msg.type === 'room-edit' && data.newName !== undefined && data.newName !== data.name && registry.rooms.has(data.name)) return respond('room-in-use');
-      const error = directory.change(ADMIN_REQUESTS[msg.type], data);
-      if (error === 'not-saved') log('error', 'rooms.json could not be saved', { file: directory.file });
+      const [target, kind] = ADMIN_REQUESTS[msg.type];
+      const error = (target === 'rooms' ? directory : channels).change(kind, data);
+      if (error === 'not-saved') log('error', `${target} could not be saved`, { dataDir: config.dataDir });
       if (!error) listChanged();
       respond(error);
     }
@@ -362,6 +377,22 @@ export function startServer(config, { log = defaultLog } = {}) {
         for (const other of registry.othersInRoom(peer)) other.send({ type: 'chat', id: peer.id, name: peer.name, text });
       } else if (msg.type === 'hello') {
         hello(msg);
+      } else if (msg.type === 'channel-send') {
+        // A message in a text channel (Jay-C 0.5): kept (the last 500), and everyone on the server gets it.
+        if (!watchers.has(peer)) return fail('not-in-server', 'channel-send');
+        if (!chatBucket.take()) return fail('rate-limited', 'channel-send');
+        if (typeof msg.channel !== 'string' || !channels.has(msg.channel)) return fail('unknown-channel', 'channel-send');
+        const text = cleanChat(msg.text);
+        if (text === null) return fail('bad-message', 'channel-send');
+        const message = channels.post(msg.channel, { author: peer.name, color: peer.color, text });
+        for (const watcher of watchers) watcher.send({ type: 'channel-message', channel: msg.channel, message });
+      } else if (msg.type === 'channel-history' && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
+        // A page of a channel's messages, older than `before` (the newest without it).
+        const respond = (body) => peer.send({ type: 'response', id: msg.id, ...body });
+        const { channel, before } = msg.data && typeof msg.data === 'object' ? msg.data : {};
+        if (!watchers.has(peer)) return respond({ ok: false, error: 'not-in-server' });
+        if (typeof channel !== 'string' || !channels.has(channel)) return respond({ ok: false, error: 'unknown-channel' });
+        respond({ ok: true, data: { messages: channels.history(channel, before) } });
       } else if (msg.type === 'admin') {
         admin(msg);
       } else if (Object.hasOwn(ADMIN_REQUESTS, msg.type) && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
@@ -410,13 +441,14 @@ export function startServer(config, { log = defaultLog } = {}) {
 
   async function close() {
     clearInterval(heartbeat);
+    channels.flushAll();
     for (const ws of wss.clients) ws.close(1001, 'server shutting down');
     await new Promise((resolve) => wss.close(resolve));
     if (httpServer.listening) await new Promise((resolve) => httpServer.close(resolve));
     (await sfuReady.catch(() => null))?.close();
   }
 
-  return { ready, close, registry, wss, sfu: sfuReady };
+  return { ready, close, registry, wss, sfu: sfuReady, channels };
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
