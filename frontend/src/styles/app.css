@@ -2256,6 +2256,60 @@ fieldset > h3 {
   display: none;
 }
 
+/* Someone's camera, focused (T12.B): it moves among the streams and takes the stage like one. */
+.stage-screens > .tile:not(.tile-screen) {
+  aspect-ratio: auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.stage-screens[data-focus] > .tile.is-focused {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.stage-cameras .tile:not(.tile-local),
+.stage-screens > .tile:not(.tile-screen) {
+  cursor: pointer;
+}
+
+/* Zoom (ui/tile-zoom.js): while it's possible, touches pinch and drag here instead of scrolling. */
+.tile.can-zoom {
+  touch-action: none;
+}
+
+.tile.is-zoomed {
+  cursor: grab;
+}
+
+.tile.is-zoomed video {
+  will-change: transform;
+}
+
+.tile-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* A camera in full screen too (double-click, or the menu). */
+.tile:fullscreen {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+}
+
 .tile.tile-screen {
   cursor: pointer;
 }
@@ -2268,15 +2322,15 @@ fieldset > h3 {
   background: #000;
 }
 
-.tile-screen:fullscreen,
-.tile.tile-screen.is-fullscreen {
+.tile:fullscreen,
+.tile.is-fullscreen {
   border: 0;
   border-radius: 0;
 }
 
 /* Android: the WebView has no element full screen, so the stream is pinned over the page
    (core/fullscreen.js) while the app hides the system bars. */
-.tile.tile-screen.is-fullscreen {
+.tile.is-fullscreen {
   position: fixed;
   inset: 0;
   z-index: 1000;

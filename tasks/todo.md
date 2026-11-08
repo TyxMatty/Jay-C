@@ -212,7 +212,30 @@ Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda 
 
 **Depende de:** chat da call (já existe); para os canais, T7 · **Arquivos:** `signaling-server/src/gifs.js` (novo), `server.js`, `ui/gif-picker.js` (novo), `ui/chat-panel.js`, `ui/markdown.js`, `tauri.conf.json` · **Tamanho:** M
 
-#### [ ] T12.B: Focar a câmera de alguém e dar zoom
+#### [x] T12.B: Focar a câmera de alguém e dar zoom
+**Feito (08/11/2026):**
+- **Foco:** o estado de foco da call (`focusedScreen`) aceita `cam:<id>`. Por ser um estado só, câmera e live nunca ficam em foco juntas. A câmera em foco vai para `stage-screens` e o palco passa a `presenting`. Ao sair do foco, ela volta ao lugar entre as câmeras, com `play()` (mover um `<video>` o pausa).
+- **Como focar:** clique ou Enter no card. O duplo clique abre a tela cheia, como na live, e a câmera também ganhou a tela cheia.
+- **Zoom:** só em foco ou em tela cheia, e vale também para a live de alguém.
+  - A conta fica em `core/zoom.js`, com testes: de 1× a 4×, em volta do ponto, e a imagem nunca sai do quadro.
+  - Os gestos ficam em `ui/tile-zoom.js`: roda, arrastar (que não conta como clique), pinça, um dedo, toque duplo para 1×, `+`, `-` e `0`, e um selo "2,0×" com `aria-live`.
+  - No menu do botão direito: "Destacar" fora do foco; "Ampliar", "Reduzir", "Zoom normal" e "Tela cheia" no foco.
+  - Com o zoom possível, o card fica `data-no-swipe` e `touch-action: none`.
+  - No toque, um toque com zoom não tira o foco: é a primeira metade do toque duplo.
+- **Medido no app de dev com um bot (câmera de canvas com linhas), com eventos reais pelo CDP:**
+  - **desktop:**
+    - a roda fora do foco não faz nada; o clique foca;
+    - a roda à direita dá 1,8× em volta do cursor; o arraste de 80 px move 80 px e mantém o foco;
+    - `0` volta a 1×, e `+` duas vezes dá 1,6×; o "Zoom normal" do menu funciona;
+    - o clique tira do foco e zera o zoom, e o vídeo segue tocando depois de mudar de lugar duas vezes;
+  - **com uma live:** focar a live tira o foco e o zoom da câmera, e o contrário também;
+  - **toque a 375 px:**
+    - a pinça vai a 4×;
+    - um dedo move a imagem sem abrir a gaveta;
+    - o toque duplo volta a 1× e mantém o foco (a primeira versão também tirava o foco: corrigido);
+    - um toque a 1× tira do foco.
+- **Não testado num celular de verdade.**
+
 Ampliar a câmera (ou a live) de outra pessoa só para si, sem mudar o que ela manda. **Primeiro a câmera entra em foco, como uma live já entra** (pedido do usuário em 08/11/2026): clicar no card da câmera a deixa grande no palco, com os outros cards ao lado, e clicar de novo volta à grade. O zoom só existe com a câmera em foco.
 
 **Critérios:**

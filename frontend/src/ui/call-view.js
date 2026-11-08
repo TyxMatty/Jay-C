@@ -7,6 +7,7 @@ import { fitGrid } from '../core/grid-fit.js';
 import { fullscreenElement, toggleFullscreen as toggleElementFullscreen, exitFullscreen } from '../core/fullscreen.js';
 import { createControlBar } from './control-bar.js';
 import { createAudioMenu } from './audio-menu.js';
+import { attachZoom } from './tile-zoom.js';
 import { createChatPanel } from './chat-panel.js';
 import { createMixer } from '../core/playback.js';
 import { cueAllowed } from '../core/sounds.js';
@@ -51,7 +52,7 @@ function hasLiveVideo(stream) {
  *   getColor: their profile color (the tile's background while the camera is off);
  *   onWatch: the "Watch stream" button on their tile while they share and we aren't watching.
  */
-function createTile({ name, stream, local, getMedia, getAvatar, getColor = () => null, onWatch }) {
+function createTile({ name, stream, local, getMedia, getAvatar, getColor = () => null, onWatch, onFocus }) {
   // Always muted: remote sound plays through the mixer (core/playback.js).
   const video = h('video', { autoplay: true, playsinline: true, muted: true, srcObject: stream });
   const avatar = h('div', { class: 'tile-avatar', 'aria-hidden': 'true' }, initials(name));
@@ -71,6 +72,23 @@ function createTile({ name, stream, local, getMedia, getAvatar, getColor = () =>
 
   const videoOn = () => (getMedia()?.video ?? true) && hasLiveVideo(stream);
 
+  // Someone else's camera focuses like a stream (click or Enter; a double-click's two clicks cancel
+  // out, then it goes full screen), and only then zooms in (T12.B).
+  const toggleFullscreen = () => toggleElementFullscreen(el);
+  const zoom = local ? null : attachZoom(el, video, { enabled: () => el.dataset.video === 'on' && (el.classList.contains('is-focused') || fullscreenElement() === el) });
+  if (!local && onFocus) {
+    el.title = t('Click to focus · double-click for fullscreen');
+    el.addEventListener('click', (e) => !e.target.closest('button') && onFocus());
+    el.addEventListener('keydown', (e) => {
+      if (e.target === el && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        onFocus();
+      }
+    });
+    el.addEventListener('dblclick', (e) => !e.target.closest('button') && !zoom.touch && toggleFullscreen());
+    el.addEventListener('fullscreenchange', () => zoom.sync());
+  }
+
   let shownName = name;
   let shownAvatar;
   /** The profile picture when there is one, else the initials, in a circle on their profile color. */
@@ -85,9 +103,16 @@ function createTile({ name, stream, local, getMedia, getAvatar, getColor = () =>
 
   const tile = {
     el,
+    zoom,
+    toggleFullscreen,
+    /** After the tile moved in the page (moving a <video> pauses it). */
+    play() {
+      video.play().catch(() => {});
+    },
     refresh() {
       renderAvatar();
       el.dataset.video = videoOn() ? 'on' : 'off';
+      zoom?.sync(); // camera off: no zoom
       mutedIcon.hidden = getMedia()?.audio !== false;
       // Re-attach so newly added tracks render everywhere (WebView2 and WebKit).
       if (video.srcObject !== stream || video.dataset.tracks !== String(stream.getTracks().length)) {
@@ -99,6 +124,7 @@ function createTile({ name, stream, local, getMedia, getAvatar, getColor = () =>
       for (const track of stream.getVideoTracks()) {
         track.onmute = track.onunmute = track.onended = () => {
           el.dataset.video = videoOn() ? 'on' : 'off';
+          zoom?.sync();
         };
       }
     },
@@ -167,6 +193,8 @@ function createScreenTile({ name, stream, local, onStop, onToggleMute, onFocus, 
         ]),
   );
   el.tabIndex = 0;
+  // Someone's stream zooms in while focused or in full screen (T12.B), like a camera.
+  const zoom = local ? null : attachZoom(el, video, { enabled: () => el.classList.contains('is-focused') || fullscreenElement() === el });
   // Focus this stream (a double-click's two clicks cancel out, then it goes fullscreen).
   el.addEventListener('click', (e) => !e.target.closest('button') && onFocus?.());
   el.addEventListener('keydown', (e) => {
@@ -176,9 +204,10 @@ function createScreenTile({ name, stream, local, onStop, onToggleMute, onFocus, 
     }
   });
   if (!local) {
-    el.addEventListener('dblclick', (e) => !e.target.closest('button') && toggleFullscreen());
+    el.addEventListener('dblclick', (e) => !e.target.closest('button') && !zoom.touch && toggleFullscreen());
     // Fires on this element when it enters or leaves full screen (Esc included).
     el.addEventListener('fullscreenchange', () => {
+      zoom.sync();
       const on = fullscreenElement() === el;
       fullscreenButton.innerHTML = on ? icons.minimize : icons.maximize;
       fullscreenButton.setAttribute('aria-label', on ? t('Exit full screen') : t('Full screen'));
@@ -187,6 +216,7 @@ function createScreenTile({ name, stream, local, onStop, onToggleMute, onFocus, 
   }
   return {
     el,
+    zoom,
     toggleFullscreen,
     /** After the tile moved in the page (moving a <video> pauses it). */
     play() {
@@ -363,8 +393,12 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
   });
   cameras.append(localTile.el);
 
-  /** The stream shown big: a participant id, 'local' (our own), or null (all streams share the stage). */
+  /** What's shown big: a participant's stream (their id), 'local' (our own stream), `cam:<id>` (their
+   * camera, T12.B), or null (all streams share the stage). One at a time, so a camera and a stream
+   * are never focused together. */
   let focusedScreen = null;
+  /** The camera tile moved onto the stage while focused, and where it was among the cameras. */
+  let stagedCamera = null;
   const toggleFocus = (id) => {
     const apply = () => {
       focusedScreen = focusedScreen === id ? null : id;
@@ -373,6 +407,20 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
     // Tiles glide to their new places (each screen tile has its own view-transition-name).
     if (document.startViewTransition && document.documentElement.dataset.motion === 'full') document.startViewTransition(apply);
     else apply();
+  };
+
+  /** Right-click menu actions for a camera or stream: focus it first, then zoom (T12.B), full screen. */
+  const zoomActions = (tile, focusKey) => {
+    const full = fullscreenElement() === tile.el;
+    const focused = full || tile.el.classList.contains('is-focused');
+    const fullscreen = { label: full ? t('Exit full screen') : t('Full screen'), icon: full ? icons.minimize : icons.maximize, onClick: () => tile.toggleFullscreen() };
+    if (!focused) return [{ label: t('Focus'), icon: icons.zoomIn, onClick: () => toggleFocus(focusKey) }, fullscreen];
+    return [
+      { label: t('Zoom in'), icon: icons.zoomIn, onClick: () => tile.zoom.zoomIn() },
+      { label: t('Zoom out'), icon: icons.zoomOut, onClick: () => tile.zoom.zoomOut() },
+      ...(tile.zoom.zoomed ? [{ label: t('Normal zoom'), icon: icons.zoomOut, onClick: () => tile.zoom.reset() }] : []),
+      fullscreen,
+    ];
   };
 
   /** Alone or 3+ people: the column count (and width) that makes the biggest tiles in the stage's actual size. */
@@ -386,7 +434,29 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
 
   const layout = () => {
     const remotes = tiles.size;
-    if (focusedScreen === 'local' ? !localScreenTile : focusedScreen && !screenTiles.has(focusedScreen)) focusedScreen = null;
+    const focusedCamera = focusedScreen?.startsWith('cam:') ? tiles.get(focusedScreen.slice(4)) ?? null : null;
+    if (focusedScreen?.startsWith('cam:') ? !focusedCamera : focusedScreen === 'local' ? !localScreenTile : focusedScreen && !screenTiles.has(focusedScreen)) {
+      focusedScreen = null;
+    }
+    // A focused camera takes the stage like a stream (it moves among the streams), and goes back
+    // to its place among the cameras when the focus ends.
+    if (stagedCamera && stagedCamera.tile !== focusedCamera) {
+      const { tile, before } = stagedCamera;
+      tile.el.classList.remove('is-focused');
+      if (tile.el.isConnected) {
+        cameras.insertBefore(tile.el, before?.parentNode === cameras ? before : localTile.el);
+        tile.play();
+      }
+      tile.zoom?.sync();
+      stagedCamera = null;
+    }
+    if (focusedCamera && !stagedCamera) {
+      stagedCamera = { tile: focusedCamera, before: focusedCamera.el.nextSibling };
+      screens.append(focusedCamera.el);
+      focusedCamera.el.classList.add('is-focused');
+      focusedCamera.play();
+      focusedCamera.zoom?.sync();
+    }
     // Our own preview floats in a corner, or joins the streams on the stage when focused.
     if (localScreenTile) {
       const onStage = focusedScreen === 'local';
@@ -398,7 +468,10 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
       localScreenTile.el.classList.toggle('tile-screen-local', !onStage);
       localScreenTile.el.classList.toggle('is-focused', onStage);
     }
-    for (const [id, tile] of screenTiles) tile.el.classList.toggle('is-focused', id === focusedScreen);
+    for (const [id, tile] of screenTiles) {
+      tile.el.classList.toggle('is-focused', id === focusedScreen);
+      tile.zoom?.sync();
+    }
     // Several streams and one focused: it takes the stage, the others make a column beside it.
     const streams = screens.children.length;
     if (focusedScreen && streams > 1) {
@@ -445,14 +518,13 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
         onPip: pip ? () => popOut(participant.screenStream.getVideoTracks()[0]) : null,
       });
       tile.el.addEventListener('contextmenu', (e) => {
-        const full = fullscreenElement() === tile.el;
         audioMenu.open(e, {
           title: t("{name}'s stream", { name: participant.name }),
           muteLabel: t('Mute stream'),
           get: () => mixer.get(streamKey(participant)),
           set: (patch) => tile.setMuted(mixer.set(streamKey(participant), patch).muted),
           actions: [
-            { label: full ? t('Exit full screen') : t('Full screen'), icon: full ? icons.minimize : icons.maximize, onClick: () => tile.toggleFullscreen() },
+            ...zoomActions(tile, participant.id),
             ...(pip ? [{ label: t('Pop out video'), icon: icons.pip, onClick: () => popOut(participant.screenStream.getVideoTracks()[0]) }] : []),
           ],
         });
@@ -477,13 +549,16 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
         getAvatar: () => participant.avatar,
         getColor: () => participant.color,
         onWatch: () => call.watchStream(participant.id, true),
+        onFocus: () => toggleFocus(`cam:${participant.id}`),
       });
+      tile.el.style.viewTransitionName = `camera-${participant.id}`;
       tile.el.addEventListener('contextmenu', (e) =>
         audioMenu.open(e, {
           title: participant.name,
           muteLabel: t('Mute {name} for me', { name: participant.name }),
           get: () => mixer.get(voiceKey(participant)),
           set: (patch) => mixer.set(voiceKey(participant), patch),
+          actions: tile.el.dataset.video === 'on' ? zoomActions(tile, `cam:${participant.id}`) : [],
         }),
       );
       tiles.set(participant.id, tile);

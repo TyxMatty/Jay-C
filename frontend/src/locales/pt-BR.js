@@ -414,4 +414,8 @@ export default {
   "Downloading… The installer opens next, and Jay-C closes.": "Baixando… O instalador abre em seguida, e o Jay-C fecha.",
   "In a call in #{room}": "Em call em #{room}",
   "Tap to go back to the call.": "Toque para voltar pra call.",
+  "Focus": "Destacar",
+  "Zoom in": "Ampliar",
+  "Zoom out": "Reduzir",
+  "Normal zoom": "Zoom normal",
 };
