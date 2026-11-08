@@ -115,8 +115,10 @@ Abrir um canal de texto mostra o histórico e as mensagens novas; o campo de env
 
 **Depende de:** T6 · **Arquivos:** `ui/text-channel.js` (novo), `ui/chat-panel.js` (extrair o que for comum), `core/server-session.js`, `core/i18n.js` · **Tamanho:** M
 
-## Checkpoint 2
-- [ ] Mensagens ao vivo e histórico depois de reiniciar servidor e app; revisão com o usuário.
+## Checkpoint 2 (08/11/2026)
+- [x] Mensagens ao vivo e histórico depois de reiniciar o servidor (encerrado à força) e o app: testado no app de dev com um bot.
+- [x] O chat da call igual a antes (a lista de mensagens agora é comum).
+- [ ] Revisão com o usuário.
 
 ## Fase 3: layout estilo Discord
 
