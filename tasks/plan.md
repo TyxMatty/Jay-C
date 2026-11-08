@@ -121,7 +121,7 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 ### Fase 4: GIFs, imagens e vídeos
 - **T12** GIFs, zoom na câmera e o celular, em partes (pedido do usuário em 08/11/2026, B a G):
   - A: GIFs do Tenor nos chats (M);
-  - B: zoom na câmera ou na live de alguém, só para si (M);
+  - B: focar a câmera de alguém (como focar uma live) e, em foco, dar zoom só para si (M);
   - C: deslizar abre as gavetas no celular, como no Discord: para a direita, a da esquerda; para a esquerda, a de membros (S);
   - D: botões sem seleção de texto no celular (S);
   - E: retorno de toque, sem o realce azul do Android (S);

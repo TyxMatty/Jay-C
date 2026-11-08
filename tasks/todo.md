@@ -212,12 +212,13 @@ Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda 
 
 **Depende de:** chat da call (já existe); para os canais, T7 · **Arquivos:** `signaling-server/src/gifs.js` (novo), `server.js`, `ui/gif-picker.js` (novo), `ui/chat-panel.js`, `ui/markdown.js`, `tauri.conf.json` · **Tamanho:** M
 
-#### [ ] T12.B: Zoom na câmera de alguém
-Ampliar a câmera (ou a live) de outra pessoa só para si, sem mudar o que ela manda.
+#### [ ] T12.B: Focar a câmera de alguém e dar zoom
+Ampliar a câmera (ou a live) de outra pessoa só para si, sem mudar o que ela manda. **Primeiro a câmera entra em foco, como uma live já entra** (pedido do usuário em 08/11/2026): clicar no card da câmera a deixa grande no palco, com os outros cards ao lado, e clicar de novo volta à grade. O zoom só existe com a câmera em foco.
 
 **Critérios:**
-- [ ] Desktop: roda do mouse sobre o card (ou + e − no menu do botão direito) amplia e reduz; arrastar move a parte ampliada; duplo clique ou "Zoom normal" volta.
-- [ ] Celular: pinça com dois dedos amplia e arrasta; dois toques voltam.
+- [ ] Focar uma câmera funciona como focar uma live (o mesmo layout, o clique e o Enter com o card em foco de teclado, a View Transition com as animações ligadas). Uma live e uma câmera não ficam em foco ao mesmo tempo: focar uma tira o foco da outra.
+- [ ] Desktop, com a câmera em foco: roda do mouse (ou + e − no menu do botão direito) amplia e reduz; arrastar move a parte ampliada; "Zoom normal" no menu (ou a tecla 0) volta. O duplo clique fica como na live: tela cheia, onde o zoom também vale. Sair do foco volta o zoom a 1×.
+- [ ] Celular: tocar no card foca; com o foco, pinça com dois dedos amplia e arrasta; dois toques voltam ao 1×.
 - [ ] Vale para um card por vez e não muda o tamanho do card; some quando a câmera desliga ou a pessoa sai.
 - [ ] Teclado: + e − com o card em foco, e o nível do zoom anunciado ao leitor de tela.
 
