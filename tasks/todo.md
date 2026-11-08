@@ -176,8 +176,21 @@ Painel de membros do servidor (online por sala) à direita; no Android (tela est
 
 **Depende de:** T10 · **Arquivos:** `ui/members-panel.js` (novo), `ui/app-shell.js`, `styles/` · **Tamanho:** M
 
-## Checkpoint 3
-- [ ] Fluxo completo no desktop e no emulador; contraste; live sem regressão; revisão com o usuário.
+## Checkpoint 3 (08/11/2026, no notebook: RTX 3050 + Intel UHD, Samsung SM-S711B pelo cabo)
+- [x] **Desktop** (app de dev, perfil de teste, servidor de teste com 2 salas, 2 canais e 30 mensagens, um bot no painel do navegador com câmera e live): #papo com o histórico → mensagem → call "geral" → assistir a live do bot → #papo durante a call → mensagem → voltar pelo painel de voz.
+  - A call fica no DOM com `hidden`, e os consumers são os mesmos do começo ao fim.
+  - Com a call escondida, a live do bot seguiu: 262 → 668 pacotes, `<video>` sem pausar, quadros subindo.
+  - **Falar lendo:** o mic real deste PC está mudo no Windows (−141 dBFS no `mic_open`). No lugar, o Jay-A falso (`fake_jay_a --pipe jay-a-link-cp3`, com `JAYC_JAY_A_PIPE` e um `JAYC_JAY_A_EXE` inexistente, para não tocar no Jay-A do usuário) mandou um tom de 440 Hz. O bot recebeu 50 pacotes/s e 32 kbps com a call visível e também escondida.
+- [x] **Celular** (no lugar do emulador, a pedido do usuário; `android-dev.ps1 --host <IP do Wi-Fi>`): o mesmo fluxo pelas gavetas.
+  - Escolher um canal fecha a gaveta, e a call fica no DOM.
+  - Com a call escondida, a live do bot seguiu: 99 → 249 quadros, sem pausar. Sem rolagem lateral.
+  - O mic do celular chega ao bot igual com a call visível e escondida (50 pacotes/s, 27–30 kbps).
+  - Uma vez, logo depois de clicar em "Assistir live", o consumer de áudio do bot foi trocado (renovação do `catch-up.js`). Não se repetiu em 36 s visível, escondida e visível de novo, com o log interceptado e a página sempre `visible`. A causa não foi confirmada.
+- [x] **Contraste:** nenhuma falha.
+  - Desktop: 6 combos × 3 telas (#papo com a lista, o painel de voz e os membros: 54 textos; a call: 28; Chamada direta: 37).
+  - Celular, Calmo escuro: #papo, gaveta de canais, gaveta de membros e call.
+- [ ] **Live sem regressão:** a live do bot (navegador) toca para o app e para o celular. **A live nativa não abre neste notebook** (ver "Bugs": codificador H.264).
+- [ ] Revisão com o usuário.
 
 ## Fase 4: GIFs, imagens e vídeos
 
@@ -222,6 +235,8 @@ Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no cam
 - [ ] Instalador testado numa máquina ou conta de teste; app 0.4.3 contra o servidor 0.5 e o contrário.
 
 ## Bugs para corrigir depois
+
+- [ ] **Live nativa não abre num notebook com duas placas (NVIDIA + Intel).** Visto em 08/11/2026 no notebook do usuário (RTX 3050 Laptop + Intel UHD, i5-13420H): `native live: H.264 encoder: Falha catastrófica (0x8000FFFF)`, e o app cai no seletor do sistema. Hipótese, não medida: o `create_device` (`native_live/mod.rs`) cria o D3D11 no adaptador padrão, e o `encoder.rs` pega o primeiro codificador H.264 de hardware da lista (`found[0]`) sem conferir se ele é do mesmo adaptador. Com dois codificadores, o `MFT_MESSAGE_SET_D3D_MANAGER` recebe um device de outra placa. Correção provável: escolher o codificador cujo `MFT_ENUM_ADAPTER_LUID` é o do adaptador do device, ou criar o device no adaptador do codificador. Antes, medir os LUIDs. A live nativa só tinha sido testada num PC com a NVIDIA sozinha.
 
 - [ ] **Android: fechar o PiP da live fecha o app inteiro** (visto pelo usuário em 08/11/2026, no Samsung SM-S711B com Android 16). Deveria só mandar o app para segundo plano, com a call seguindo. No logcat, ao fechar a mini-janela: `stopped(true)` na activity e `pipModeChanged active=false`. No modo dev, a página perdeu a conexão com o Vite e recarregou ao voltar, e a call caiu. Falta separar o que é do PiP e o que é só do Vite.
 - [ ] **Android: sair pelo Voltar derruba o processo ao fechar.** Visto 1 vez (08/11/2026, mesmo aparelho), com o Voltar no "Chamada direta", sem gaveta aberta: `FORTIFY: pthread_mutex_lock called on a destroyed mutex` no logcat, logo depois de a activity parar. Para quem usa, o app só fecha, mas é um crash nativo.
