@@ -131,8 +131,19 @@ select {
   height: 32px;
 }
 
+.brand-name {
+  white-space: nowrap;
+}
+
 .brand-name > span {
   color: var(--accent-text, var(--accent));
+}
+
+/* A phone's top bar also has the drawer buttons: the wolf alone is the brand there. */
+@media (max-width: 420px) {
+  .brand-name {
+    display: none;
+  }
 }
 
 /* ---------- Buttons ---------- */
@@ -1684,14 +1695,27 @@ fieldset > h3 {
   overflow-y: auto;
 }
 
-/* ---------- Shell (Jay-C 0.5): saved servers | the server's channels | the main area ---------- */
+/* ---------- Shell (Jay-C 0.5): saved servers | the server's channels | the main area | members ---------- */
 
 .shell {
+  position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: auto 248px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
+}
+
+/* The server column and the channel list: a drawer on phones. */
+.shell-nav {
+  display: flex;
+  min-height: 0;
+}
+
+/* The phone drawers' buttons and the dark area behind an open drawer. */
+.topbar-drawer,
+.shell-scrim {
+  display: none;
 }
 
 .server-rail,
@@ -1762,6 +1786,9 @@ fieldset > h3 {
 .shell-side {
   display: flex;
   flex-direction: column;
+  flex: none;
+  width: 248px;
+  min-width: 0;
   min-height: 0;
   border-right: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 85%, transparent);
@@ -1934,29 +1961,140 @@ fieldset > h3 {
   font-size: 18px;
 }
 
-/* Phones until the drawers (T11): servers in a row on top, then the channels, then the main area. */
+/* Who is in a call (ui/members-panel.js): a column when there's room, but not next to the call
+   (it shows everyone in it, and its chat opens on that side). */
+.shell-members {
+  display: none;
+  flex-direction: column;
+  width: 232px;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+}
+
+@media (min-width: 1100px) {
+  .shell:not([data-pane='call']) .shell-members {
+    display: flex;
+  }
+}
+
+.members-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.members-panel:focus {
+  outline: none;
+}
+
+.members-title {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.members-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+
+.members-body .hint {
+  margin: 0;
+}
+
+.members-room-name {
+  margin: 0 0 4px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.members-room .server-room-peers {
+  padding-left: 0;
+}
+
+/* Phones: the channels (with the servers) and the members are drawers over the main area, opened
+   from the top bar (ui/app-shell.js). Closed, they're hidden from focus and screen readers too. */
 @media (max-width: 599px) {
+  /* The closed drawers wait outside it, without making it scroll sideways. */
   .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: clip;
   }
 
-  .server-rail,
-  .server-rail-list {
-    flex-direction: row;
+  .topbar-drawer {
+    display: inline-grid;
   }
 
-  .server-rail {
-    padding: 8px 12px;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
+  .shell-nav,
+  .shell-members {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    max-width: calc(100% - 48px);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+    visibility: hidden;
+  }
+
+  .shell-nav {
+    left: 0;
+    transform: translateX(-100%);
+  }
+
+  .shell-members {
+    right: 0;
+    width: 280px;
+    border-left: 0;
+    transform: translateX(100%);
   }
 
   .shell-side {
-    max-height: 35vh;
+    flex-shrink: 1;
     border-right: 0;
-    border-bottom: 1px solid var(--border);
+  }
+
+  .shell[data-drawer='nav'] .shell-nav,
+  .shell[data-drawer='members'] .shell-members {
+    visibility: visible;
+    transform: none;
+  }
+
+  .shell[data-drawer] .shell-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 19;
+    background: var(--backdrop);
+  }
+
+  /* Slides in; hidden only once it has slid out. */
+  :root[data-motion='full'] .shell-nav,
+  :root[data-motion='full'] .shell-members {
+    transition: transform var(--dur) ease, visibility 0s linear var(--dur);
+  }
+
+  :root[data-motion='full'] .shell[data-drawer='nav'] .shell-nav,
+  :root[data-motion='full'] .shell[data-drawer='members'] .shell-members {
+    transition: transform var(--dur) ease, visibility 0s;
   }
 }
 

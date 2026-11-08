@@ -16,6 +16,8 @@ import { createChannelList } from './channel-list.js';
 import { createTextChannel } from './text-channel.js';
 import { createServerSettingsModal } from './server-settings-modal.js';
 import { createVoicePanel } from './voice-panel.js';
+import { createMembersPanel } from './members-panel.js';
+import { isAndroidApp } from '../core/activity-pip.js';
 import { ServerSession } from '../core/server-session.js';
 import { findServer, nameServer } from '../core/servers.js';
 import { addRecentRoom } from '../core/recent-rooms.js';
@@ -80,14 +82,57 @@ export function mountApp(root) {
   const openSettings = (focus) => settingsModal.open(focus);
   welcomeModal = createWelcomeModal({ openGuide, openSettings });
   // The shell (Jay-C 0.5): saved servers | the server's channels (and the voice panel) | the main
-  // area. A call shows in the main area; picking a channel hides it there, still mounted and playing
-  // (out of the page, its media elements would pause and the voices would go silent).
+  // area | who is in a call. A call shows in the main area; picking a channel hides it there, still
+  // mounted and playing (out of the page, its media elements would pause and the voices would go
+  // silent). On a phone the servers and channels, and the members, are drawers over the main area.
   const paneSlot = h('div', { class: 'shell-pane' });
   const main = h('div', { class: 'shell-main' }, paneSlot);
   const side = h('div', { class: 'shell-side' });
   const rail = createServerRail({ onAdd: () => openSettings('server') });
-  const shell = h('div', { class: 'shell' }, rail.element, side, main);
+  const nav = h('div', { class: 'shell-nav', id: 'shell-nav' }, rail.element, side);
+  const membersSlot = h('div', { class: 'shell-members', id: 'shell-members' });
+  const scrim = h('div', { class: 'shell-scrim', onClick: () => setDrawer(null) });
+  const shell = h('div', { class: 'shell' }, nav, main, membersSlot, scrim);
   const view = h('div', { class: 'view' }, shell);
+
+  // Phone drawers, opened from the top bar. Over the main area, which can't be reached meanwhile;
+  // Escape, the dark area or picking a channel closes them (Android's back button too).
+  const drawerButton = (which, label, icon) =>
+    h('button', {
+      type: 'button',
+      class: 'icon-btn topbar-drawer',
+      'aria-label': label,
+      title: label,
+      'aria-controls': `shell-${which}`,
+      'aria-expanded': 'false',
+      html: icon,
+      onClick: () => setDrawer(shell.dataset.drawer === which ? null : which),
+    });
+  const navButton = drawerButton('nav', t('Channels'), icons.menu);
+  const membersButton = drawerButton('members', t('Members'), icons.users);
+  function setDrawer(which, { fromHistory = false } = {}) {
+    const was = shell.dataset.drawer ?? null;
+    if (which === was) return;
+    if (which) shell.dataset.drawer = which;
+    else delete shell.dataset.drawer;
+    navButton.setAttribute('aria-expanded', String(which === 'nav'));
+    membersButton.setAttribute('aria-expanded', String(which === 'members'));
+    main.inert = Boolean(which);
+    if (isAndroidApp() && !was) history.pushState({ jaycDrawer: true }, '');
+    if (isAndroidApp() && !which && !fromHistory && history.state?.jaycDrawer) history.back();
+    if (which === 'nav') (nav.querySelector('.channel-list [aria-current="true"]') ?? nav.querySelector('button'))?.focus();
+    else if (which === 'members') membersSlot.firstElementChild?.focus();
+    else if (nav.contains(document.activeElement) || membersSlot.contains(document.activeElement) || document.activeElement === document.body) {
+      (was === 'nav' ? navButton : membersButton).focus();
+    }
+  }
+  shell.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !shell.dataset.drawer) return;
+    event.preventDefault();
+    setDrawer(null);
+  });
+  matchMedia('(max-width: 599px)').addEventListener('change', () => setDrawer(null));
+  if (isAndroidApp()) addEventListener('popstate', () => setDrawer(null, { fromHistory: true }));
   let endCall = null;
   /** The call we're in: { call, url, view (ui/call-view.js), name } or null. */
   let voice = null;
@@ -109,6 +154,11 @@ export function mountApp(root) {
   let sessionUrl = null;
   let serverSettings = null;
   let channelList = null;
+  let members = null;
+  const refreshLists = () => {
+    channelList.refresh();
+    members.refresh();
+  };
   /** The main area: `what` = 'home' ("Direct call", with `home`), 'call' or `channel:<name>`. */
   let pane = null;
 
@@ -126,6 +176,7 @@ export function mountApp(root) {
 
   const showPane = (what) => {
     pane?.destroy();
+    shell.dataset.pane = what.split(':')[0];
     paneSlot.hidden = what === 'call';
     if (voice) voice.view.element.hidden = what !== 'call';
     if (what === 'call') {
@@ -159,6 +210,7 @@ export function mountApp(root) {
     session?.close();
     serverSettings?.destroy();
     channelList?.destroy();
+    members?.destroy();
     session = serverSettings = null;
     const { serverAddress, servers, adminKeys } = settings.get();
     const url = toWebSocketUrl(serverAddress);
@@ -183,21 +235,29 @@ export function mountApp(root) {
       url,
       title: findServer(servers, serverAddress)?.name ?? (serverAddress || t('No server')),
       getVoice,
-      onHome: () => showPane('home'),
+      onHome: () => go('home'),
       onRoom: (room) => {
+        setDrawer(null);
         // The call we're in: back to it. Another room: joined from "Direct call" (its password field
         // and errors), leaving this call first.
         if (voice?.url === url && voice.call.room === room.name) return showPane('call');
         if (pane.what !== 'home') showPane('home');
         pane.home.joinRoom(room.name);
       },
-      onChannel: (name) => showPane(`channel:${name}`),
+      onChannel: (name) => go(`channel:${name}`),
       onManage: () => serverSettings?.open(),
     });
     if (channelList) channelList.element.replaceWith(next.element);
     else side.prepend(next.element);
     channelList = next;
+    members = createMembersPanel({ session, url, getVoice });
+    membersSlot.replaceChildren(members.element);
     showPane('home');
+  };
+  /** Picked in a drawer: it closes. */
+  const go = (what) => {
+    setDrawer(null);
+    showPane(what);
   };
   settings.subscribe((next, prev) => next.serverAddress !== prev.serverAddress && openServer());
   // The list's connection stays open: a new name, picture or color reaches it once typing stops.
@@ -284,12 +344,12 @@ export function mountApp(root) {
       currentCall = call;
       const callView = createCallView(call, { displayName: name, onLeft: () => endCall?.(), openSettings });
       const server = findServer(settings.get().servers, settings.get().serverAddress)?.name ?? settings.get().serverAddress;
-      const voicePanel = createVoicePanel({ call, server, onOpen: () => showPane('call'), onMic: callView.toggleMic, onDeafen: callView.toggleDeafen });
+      const voicePanel = createVoicePanel({ call, server, onOpen: () => go('call'), onMic: callView.toggleMic, onDeafen: callView.toggleDeafen });
       // The list shows who is in the call and our mic and deafen: redrawn once per burst of changes.
       let refreshTimer = null;
       const refreshList = () => {
         clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => channelList.refresh(), 50);
+        refreshTimer = setTimeout(refreshLists, 50);
       };
       const callEvents = ['local-updated', 'participant-added', 'participant-removed', 'participant-updated'];
       for (const type of callEvents) call.addEventListener(type, refreshList);
@@ -304,7 +364,7 @@ export function mountApp(root) {
         callView.element.remove();
         voicePanel.destroy();
         if (pane.what === 'call') showPane('home');
-        else channelList.refresh();
+        refreshLists();
         if (reloadForLanguage && !switching) location.reload(); // not while joining another room
       };
       voice = { call, url, view: callView, name };
@@ -323,6 +383,7 @@ export function mountApp(root) {
   const header = h(
     'header',
     { class: 'topbar' },
+    navButton,
     h('div', { class: 'brand' }, h('span', { class: 'brand-mark wolf-mark', 'aria-hidden': 'true' }), h('span', { class: 'brand-name' }, 'Jay', h('span', {}, '-'), 'C')),
     createStatusPill(() => openSettings('server')),
     createThemeToggle(),
@@ -334,6 +395,7 @@ export function mountApp(root) {
       html: icons.settings,
       onClick: () => openSettings(),
     }),
+    membersButton,
   );
 
   root.replaceChildren(header, view, settingsModal.element, guideModal.element, welcomeModal.element);

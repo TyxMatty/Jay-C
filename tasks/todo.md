@@ -162,16 +162,17 @@ Com a call aberta, dá para ir a um canal de texto e a call continua. Um painel 
 
 **Depende de:** T9 · **Arquivos:** `ui/app-shell.js`, `ui/call-view.js` (só montagem), `ui/voice-panel.js` (novo) · **Tamanho:** M
 
-### [ ] T11: Membros à direita e celular
+### [x] T11: Membros à direita e celular
 Painel de membros do servidor (online por sala) à direita; no Android (tela estreita), as colunas viram gavetas.
 
 **Critérios:**
-- [ ] Membros online por sala; quem está em live aparece marcado.
-- [ ] A 375 px de largura: nada corta, nada rola na horizontal; as gavetas abrem por botão.
-- [ ] O PiP do Android continua funcionando.
+- [x] Membros online por sala; quem está em live aparece marcado.
+- [x] A 375 px de largura: nada corta, nada rola na horizontal; as gavetas abrem por botão.
+- [ ] O PiP do Android continua funcionando. **Não medido:** o emulador não roda neste PC e nenhum celular estava ligado.
 
 **Verificação:**
-- [ ] Manual no emulador (`scripts/android-dev.ps1`) e com `Emulation.setDeviceMetricsOverride`.
+- [ ] Manual no emulador (`scripts/android-dev.ps1`): não deu (ver acima).
+- [x] Com `Emulation.setDeviceMetricsOverride` (375 e 360 px), cliques e teclas reais pelo CDP; o Voltar do Android simulado com user agent de Android.
 
 **Depende de:** T10 · **Arquivos:** `ui/members-panel.js` (novo), `ui/app-shell.js`, `styles/` · **Tamanho:** M
 

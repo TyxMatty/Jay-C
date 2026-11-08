@@ -10,7 +10,8 @@ import { profileBackground } from '../core/profile-color.js';
 import { isUnread } from '../core/text-channels.js';
 import { t } from '../core/i18n.js';
 
-const memberRow = (peer) =>
+/** Someone in a call (this list and ui/members-panel.js). */
+export const memberRow = (peer) =>
   h(
     'li',
     { class: 'server-room-peer' },
@@ -26,6 +27,26 @@ const memberRow = (peer) =>
  * @typedef {{ url: string, room: string, selfId: string | null, me: object, others: object[] }} Voice
  *   me / others: { id, name, avatar, color, micOn, live, deafened? } (our own deafen only: it isn't shared).
  */
+
+/** The server's call rooms with the call we're in merged in: us as we are now (the server's copy
+ * lags a moment, and never has deafen), and a room out of its list (a DC, or a hidden one) too. */
+export function callRooms(session, voice, url) {
+  const rooms = session?.supported ? session.rooms : [];
+  const here = voice?.url === url ? voice : null;
+  if (!here) return rooms;
+  const self = (peer) => (peer.id === here.selfId ? here.me : peer);
+  return rooms.some((r) => r.name === here.room)
+    ? rooms.map((r) => (r.name === here.room ? { ...r, peers: r.peers.map(self) } : r))
+    : [{ name: here.room, locked: false, hidden: true, peers: [here.me, ...here.others] }, ...rooms];
+}
+
+/** Why the server's calls and channels don't show ('' when they do, or while it's still answering). */
+export function serverNote(session) {
+  if (!session) return t('Add a server to see its calls and text channels.');
+  if (session.supported === false) return t('This server is older than Jay-C 0.5: join rooms by name.');
+  if (!session.supported && serverStatus.get().state === 'offline') return t("Can't reach this server right now.");
+  return '';
+}
 
 /**
  * @param {{ session: import('../core/server-session.js').ServerSession | null, url: string | null,
@@ -58,23 +79,10 @@ export function createChannelList({ session, url, title, getVoice, onHome, onRoo
     const supported = Boolean(session?.supported);
     const voice = getVoice();
     const here = voice?.url === url ? voice : null;
-    let rooms = supported ? session.rooms : [];
-    if (here) {
-      // Us as we are now (the server's copy lags a moment, and never has deafen).
-      const self = (peer) => (peer.id === here.selfId ? here.me : peer);
-      rooms = rooms.some((r) => r.name === here.room)
-        ? rooms.map((r) => (r.name === here.room ? { ...r, peers: r.peers.map(self) } : r))
-        : [{ name: here.room, locked: false, hidden: true, peers: [here.me, ...here.others] }, ...rooms];
-    }
+    const rooms = callRooms(session, voice, url);
     const channels = supported ? session.channels : [];
     manageButton.hidden = !(supported && session.features.includes('server-admin'));
-    note.textContent = !session
-      ? t('Add a server to see its calls and text channels.')
-      : session.supported === false
-        ? t('This server is older than Jay-C 0.5: join rooms by name.')
-        : !supported && serverStatus.get().state === 'offline'
-          ? t("Can't reach this server right now.")
-          : '';
+    note.textContent = serverNote(session);
     homeButton.setAttribute('aria-current', String(selected === 'home'));
 
     roomsSection.hidden = rooms.length === 0;
