@@ -68,3 +68,7 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# A pacing cap for the native live (third_party/str0m/JAYC.md).
+[patch.crates-io]
+str0m = { path = "third_party/str0m" }

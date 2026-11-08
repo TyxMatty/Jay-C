@@ -50,9 +50,19 @@ const BUDGET_SHARE: f64 = 0.85;
 /// While the live sends under VIEWER_IDLE of that part (a still picture costs ~10 kbps), the
 /// estimate only follows what it sends: a viewer on 1.5 Mbps read ~330 kbps with the live at
 /// ~17 kbps, which kept a chat window at 720p for minutes (measured). Then a lower read is left
-/// out and a higher one (mediasoup's probes) still counts.
+/// out and a higher one (mediasoup's probes) still counts. Following the highest recent read
+/// instead fed on itself through the pace: the live sent less, read less, and stopped (measured).
+/// Keyframes don't count as sending: a new encoder's keyframe made a single low read count.
 const VIEWER_SHARE: f64 = 0.7;
 const VIEWER_IDLE: f64 = 0.5;
+/// str0m sends no faster than the highest viewer read of the last PACE_READS (~the slowest viewer's
+/// link: mediasoup's probes read 1.4-1.9 Mbps on a 1.5 Mbps one, measured), and never under
+/// PACE_MIN_KBPS. The server forwards each packet as it comes, and a chat scroll or keyframe sent at
+/// our own link's speed overflowed a viewer's router queue (1.5 Mbps, 200 ms: ~19 packets lost per
+/// message). Pacing by the viewers' part of the budget instead fed on itself (sending less, the
+/// reads fell, and the live stopped, measured); the floor keeps low reads from doing that.
+const PACE_READS: usize = 15; // 30 s
+const PACE_MIN_KBPS: u32 = 1000;
 const VIEWER_RISE: f64 = 0.15;
 const VIEWER_EVERY: Duration = Duration::from_secs(2);
 /// Nobody watching (or no estimate yet): no need to fill the uplink. A first viewer starts from
@@ -453,6 +463,7 @@ unsafe fn run(
         // The viewers' part of the budget, their last reads (VIEWER_EVERY) and when.
         let (mut viewer_budget, mut viewer_reads, mut viewer_read_at) = (IDLE_KBPS, Vec::new(), start);
         let mut viewer_bytes = 0u64; // encoded since the last read
+        let mut pace_reads = VecDeque::new(); // the last PACE_READS reads
         let mut limit: Option<u32> = None;
         // The encoder's bitrate: the budget under the step's cap, less while the send queue grows.
         let target = |budget: u32, s: Step, queue_ms: u64| {
@@ -507,8 +518,10 @@ unsafe fn run(
             for frame in enc.poll().map_err(err("H.264 encoder"))? {
                 encoded += 1;
                 bytes += frame.data.len() as u64;
-                viewer_bytes += frame.data.len() as u64;
                 let (data, key) = net.complete(&frame.data);
+                if !key {
+                    viewer_bytes += frame.data.len() as u64;
+                }
                 taps.show(&data, key, frame.time); // our own tile doesn't wait for the sound
                 held.push_back((Instant::now() + hold, data, (frame.time * 9 / 1000) as u64));
             }
@@ -607,8 +620,10 @@ unsafe fn run(
             if let Some(loss) = signals.loss {
                 limit = loss_limit(limit, budget.min(ladder.step().max_kbps), estimate_budget, loss);
             }
-            // The send queue in time at str0m's pace (1.1x the estimate), with hysteresis.
-            queue_ms = net.queued_bytes() * 8 / ((estimate_budget as f64 / BUDGET_SHARE * 1.1) as u64).max(1);
+            // The send queue in time at str0m's pace (1.1x the estimate, or the viewers' cap), with
+            // hysteresis.
+            let drain_kbps = (estimate_budget as f64 / BUDGET_SHARE * 1.1).min(net.pace_kbps().map_or(f64::INFINITY, |p| p as f64));
+            queue_ms = net.queued_bytes() * 8 / (drain_kbps as u64).max(1);
             skipping = if skipping { queue_ms > QUEUE_RESUME_MS } else { queue_ms > QUEUE_DROP_MS };
             // u32::MAX: no report from the server yet (an old one never sends them); 0: nobody watching.
             let viewers = taps.viewer_kbps.load(Ordering::Relaxed);
@@ -616,6 +631,7 @@ unsafe fn run(
                 viewer_budget = IDLE_KBPS;
                 viewer_reads.clear();
                 viewer_bytes = 0;
+                pace_reads.clear();
             } else if now - viewer_read_at >= VIEWER_EVERY {
                 viewer_read_at = now;
                 let wanted = if viewers == u32::MAX {
@@ -625,6 +641,10 @@ unsafe fn run(
                     if viewer_reads.len() > 3 {
                         viewer_reads.remove(0);
                     }
+                    pace_reads.push_back(viewers);
+                    if pace_reads.len() > PACE_READS {
+                        pace_reads.pop_front();
+                    }
                     let mut sorted = viewer_reads.clone();
                     sorted.sort_unstable();
                     (sorted[sorted.len() / 2] as f64 * VIEWER_SHARE) as u32
@@ -633,19 +653,25 @@ unsafe fn run(
                 viewer_bytes = 0;
                 viewer_budget = next_viewer_budget(viewer_budget, wanted, sent_kbps);
             }
-            budget = limit.map_or(estimate_budget, |l| l.min(estimate_budget)).min(viewer_budget);
+            // No report yet, or nobody watching: nobody's link to pace for.
+            let pace = pace_reads.iter().max().map(|&r: &u32| r.max(PACE_MIN_KBPS));
+            net.set_pace_kbps(pace);
+            // The encoder never makes more than the pace lets out (with the usual headroom).
+            let pace_budget = pace.map_or(u32::MAX, |p| (p as f64 * BUDGET_SHARE) as u32);
+            budget = limit.map_or(estimate_budget, |l| l.min(estimate_budget)).min(viewer_budget).min(pace_budget);
             // Under the step's minimum, the budget steps down by itself (ladder.update).
             let too_big = skip_score > SKIP_STEP_DOWN && budget >= ladder.step().min_kbps && now - stepped_at >= SKIP_SETTLE;
             let changed = if too_big { ladder.too_big(now) } else { ladder.update(budget, now) };
             if let Some(tier) = changed.or(quality_changed.then_some(ladder.tier)) {
                 // Which part held the budget, for logs from the field.
                 log::info!(
-                    "native live: step {tier}, budget {budget} kbps (estimate {estimate_budget}, viewers {}, loss limit {}){}",
+                    "native live: step {tier}, budget {budget} kbps (estimate {estimate_budget}, viewers {}, pace {}, loss limit {}){}",
                     match viewers {
                         u32::MAX => "?".to_string(),
                         0 => format!("none, {viewer_budget}"),
                         _ => viewer_budget.to_string(),
                     },
+                    pace.map_or("-".into(), |p| p.to_string()),
                     limit.map_or("-".into(), |l| l.to_string()),
                     if too_big { ", the send queue kept growing" } else { "" }
                 );

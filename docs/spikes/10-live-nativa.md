@@ -419,3 +419,25 @@ O texto do HUD em 1080p30 a ~3,7 Mbps ficou legível linha a linha, onde o 1080p
 - **O limitador de antes mentia:** no Windows, o `udp-shaper` soltava os pacotes em rajadas a cada ~15 ms. As sondagens curtas do mediasoup pareciam mais rápidas que o link: leituras de 5,9–6,4 Mbps num link de 4 Mbps, e uma subida para 1080p30 que congestionou (1 s parada, 2,2 s de atraso). Agora ele solta pacote a pacote (um núcleo ocupado), e as leituras ficam em até ~4,4 Mbps.
 - **Conteúdo de jogo, 4 Mbps, fila de 200 ms, limitador novo:** 1080p15 o tempo todo (10 s em 10 qps, no mesmo codificador), 53 pacotes perdidos, 0,9 s parada no total. A medição da 0.4.2 nesse cenário (1080p15, 167 perdidos, 3,2 s) foi com o limitador antigo.
 - **O que sobra:** com uma fila curta (200 ms a 1,5 Mbps = 37 KB), o quadro de uma rolagem em 1080p não cabe e perde pacotes. O servidor repassa cada quadro de uma vez; só espaçar os pacotes no envio pela taxa de quem assiste resolveria. O str0m espaça pela estimativa dele (1,1×), sem limite por fora: precisa mudar o str0m.
+
+**Espaçar o envio (str0m, 08/11/2026):**
+- **Problema:** o str0m espaça os pacotes pela estimativa dele (1,1×), que mede só o caminho até o servidor. O mediasoup repassa cada pacote na hora, então um quadro grande (rolagem do chat, quadro-chave) chegava de uma vez ao roteador de quem assiste. Com 1,5 Mbps e fila de 200 ms (37 KB), cada mensagem perdia ~19 pacotes.
+- **Por que não espaçar na nossa ponta:** segurar os pacotes depois do str0m faria o atraso dessa fila entrar na medição de banda dele (TWCC), que leria congestionamento a cada quadro grande.
+- **Agora:** uma cópia do str0m 0.25.0 em `frontend/src-tauri/third_party/str0m` (`[patch.crates-io]`, mudanças em `JAYC.md`), com duas mudanças:
+  - `Bwe::set_pacing_cap`: um teto para o ritmo do pacer;
+  - `Bwe::queued_bytes`: o tamanho real da fila do pacer.
+- **O ritmo** é a maior leitura de quem assiste nos últimos 30 s (as sondagens do mediasoup medem o link: 1,4–1,9 Mbps num de 1,5), com piso de 1 Mbps. O orçamento do codificador fica abaixo de 85% do ritmo.
+- **Tentativas que não deram certo** (medidas):
+  - ritmo = 1,5× a parte de quem assiste: com a tela parada desde o começo, essa parte ficou no palpite inicial (2 Mbps), e o ritmo em 3 Mbps não protegeu nada (219 pacotes perdidos);
+  - a parte de quem assiste seguindo a maior leitura recente: realimentou pelo ritmo. A live mandava menos, as leituras caíam, e no fim ela parou de mandar quadros;
+  - a fila de envio contada como "entregue ao str0m menos enviado": subia devagar e nunca esvaziava (os start codes do Annex B entram na conta, mas não são enviados). Com o ritmo em ~1,7 Mbps, 15 KB fantasmas viravam 80 ms de fila, e a live descia até 540p por "fila crescendo". Agora a fila vem do pacer.
+
+**Resultados** (limitador pacote a pacote, 3 min):
+
+| | Sem ritmo | Com ritmo |
+|---|---|---|
+| Chat, 1,5 Mbps, fila de 200 ms | 1080p10; 953 pacotes perdidos; 0,43 s parada por mensagem (máx. 0,87) | 1080p15 e depois 10; 2 perdidos; 0,36 s parada por mensagem (máx. 0,50) |
+| Jogo, 4 Mbps, fila de 200 ms | 1080p15 (10 s em 10 qps); 53 perdidos; 0,9 s parada | 1080p em 15, 10 e 5 qps; 25 perdidos; 1,1 s parada |
+
+- **No jogo,** as quedas de qps vieram de leituras baixas de quem assiste (630–1.029 kbps). O ritmo ficou em ~3,9–4,0 Mbps e a fila de envio em 0. Uma rodada só não separa isso de ruído.
+- **O que sobra:** cada mensagem no chat ainda segura a imagem ~0,36 s. É o tempo de um quadro de rolagem passar por 1,5 Mbps.
