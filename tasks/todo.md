@@ -79,9 +79,12 @@ Na lista, a sala com senha mostra o cadeado e pede a senha; a invisível entra p
 
 **Depende de:** T4 · **Arquivos:** `server.js`, `directory.js`, `rate-limit.js`, `core/signaling.js`, `ui/lobby.js`, `ui/icons.js`, testes · **Tamanho:** M
 
-## Checkpoint 1
-- [ ] Dois apps e um app 0.4 no mesmo servidor; senha; invisível; reinício.
-- [ ] `docs/ARQUITETURA.md` seção 4 atualizada; revisão com o usuário.
+## Checkpoint 1 (08/11/2026)
+- [x] Salas fixas ao vivo, admin, senha e invisível: testes do servidor (28) e app de dev com bot.
+- [x] Reinício: o `rooms.json` é relido (teste do `directory`); gravação atômica.
+- [x] Cliente 0.4 (só `join`): coberto pelo teste do servidor; não rodei o instalador 0.4.3 contra o servidor novo. Um app 0.4 não entra numa sala com senha (não tem como mandá-la).
+- [x] `docs/ARQUITETURA.md` seção 4 (e a versão em inglês) atualizada.
+- [ ] Revisão com o usuário.
 
 ## Fase 2: canais de texto
 
