@@ -228,13 +228,26 @@ Ampliar a câmera (ou a live) de outra pessoa só para si, sem mudar o que ela m
 
 **Arquivos:** `ui/call-view.js` (o card), `core/zoom.js` (novo, a conta), `ui/audio-menu.js` (o menu do botão direito), `styles/` · **Tamanho:** M
 
-#### [ ] T12.C: Deslizar abre as gavetas no celular
+#### [x] T12.C: Deslizar abre as gavetas no celular
+**Feito (08/11/2026):**
+- **A regra:** `core/swipe.js` (`swipeDrawer`, com testes). Conta só um gesto de ≥ 60 px, ≥ 1,5× mais de lado que para cima ou para baixo, em ≤ 600 ms. Sem gaveta aberta, para a direita abre os canais e para a esquerda os membros; o sentido contrário fecha a aberta.
+- **A ligação:** `ui/app-shell.js` ouve `touchstart`/`touchend` (passivos) na shell, só no layout de celular (≤ 599 px), e chama o mesmo `setDrawer` do botão. O Voltar do Android e o `inert` continuam iguais.
+- **Fica de fora:** um gesto que começa na barra da call (que arrasta), num controle deslizante, numa fileira que rola para o lado ou em algo com `data-no-swipe` (o zoom da T12.B vai usar).
+- **Sem acompanhar o dedo:** a gaveta abre com a animação de sempre (nenhuma com as animações desligadas).
+- **Medido no app de dev a 375×812, com toques reais pelo CDP (`Input.dispatchTouchEvent`):**
+  - para a direita abre os canais, de novo continua aberta, para a esquerda fecha;
+  - para a esquerda abre os membros, para a direita fecha;
+  - curto (40 px), diagonal para baixo e lento (1 s): nada;
+  - com a gaveta aberta, a área principal fica `inert`;
+  - na call, o gesto que começa na barra não abre a gaveta, e o que começa no palco abre.
+- **Não testado num celular de verdade:** ele estava fora do USB.
+
 Um gesto de deslizar abre a gaveta da esquerda (coluna dos servidores, "Chamada direta", calls e canais), como o botão ☰ de hoje.
 
 **Critérios:**
 - [ ] **Direção (decidida pelo usuário em 08/11/2026, como no Discord):** deslizar o dedo **para a direita** abre a gaveta da esquerda (servidores, "Chamada direta", calls e canais). Deslizar **para a esquerda** abre a de membros.
-- [ ] Deslizar de volta fecha. O gesto não briga com a rolagem vertical (só conta se for mais de lado que para cima ou para baixo) nem com o zoom da T12.B e a barra arrastável da call.
-- [ ] Respeita "Animações: Desligado" (a gaveta abre sem acompanhar o dedo).
+- [x] Deslizar de volta fecha. O gesto não briga com a rolagem vertical (só conta se for mais de lado que para cima ou para baixo) nem com o zoom da T12.B e a barra arrastável da call.
+- [x] Respeita "Animações: Desligado" (a gaveta abre sem acompanhar o dedo).
 
 **Verificação:**
 - [ ] `npm test`: a regra do gesto (distância, ângulo, borda).

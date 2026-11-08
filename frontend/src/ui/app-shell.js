@@ -18,6 +18,7 @@ import { createServerSettingsModal } from './server-settings-modal.js';
 import { createVoicePanel } from './voice-panel.js';
 import { createMembersPanel } from './members-panel.js';
 import { isAndroidApp } from '../core/activity-pip.js';
+import { swipeDrawer } from '../core/swipe.js';
 import { ServerSession } from '../core/server-session.js';
 import { findServer, nameServer } from '../core/servers.js';
 import { addRecentRoom } from '../core/recent-rooms.js';
@@ -131,7 +132,43 @@ export function mountApp(root) {
     event.preventDefault();
     setDrawer(null);
   });
-  matchMedia('(max-width: 599px)').addEventListener('change', () => setDrawer(null));
+  const phoneLayout = matchMedia('(max-width: 599px)');
+  phoneLayout.addEventListener('change', () => setDrawer(null));
+
+  // Swiping opens and closes the drawers too (core/swipe.js). Not from things that already drag or
+  // scroll sideways: the call bar (draggable), sliders, a row of tiles that scrolls, or anything
+  // marked data-no-swipe.
+  let touch = null;
+  const scrollsSideways = (el) => {
+    for (let node = el; node && node !== shell; node = node.parentElement) {
+      const overflow = getComputedStyle(node).overflowX;
+      if ((overflow === 'auto' || overflow === 'scroll') && node.scrollWidth > node.clientWidth) return true;
+    }
+    return false;
+  };
+  shell.addEventListener(
+    'touchstart',
+    (e) => {
+      touch = null;
+      if (!phoneLayout.matches || e.touches.length !== 1) return;
+      const target = /** @type {Element} */ (e.target);
+      if (target.closest('.call-controls, input[type="range"], [data-no-swipe]') || scrollsSideways(target)) return;
+      touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, at: e.timeStamp };
+    },
+    { passive: true },
+  );
+  shell.addEventListener('touchcancel', () => (touch = null), { passive: true });
+  shell.addEventListener(
+    'touchend',
+    (e) => {
+      if (!touch || e.changedTouches.length !== 1) return;
+      const end = e.changedTouches[0];
+      const next = swipeDrawer({ dx: end.clientX - touch.x, dy: end.clientY - touch.y, ms: e.timeStamp - touch.at, open: shell.dataset.drawer ?? null });
+      touch = null;
+      if (next !== undefined) setDrawer(next);
+    },
+    { passive: true },
+  );
   if (isAndroidApp()) addEventListener('popstate', () => setDrawer(null, { fromHistory: true }));
   let endCall = null;
   /** The call we're in: { call, url, view (ui/call-view.js), name } or null. */
