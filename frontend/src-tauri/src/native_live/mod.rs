@@ -47,7 +47,12 @@ const BUDGET_SHARE: f64 = 0.85;
 /// lost up to 722 packets in 5 s and froze 33 s out of 170), and once read 100 kbps for a viewer
 /// who had just joined. So 70%: on a fast link the live may stay a step lower than it could, which
 /// the detail steps take out of the frame rate, not the resolution.
+/// While the live sends under VIEWER_IDLE of that part (a still picture costs ~10 kbps), the
+/// estimate only follows what it sends: a viewer on 1.5 Mbps read ~330 kbps with the live at
+/// ~17 kbps, which kept a chat window at 720p for minutes (measured). Then a lower read is left
+/// out and a higher one (mediasoup's probes) still counts.
 const VIEWER_SHARE: f64 = 0.7;
+const VIEWER_IDLE: f64 = 0.5;
 const VIEWER_RISE: f64 = 0.15;
 const VIEWER_EVERY: Duration = Duration::from_secs(2);
 /// Nobody watching (or no estimate yet): no need to fill the uplink. A first viewer starts from
@@ -326,6 +331,17 @@ pub fn native_live_set_quality(quality: Quality) {
     }
 }
 
+/// The viewers' part of the budget after a read: down to `wanted` at once and up by VIEWER_RISE at
+/// most, except that while the live sends under VIEWER_IDLE of it a lower read is left out.
+fn next_viewer_budget(budget: u32, wanted: u32, sent_kbps: u32) -> u32 {
+    let next = wanted.min((budget as f64 * (1.0 + VIEWER_RISE)) as u32);
+    if (sent_kbps as f64) < budget as f64 * VIEWER_IDLE {
+        budget.max(next)
+    } else {
+        next
+    }
+}
+
 /// The quality ladder for the picked quality (its top step) and capture size.
 fn ladder_steps(q: &Quality, capture: (u32, u32)) -> Vec<Step> {
     steps(q.max_height.unwrap_or(capture.1), q.max_fps.max(1), q.max_kbps, capture, !q.motion)
@@ -436,6 +452,7 @@ unsafe fn run(
         let mut estimate_budget = budget;
         // The viewers' part of the budget, their last reads (VIEWER_EVERY) and when.
         let (mut viewer_budget, mut viewer_reads, mut viewer_read_at) = (IDLE_KBPS, Vec::new(), start);
+        let mut viewer_bytes = 0u64; // encoded since the last read
         let mut limit: Option<u32> = None;
         // The encoder's bitrate: the budget under the step's cap, less while the send queue grows.
         let target = |budget: u32, s: Step, queue_ms: u64| {
@@ -490,6 +507,7 @@ unsafe fn run(
             for frame in enc.poll().map_err(err("H.264 encoder"))? {
                 encoded += 1;
                 bytes += frame.data.len() as u64;
+                viewer_bytes += frame.data.len() as u64;
                 let (data, key) = net.complete(&frame.data);
                 taps.show(&data, key, frame.time); // our own tile doesn't wait for the sound
                 held.push_back((Instant::now() + hold, data, (frame.time * 9 / 1000) as u64));
@@ -597,6 +615,7 @@ unsafe fn run(
             if viewers == 0 {
                 viewer_budget = IDLE_KBPS;
                 viewer_reads.clear();
+                viewer_bytes = 0;
             } else if now - viewer_read_at >= VIEWER_EVERY {
                 viewer_read_at = now;
                 let wanted = if viewers == u32::MAX {
@@ -610,7 +629,9 @@ unsafe fn run(
                     sorted.sort_unstable();
                     (sorted[sorted.len() / 2] as f64 * VIEWER_SHARE) as u32
                 };
-                viewer_budget = wanted.min((viewer_budget as f64 * (1.0 + VIEWER_RISE)) as u32);
+                let sent_kbps = (viewer_bytes * 8 / VIEWER_EVERY.as_millis() as u64) as u32;
+                viewer_bytes = 0;
+                viewer_budget = next_viewer_budget(viewer_budget, wanted, sent_kbps);
             }
             budget = limit.map_or(estimate_budget, |l| l.min(estimate_budget)).min(viewer_budget);
             // Under the step's minimum, the budget steps down by itself (ladder.update).
@@ -673,6 +694,17 @@ unsafe fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_live_sending_little_keeps_its_viewer_budget_when_reads_drop() {
+        // Sending near the budget: a lower read applies at once, a higher one rises 15% at most.
+        assert_eq!(next_viewer_budget(1000, 600, 900), 600);
+        assert_eq!(next_viewer_budget(1000, 3000, 900), 1150);
+        // A still picture (17 kbps): the read only follows what it sends, so it's left out...
+        assert_eq!(next_viewer_budget(1000, 230, 17), 1000);
+        // ...but a higher one (a probe) still counts.
+        assert_eq!(next_viewer_budget(1000, 3000, 17), 1150);
+    }
 
     #[test]
     fn the_top_step_is_the_picked_quality() {

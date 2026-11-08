@@ -2,7 +2,8 @@
 // LISTEN_PORT, relays each client's UDP to 127.0.0.1:TARGET_PORT, and paces client -> server at
 // UP_KBPS and server -> client at DOWN_KBPS (0 = no limit), each with a drop-tail queue of
 // QUEUE_MS (like a router buffer). Optional EXTRA_MS of fixed delay each way. Prints
-// sent/dropped per direction every 5 s.
+// sent/dropped per direction every 5 s. A limited direction keeps one CPU core busy (it lets
+// packets out one by one).
 //   node scripts/udp-shaper.mjs 40098 40001 4000 0 200 [20]
 // A client goes through it when its UDP candidates point here instead of at the server: in the
 // app, rewrite the port in the `createTransport` responses (a JSON.parse hook in the page); in a
@@ -22,10 +23,12 @@ function link(kbps, name, out) {
   const maxQueue = bytesPerMs * queueMs;
   const queue = [];
   let queued = 0, credit = 0, last = performance.now();
-  setInterval(() => {
+  // Packet by packet, like a router's line: a busy loop (setImmediate). Windows timers tick every
+  // ~15 ms and let packets out in bursts, which made mediasoup's short probes read 50% above the
+  // link (6.4 Mbps on 4) and the live climb into congestion.
+  const drain = () => {
     const now = performance.now();
-    // Node's timers on Windows may tick only every ~15.6 ms: credit up to 25 ms keeps the rate.
-    credit = Math.min(credit + (now - last) * bytesPerMs, bytesPerMs * 25 + 1500);
+    credit = Math.min(credit + (now - last) * bytesPerMs, 1500);
     last = now;
     while (queue.length && credit >= queue[0].length) {
       const d = queue.shift();
@@ -34,7 +37,9 @@ function link(kbps, name, out) {
       counts[name].sent++;
       delayed(d);
     }
-  }, 1);
+    setImmediate(drain);
+  };
+  setImmediate(drain);
   return (d) => {
     if (queued + d.length > maxQueue) { counts[name].dropped++; return; }
     queue.push(d);

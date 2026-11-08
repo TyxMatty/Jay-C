@@ -396,3 +396,26 @@ O texto do HUD em 1080p30 a ~3,7 Mbps ficou legível linha a linha, onde o 1080p
 **Custo da escada nova:** no modo Texto (o padrão), um vídeo ou jogo numa conexão fraca agora cai para 1080p5 antes de baixar a resolução. Para isso existe o "Movimento", que não mudou.
 
 **Não medido:** a rede real de quem relatou; encoders que não sejam da NVIDIA.
+
+**Quadros grandes: QP mínimo e o orçamento com a tela parada (07/11/2026):**
+- **O que o MFT da NVIDIA não faz** (sonda, 1,5 Mbps, 15 qps, uma mudança grande da tela):
+  - não limita o tamanho do quadro: o comum saiu com 161 KB, e com VBR de pico limitado, VBR de baixa latência ou QP mínimo 26, com 116–125 KB;
+  - recusa (`E_INVALIDARG`) descartar quadros, o tipo de conteúdo e a detecção de cena.
+- **Por que a rolagem do chat saía grande:** com a tela parada, o controle de taxa seguia gastando todo o bitrate para refinar a imagem, e o QP afundava. A próxima mudança grande saía nesse QP. Sonda, imagem de chat a 600 kbps 1080p5:
+  - sem mínimo: rolagens de 20–60 KB, e a tela parada custando ~500 kbps;
+  - QP mínimo 22: no máximo 36 KB;
+  - QP mínimo 26 ou 30: no máximo 27 KB, e a tela parada cai para ~10 kbps depois de assentar.
+- **Agora:** QP mínimo 26 (`MIN_QP`, `encoder.rs`). Na live, o texto em 720p ficou igual a olho, sem e com o mínimo (recortes de quem assiste).
+- **Efeito colateral:** mandando ~17 kbps, a estimativa de quem assiste voltou a só seguir o que a live manda (~330 kbps), e a live ficou em 720p5. Agora, enquanto a live manda menos da metade da parte de quem assiste (`VIEWER_IDLE`), uma leitura mais baixa não derruba essa parte; uma mais alta ainda conta (`next_viewer_budget`).
+
+**Resultados** (chat, 1,5 Mbps para quem assiste, 3 min):
+
+| | Fila de 500 ms | Fila de 200 ms |
+|---|---|---|
+| Sem QP mínimo (acima) | 1080p5/720p5; ~0,7 s de imagem parada a cada mensagem | 720p5; 2,5 s parada no total, 1.241 pacotes perdidos |
+| QP mínimo | 720p5 o tempo todo, nenhum pacote perdido, 2 travadas só no começo | não medido |
+| QP mínimo + regra do orçamento | 1080p15 o tempo todo, nenhum pacote perdido, ~0,3 s parada a cada mensagem | 1080p10 o tempo todo; cada mensagem perde ~19 pacotes e para ~0,4 s (953 perdidos) |
+
+- **O limitador de antes mentia:** no Windows, o `udp-shaper` soltava os pacotes em rajadas a cada ~15 ms. As sondagens curtas do mediasoup pareciam mais rápidas que o link: leituras de 5,9–6,4 Mbps num link de 4 Mbps, e uma subida para 1080p30 que congestionou (1 s parada, 2,2 s de atraso). Agora ele solta pacote a pacote (um núcleo ocupado), e as leituras ficam em até ~4,4 Mbps.
+- **Conteúdo de jogo, 4 Mbps, fila de 200 ms, limitador novo:** 1080p15 o tempo todo (10 s em 10 qps, no mesmo codificador), 53 pacotes perdidos, 0,9 s parada no total. A medição da 0.4.2 nesse cenário (1080p15, 167 perdidos, 3,2 s) foi com o limitador antigo.
+- **O que sobra:** com uma fila curta (200 ms a 1,5 Mbps = 37 KB), o quadro de uma rolagem em 1080p não cabe e perde pacotes. O servidor repassa cada quadro de uma vez; só espaçar os pacotes no envio pela taxa de quem assiste resolveria. O str0m espaça pela estimativa dele (1,1×), sem limite por fora: precisa mudar o str0m.

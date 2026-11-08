@@ -25,6 +25,13 @@ const RING: usize = 4; // NV12 textures the encoder may still be reading
 /// need it, and the server asks when someone starts watching.
 const GOP_SECONDS: u32 = 3600;
 
+/// Never finer than this. On a still picture (a chat between messages) the rate control kept
+/// spending the whole bitrate refining it, the QP sank, and the next big change came out at that
+/// QP: scrolls of 20-60 KB at 600 kbps 1080p5, which the buffer above doesn't stop (the NVIDIA MFT
+/// ignores it on big changes). With 26: at most 27 KB, and a settled still picture costs ~10 kbps
+/// (encprobe, chat picture).
+const MIN_QP: u32 = 26;
+
 /// The rate control's buffer: 50 ms of the bitrate, or 1.5 frames if that's more. Smaller (33 ms
 /// at 30 fps) and the NVIDIA encoder stalled; under 1.5 frames it can't reach the bitrate.
 fn buffer_bits(kbps: u32, fps: u32) -> u32 {
@@ -158,6 +165,7 @@ impl Encoder {
             set(&CODECAPI_AVEncCommonMeanBitRate, VARIANT::from(scaled * 1000), "bitrate");
             set(&CODECAPI_AVEncCommonBufferSize, VARIANT::from(buffer_bits(kbps, fps)), "buffer size");
             set(&CODECAPI_AVEncMPVGOPSize, VARIANT::from(rate_fps * GOP_SECONDS), "GOP");
+            set(&CODECAPI_AVEncVideoMinQP, VARIANT::from(MIN_QP), "min QP");
         }
         let out_type = MFCreateMediaType()?;
         out_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
