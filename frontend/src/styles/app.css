@@ -504,6 +504,126 @@ select {
   color: var(--text-muted);
 }
 
+/* The server's rooms (Jay-C 0.5): one per line, with who is in each below it. */
+.server-rooms,
+.server-room-peers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.server-rooms {
+  display: grid;
+  gap: 4px;
+}
+
+.server-room-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-control) + 2px);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.server-room-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: var(--accent-soft);
+}
+
+.server-room-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.server-room-icon,
+.server-room-muted {
+  display: inline-grid;
+  color: var(--text-muted);
+}
+
+.server-room-icon svg,
+.server-room-muted svg {
+  width: 16px;
+  height: 16px;
+}
+
+.server-room-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-room-count {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.server-room-peers {
+  display: grid;
+  gap: 2px;
+  padding: 4px 0 2px 34px;
+}
+
+.server-room-peer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  font-size: 14px;
+}
+
+/* The person's color as a ring; the initial in the theme's text color (any color stays readable). */
+.server-room-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box, var(--tile-bg) border-box;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.server-room-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.server-room-peer-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-room-live {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--danger-fill);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 /* "#" inside the room field. */
 .input-prefix {
   position: relative;

@@ -39,48 +39,45 @@ O estado do mic e do deafen ao sair (ou ao fechar o app) é guardado e restaurad
 
 ## Fase 1: o servidor com salas
 
-### [ ] T3: Sessão de servidor e lista de salas ativas
-Uma conexão `hello` (nome, foto, cor) que não entra em call recebe a lista de salas visíveis e quem está em cada uma, atualizada ao vivo. O `join` de hoje continua igual. O lobby mostra a lista e entra numa sala com um clique.
+### [x] T3: Sessão de servidor, salas fixas e a lista ao vivo
+Uma conexão `hello` (nome, foto, cor) que não entra em call recebe as salas fixas visíveis (lidas de `DATA_DIR/rooms.json`) e quem está em cada uma, atualizadas ao vivo. O `join` de hoje continua igual. O lobby mostra a lista e entra numa sala com um clique. (Replanejada: as salas fixas vêm do arquivo já aqui, porque as temporárias nunca aparecem na lista.)
 
 **Critérios:**
-- [ ] `hello` → `server-state` (salas visíveis, participantes) e depois `rooms-updated` a cada mudança (alguém entra, sai, muta).
-- [ ] O `joined` anuncia `server-session` em `features`; o app 0.5 num servidor 0.4 cai no lobby de hoje.
-- [ ] Um app 0.4 entra por nome e aparece na lista dos outros.
+- [x] `hello` → `server-state` (salas visíveis, participantes), depois `room-update` (entrou, saiu, foto) e `room-peer` (mic, live).
+- [x] O `joined` anuncia `server-session` em `features`; o app 0.5 num servidor 0.4 esconde a lista (uma conexão, sem tentar de novo).
+- [x] Uma sala que não está no arquivo (DC, app 0.4) e a sala invisível nunca aparecem.
 
 **Verificação:**
-- [ ] `npm test`, com testes do servidor: hello, lista, atualização, cliente 0.4.
-- [ ] Manual: dois apps e um bot de navegador; a lista muda em menos de 1 s.
+- [x] `npm test`: hello, lista, atualização, mic, saída, salas fora da lista (servidor 22, frontend 92).
+- [x] Manual: app de dev e um bot de navegador; contraste no lobby.
 
-**Depende de:** nada · **Arquivos:** `signaling-server/src/server.js`, `rooms.js`, `frontend/src/core/server-session.js` (novo), `ui/lobby.js`, testes · **Tamanho:** M
-
-### [ ] T4: Admin cria salas, com senha (cadeado) e invisíveis
-Com a `ADMIN_KEY` do servidor (digitada uma vez no app e guardada por servidor), dá para criar, editar e apagar salas, com senha opcional e, com senha, a opção de ficar invisível. Na lista, a sala com senha mostra o cadeado e pede a senha; a invisível não aparece e só entra pelo nome. Nesta tarefa as salas ficam em memória (o disco é a T5).
+### [ ] T4: Admin gerencia as salas
+Com a `ADMIN_KEY` do servidor (digitada uma vez no app e guardada por servidor), dá para criar, renomear e apagar salas fixas, pôr ou tirar senha e, com senha, deixar a sala invisível. As mudanças vão para o `rooms.json` (gravação atômica) e para a lista de todos na hora.
 
 **Critérios:**
-- [ ] Sem a chave certa, criar, editar e apagar são recusados (`not-admin`); sem `ADMIN_KEY` no servidor, ninguém gerencia.
-- [ ] O servidor guarda só o hash (`scrypt` + sal); o `join` sem senha ou com a senha errada é recusado com `wrong-password`.
-- [ ] As tentativas erradas têm limite por IP.
-- [ ] A sala invisível não aparece em `server-state` nem em `rooms-updated`, mas entra pelo nome com a senha.
+- [ ] Sem a chave certa, os pedidos são recusados (`not-admin`); sem `ADMIN_KEY` no servidor, ninguém gerencia. A chave nunca vai para logs.
+- [ ] O servidor guarda só o hash da senha (`scrypt` + sal).
+- [ ] A gravação é atômica (temporário + rename); reiniciar mantém tudo; no Docker, `./data` precisa ser gravável pelo usuário do container (documentar).
 
 **Verificação:**
-- [ ] `npm test`: hash, senha certa e errada, limite, invisível fora da lista.
+- [ ] `npm test`: admin certo e errado, criar, renomear, apagar, gravar e reler.
+- [ ] Manual: gerenciar pelo app; matar o servidor no meio de uma gravação.
+
+**Depende de:** T3 · **Arquivos:** `directory.js`, `server.js`, `config.js`, `ui/` (tela de admin), testes · **Tamanho:** M
+
+### [ ] T5: Entrar numa sala com senha (cadeado) e na invisível
+Na lista, a sala com senha mostra o cadeado e pede a senha; a invisível entra pelo nome (com a senha).
+
+**Critérios:**
+- [ ] O `join` sem senha ou com a senha errada é recusado com `wrong-password`; as tentativas erradas têm limite por IP.
+- [ ] A senha certa fica lembrada por sala no app (opcional, pergunta para o usuário) e nunca vai para logs.
+- [ ] Reconectar no meio da call (queda do servidor) reenvia a senha.
+
+**Verificação:**
+- [ ] `npm test`: senha certa, errada, limite, invisível pelo nome.
 - [ ] Manual: o cadeado e o pedido de senha no app, nos dois temas e nos 3 estilos.
 
-**Depende de:** T3 · **Arquivos:** `rooms.js`, `server.js`, `rate-limit.js`, `ui/lobby.js`, `ui/icons.js`, testes · **Tamanho:** M
-
-### [ ] T5: Salas fixas, guardadas em disco
-As salas criadas pelo admin existem mesmo vazias e sobrevivem a um reinício do servidor.
-
-**Critérios:**
-- [ ] `DATA_DIR` (padrão `./data`) guarda as salas fixas em JSON. A gravação é atômica (arquivo temporário e depois rename).
-- [ ] Reiniciar o servidor mantém as salas, as senhas (hash) e a visibilidade.
-- [ ] O `docker-compose.yml` monta um volume para `DATA_DIR`.
-
-**Verificação:**
-- [ ] `npm test`: gravar, ler, arquivo corrompido (o servidor sobe vazio e avisa no log).
-- [ ] Manual: matar o servidor no meio de uma gravação e subir de novo.
-
-**Depende de:** T4 · **Arquivos:** `signaling-server/src/store.js` (novo), `rooms.js`, `config.js`, `docker-compose.yml`, testes · **Tamanho:** M
+**Depende de:** T4 · **Arquivos:** `server.js`, `directory.js`, `rate-limit.js`, `core/signaling.js`, `ui/lobby.js`, `ui/icons.js`, testes · **Tamanho:** M
 
 ## Checkpoint 1
 - [ ] Dois apps e um app 0.4 no mesmo servidor; senha; invisível; reinício.

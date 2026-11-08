@@ -1,6 +1,9 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { startServer } from '../src/server.js';
 
 const baseConfig = {
@@ -226,7 +229,7 @@ describe('signaling server', () => {
   test('screen previews reach the room, and latecomers get the last one', async () => {
     const jpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==';
     const a = await joined(port, 'room-preview', 'Alice');
-    assert.deepEqual(a.msg.features, ['screen-preview', 'close-consumer']);
+    assert.deepEqual(a.msg.features, ['screen-preview', 'close-consumer', 'server-session']);
     const b = await joined(port, 'room-preview', 'Bob');
     a.client.send({ type: 'screen-preview', image: jpeg });
     assert.deepEqual(await b.client.next('screen-preview'), { type: 'screen-preview', id: a.msg.id, image: jpeg });
@@ -554,5 +557,63 @@ describe('origin allow-list', () => {
     } finally {
       await server.close();
     }
+  });
+});
+
+describe('server session: the room list (Jay-C 0.5)', () => {
+  let server;
+  let port;
+  let dataDir;
+
+  before(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'jayc-rooms-'));
+    writeFileSync(join(dataDir, 'rooms.json'), JSON.stringify({ rooms: [{ name: 'geral' }, { name: 'segredo', hidden: true }, { name: 'bad name!' }] }));
+    server = startServer({ ...baseConfig, maxPeersPerRoom: 4, dataDir }, { log: () => {} });
+    port = await server.ready;
+  });
+
+  after(async () => {
+    await server.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  const watcher = async () => {
+    const client = connect(port);
+    await client.open();
+    client.send({ type: 'hello', name: 'Wanda' });
+    return { client, state: await client.next('server-state') };
+  };
+
+  test('hello lists the fixed rooms that are not hidden, and the features', async () => {
+    const { client, state } = await watcher();
+    assert.deepEqual(state.rooms, [{ name: 'geral', locked: false, peers: [] }], 'hidden and invalid rooms left out');
+    assert.ok(state.features.includes('server-session'));
+    const bad = connect(port);
+    await bad.open();
+    bad.send({ type: 'hello' });
+    assert.deepEqual(await bad.next('error'), { type: 'error', code: 'bad-message', ref: 'hello' });
+    client.close();
+    bad.close();
+  });
+
+  test('joining, the mic and leaving show up live; temporary and hidden rooms never do', async () => {
+    const { client: w } = await watcher();
+    const temp = await joined(port, 'temporaria', 'Tina');
+    const hidden = await joined(port, 'segredo', 'Sid');
+    const a = await joined(port, 'geral', 'Alice');
+    assert.ok(a.msg.features.includes('server-session'));
+    const update = await w.next('room-update');
+    assert.equal(update.room.name, 'geral', 'the first update is the listed room, not the others');
+    assert.deepEqual(update.room.peers, [{ id: a.msg.id, name: 'Alice', micOn: false, live: false }]);
+
+    const sendT = (await a.client.request('createTransport', { direction: 'send' })).data;
+    const produced = await a.client.request('produce', { transportId: sendT.id, kind: 'audio', source: 'mic', rtpParameters: opusRtpParameters });
+    assert.deepEqual(await w.next('room-peer'), { type: 'room-peer', room: 'geral', id: a.msg.id, micOn: true, live: false });
+    await a.client.request('pauseProducer', { producerId: produced.data.id });
+    assert.equal((await w.next('room-peer')).micOn, false);
+
+    a.client.send({ type: 'leave' });
+    assert.deepEqual((await w.next('room-update')).room.peers, []);
+    for (const c of [w, temp.client, hidden.client, a.client]) c.close();
   });
 });

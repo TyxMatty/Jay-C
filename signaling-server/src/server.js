@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { RoomRegistry, describePeer } from './rooms.js';
+import { Directory, ROOM_RE } from './directory.js';
 import { TokenBucket } from './rate-limit.js';
 import { loadConfig } from './config.js';
 import { Sfu, resolveAnnouncedAddress } from './sfu.js';
 
-const ROOM_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_NAME_LENGTH = 32;
 /** A 128 px WebP from the app is ~5-15 KB as a data URL; this leaves room without letting it grow. */
 const MAX_AVATAR_LENGTH = 32_000;
@@ -15,6 +15,9 @@ const MAX_AVATAR_LENGTH = 32_000;
 const MAX_PREVIEW_LENGTH = 48_000;
 // Raster images only (an SVG can carry scripts), inline only (a remote URL would track viewers).
 const AVATAR_RE = /^data:image\/(?:webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** Requests after which someone's mic or live may have changed (the room list shows both). */
+const STATE_REQUESTS = new Set(['produce', 'closeProducer', 'pauseProducer', 'resumeProducer', 'closeTransport']);
 
 /** SFU requests: `{ type, id, data }` -> `{ type: 'response', id, ok, data | error }`. */
 const REQUESTS = new Set([
@@ -32,6 +35,9 @@ const REQUESTS = new Set([
   'closeConsumer',
   'setPreferredLayers',
 ]);
+
+/** What this server accepts beyond the first protocol, in `joined` and `server-state`. */
+const SERVER_FEATURES = ['screen-preview', 'close-consumer', 'server-session'];
 
 function defaultLog(level, message, extra) {
   const line = `${new Date().toISOString()} [${level}] ${message}`;
@@ -84,7 +90,42 @@ function cleanImage(value, maxLength = MAX_AVATAR_LENGTH) {
  */
 export function startServer(config, { log = defaultLog } = {}) {
   const registry = new RoomRegistry({ maxPeersPerRoom: config.maxPeersPerRoom });
+  const directory = new Directory({ dataDir: config.dataDir ?? null, log });
+  /** Connections that said `hello`: they get the room list and its changes (Jay-C 0.5). */
+  const watchers = new Set();
   const sfuReady = Sfu.create(config, log);
+
+  /** Someone in a room, as the room list shows them (no share preview: too big for a list). */
+  const describeMember = (p) => ({
+    id: p.id,
+    name: p.name,
+    ...(p.avatar ? { avatar: p.avatar } : {}),
+    ...(p.color ? { color: p.color } : {}),
+    micOn: p.micOn,
+    live: p.live,
+  });
+  const describeRoom = (name) => ({
+    name,
+    locked: Boolean(directory.rooms.get(name)?.password),
+    peers: [...(registry.rooms.get(name)?.values() ?? [])].map(describeMember),
+  });
+  const toWatchers = (message) => {
+    for (const watcher of watchers) watcher.send(message);
+  };
+  /** A listed room's people changed (joined, left, new picture): its whole entry again. */
+  const roomChanged = (name) => {
+    if (directory.isListed(name)) toWatchers({ type: 'room-update', room: describeRoom(name) });
+  };
+  /** Someone's mic or live changed: a small message, not the whole room (pictures included). */
+  const refreshState = (peer, room) => {
+    const producers = room.producersOf(peer.id);
+    const micOn = producers.some((p) => p.source === 'mic' && !p.paused);
+    const live = producers.some((p) => p.source === 'screen');
+    if (micOn === peer.micOn && live === peer.live) return;
+    peer.micOn = micOn;
+    peer.live = live;
+    if (directory.isListed(peer.room)) toWatchers({ type: 'room-peer', room: peer.room, id: peer.id, micOn, live });
+  };
   const startedAt = Date.now();
 
   const httpServer = createServer((req, res) => {
@@ -118,6 +159,9 @@ export function startServer(config, { log = defaultLog } = {}) {
     const roomId = peer.room;
     if (!roomId) return;
     registry.leave(peer);
+    peer.micOn = false;
+    peer.live = false;
+    roomChanged(roomId);
     const sfu = await sfuReady;
     (await sfu.room(roomId)).removePeer(peer.id);
     await sfu.closeRoomIfEmpty(roomId);
@@ -137,6 +181,9 @@ export function startServer(config, { log = defaultLog } = {}) {
       color: null,
       /** The last still of their screen share (data URL) or null. */
       preview: null,
+      /** For the room list: mic on (a mic producer, not paused) and streaming (a screen producer). */
+      micOn: false,
+      live: false,
       room: null,
       announcedAddress: null,
       send(message) {
@@ -177,9 +224,20 @@ export function startServer(config, { log = defaultLog } = {}) {
         iceServers: config.iceServers,
         routerRtpCapabilities: room.rtpCapabilities,
         // Messages newer clients may send only when the server lists them (an old one refuses them).
-        features: ['screen-preview', 'close-consumer'],
+        features: SERVER_FEATURES,
       });
+      roomChanged(msg.room);
       log('info', 'joined', { peer: peer.id, room: msg.room, size: result.others.length + 1 });
+    }
+
+    /** A connection that browses the server (Jay-C 0.5): the room list now, and its changes. */
+    function hello(msg) {
+      const name = cleanName(msg.name);
+      const avatar = cleanImage(msg.avatar);
+      const color = cleanColor(msg.color);
+      if (!name || avatar === undefined || color === undefined) return fail('bad-message', 'hello');
+      watchers.add(peer);
+      peer.send({ type: 'server-state', rooms: directory.listed().map((room) => describeRoom(room.name)), features: SERVER_FEATURES });
     }
 
     async function request(msg) {
@@ -190,6 +248,7 @@ export function startServer(config, { log = defaultLog } = {}) {
         peer.announcedAddress ??= await resolveAnnouncedAddress(req.headers.host, config.announcedAddress);
         const data = await room[msg.type](peer.id, msg.data ?? {}, { announcedAddress: peer.announcedAddress });
         respond({ ok: true, data: data ?? null });
+        if (STATE_REQUESTS.has(msg.type)) refreshState(peer, room);
       } catch (error) {
         // SfuError carries a protocol code; mediasoup throws TypeError for invalid parameters.
         const code = error?.code ?? (error instanceof TypeError ? 'bad-request' : 'internal');
@@ -226,6 +285,7 @@ export function startServer(config, { log = defaultLog } = {}) {
         peer.avatar = avatar;
         peer.color = color;
         for (const other of registry.othersInRoom(peer)) other.send({ type: 'peer-updated', id: peer.id, avatar, color });
+        roomChanged(peer.room);
       } else if (msg.type === 'screen-preview') {
         // A still of their screen share, for the tiles of those not watching it (latecomers get the last one).
         if (!peer.room) return fail('not-in-room', 'screen-preview');
@@ -241,6 +301,8 @@ export function startServer(config, { log = defaultLog } = {}) {
         const text = cleanChat(msg.text);
         if (text === null) return fail('bad-message', 'chat');
         for (const other of registry.othersInRoom(peer)) other.send({ type: 'chat', id: peer.id, name: peer.name, text });
+      } else if (msg.type === 'hello') {
+        hello(msg);
       } else if (msg.type === 'leave') {
         leaveRoom(peer).catch(() => {});
       } else if (REQUESTS.has(msg.type) && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
@@ -251,6 +313,7 @@ export function startServer(config, { log = defaultLog } = {}) {
     });
 
     ws.on('close', () => {
+      watchers.delete(peer);
       leaveRoom(peer).catch(() => {});
       log('info', 'disconnected', { peer: peer.id });
     });

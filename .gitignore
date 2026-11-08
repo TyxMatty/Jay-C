@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# The signaling server's data (rooms.json) when run from the repo.
+signaling-server/data/
 *.log
 .env
 .env.*

@@ -40,5 +40,8 @@ export function loadConfig() {
     // Address put in ICE candidates. Empty = the host each client used to reach the signaling server.
     announcedAddress: process.env.ANNOUNCED_ADDRESS || '',
     mediasoupLogLevel: process.env.MEDIASOUP_LOG_LEVEL || 'warn',
+
+    // ---- Server data (Jay-C 0.5): the fixed rooms (rooms.json) ----
+    dataDir: process.env.DATA_DIR || './data',
   };
 }

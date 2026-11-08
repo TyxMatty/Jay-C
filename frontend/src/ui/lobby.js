@@ -5,6 +5,8 @@ import { serverStatus } from '../core/server-status.js';
 import { profileBackground } from '../core/profile-color.js';
 import { t } from '../core/i18n.js';
 import { updatesSupported, checkForUpdate, installUpdate } from '../core/update.js';
+import { ServerSession } from '../core/server-session.js';
+import { toWebSocketUrl } from '../core/server-address.js';
 
 // Must match the signaling server's room-name rule.
 const ROOM_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -82,6 +84,68 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
       ),
     );
   };
+
+  // The server's rooms with who is in each (Jay-C 0.5, core/server-session.js); a click joins.
+  // Hidden on a server without the list (older than 0.5) or with no rooms set up.
+  const serverRoomsList = h('ul', { class: 'server-rooms', 'aria-labelledby': 'server-rooms-label' });
+  const serverRoomsField = h('div', { class: 'field', hidden: true }, h('span', { class: 'field-label', id: 'server-rooms-label' }, t('Rooms on this server')), serverRoomsList);
+  const memberRow = (peer) =>
+    h(
+      'li',
+      { class: 'server-room-peer' },
+      h('span', { class: 'server-room-avatar', style: `--tile-bg: ${profileBackground(peer.color, peer.name)}`, 'aria-hidden': 'true' }, peer.avatar ? h('img', { src: peer.avatar, alt: '' }) : (peer.name[0] ?? '?').toUpperCase()),
+      h('span', { class: 'server-room-peer-name' }, peer.name),
+      peer.live ? h('span', { class: 'server-room-live' }, t('LIVE')) : null,
+      peer.micOn ? null : h('span', { class: 'server-room-muted', html: icons.micOff, role: 'img', 'aria-label': t('Muted') }),
+    );
+  let session = null;
+  const renderServerRooms = () => {
+    const rooms = session?.supported ? session.rooms : [];
+    serverRoomsField.hidden = rooms.length === 0;
+    serverRoomsList.replaceChildren(
+      ...rooms.map((room) =>
+        h(
+          'li',
+          { class: 'server-room' },
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'server-room-btn',
+              'aria-label': t('Join {room} ({count} in the call)', { room: room.name, count: room.peers.length }),
+              onClick: () => {
+                roomInput.value = room.name;
+                clearError();
+                if (!joinButton.disabled) form.requestSubmit();
+                else roomInput.focus();
+              },
+            },
+            h('span', { class: 'server-room-icon', html: icons.users, 'aria-hidden': 'true' }),
+            h('span', { class: 'server-room-name' }, room.name),
+            room.peers.length ? h('span', { class: 'server-room-count', 'aria-hidden': 'true' }, String(room.peers.length)) : null,
+          ),
+          room.peers.length ? h('ul', { class: 'server-room-peers' }, room.peers.map(memberRow)) : null,
+        ),
+      ),
+    );
+  };
+  const openSession = () => {
+    session?.close();
+    session = null;
+    const url = toWebSocketUrl(settings.get().serverAddress);
+    if (url) {
+      const { displayName, avatar, profileColor } = settings.get();
+      session = new ServerSession(url, { name: displayName.trim() || 'Jay-C', avatar, color: profileColor });
+      session.addEventListener('change', renderServerRooms);
+    }
+    renderServerRooms();
+  };
+  cleanups.push(
+    settings.subscribe((next, prev) => {
+      if (next.serverAddress !== prev.serverAddress) openSession();
+    }),
+    () => session?.close(),
+  );
 
   // How others see you: profile color, picture or initial, and name (Settings › Profile edits it).
   const profileAvatar = h('div', { class: 'lobby-profile-avatar', 'aria-hidden': 'true' });
@@ -208,6 +272,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     h('h1', {}, t('Join a room')),
     h('p', {}, t('Share the room name with friends on the same server.')),
     h('div', { class: 'field' }, h('label', { for: 'lobby-name' }, t('Display name')), nameInput),
+    serverRoomsField,
     h('div', { class: 'field' }, h('label', { for: 'lobby-room' }, t('Room')), h('div', { class: 'input-prefix' }, h('span', { 'aria-hidden': 'true' }, '#'), roomInput)),
     recentField,
     h('div', { class: 'field' }, joinButton, hint),
@@ -231,6 +296,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
   const element = h('main', { class: 'lobby' }, hero, form, h('p', { class: 'lobby-version' }, `Jay-C ${__APP_VERSION__}`));
   renderProfile();
   renderRecent();
+  openSession();
 
   return {
     element,

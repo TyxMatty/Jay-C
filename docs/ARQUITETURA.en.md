@@ -126,6 +126,7 @@ Client → server:
 | `chat` | `text` (1–500 characters) | message to the room; the others get `chat`. Nothing is stored on the server |
 | `screen-preview` | `image` (JPEG data URL, up to 48,000 characters, or `null` when stopping) | a picture of your own stream, every 6 s; the others get `screen-preview`, and whoever joins later gets the last one in `joined`. At most 1 every 2 s (burst of 3). Only sent when `joined` lists `screen-preview` in `features` |
 | `leave` | — | leaves the room |
+| `hello` | `name`, `avatar?`, `color?` | (0.5) the connection follows the server's room list without joining a call. Answer: `server-state`. The app opens a connection just for this, apart from the call |
 | *SFU request* | `id`, `data` | reply: `{type: "response", id, ok, data}` or `{…, ok: false, error}` |
 
 SFU requests, named after the mediasoup API:
@@ -147,7 +148,7 @@ Server → client:
 
 | type | fields | |
 |---|---|---|
-| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features` | who is already in the room, what each one publishes and the router's capabilities. `features`: the newer messages and requests the server accepts (today, `screen-preview` and `close-consumer`); an old server doesn't send the field |
+| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features` | who is already in the room, what each one publishes and the router's capabilities. `features`: the newer messages and requests the server accepts (today, `screen-preview`, `close-consumer` and `server-session`); an old server doesn't send the field |
 | `peer-joined` / `peer-left` | `id`, `name`, `avatar?`, `color?` (only in `peer-joined`) | |
 | `peer-updated` | `id`, `avatar`, `color` | someone changed or removed (`null`) their profile picture or color |
 | `chat` | `id`, `name`, `text` | a message from someone in the room (line breaks kept; control characters removed) |
@@ -156,6 +157,9 @@ Server → client:
 | `producer-state` | `peerId`, `producerId`, `paused` | only for consumers: muted or turned the camera off, or back on |
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = nobody watching) | every 2 s, to whoever shares a screen: the smallest bandwidth among the viewers, as mediasoup estimates it towards each. The native live (a single layer) stays under it |
 | `producer-closed` | `peerId`, `producerId` | only for consumers |
+| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `features` | (0.5) answer to `hello`: the visible fixed rooms and who is in each |
+| `room-update` | `room` (as in `server-state`) | (0.5) someone joined, left or changed their picture or color in a visible fixed room |
+| `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) someone muted, unmuted, started or stopped a live (a small message, without the pictures) |
 | `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`), optional `ref` | |
 
 Request errors: `not-in-room`, `bad-request`, `unknown-transport`, `unknown-producer`, `unknown-consumer`, `duplicate-source`, `cannot-consume`, `internal`.
@@ -177,6 +181,9 @@ Configuration through environment variables:
 | `RTC_LISTEN_IP` | 0.0.0.0 | media interface |
 | `ANNOUNCED_ADDRESS` | empty = the host each client used | address announced in the ICE candidates |
 | `MEDIASOUP_LOG_LEVEL` | warn | mediasoup log level |
+| `DATA_DIR` | `./data` | (0.5) folder with `rooms.json` (the fixed rooms). In Docker, `/data`, mounted from `./data` next to the compose file |
+
+**Fixed rooms (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "general" }, { "name": "private", "hidden": true }] }`. Only these show in the list, in the file's order; `hidden` keeps one out of it (joined by name). A room opened by a name that isn't there (DC, or a 0.4 app) is temporary and never shows. An unreadable file is ignored (the server starts with no fixed rooms and says so in the log).
 
 Protections:
 - Messages of at most 64 KB, at most 16 people per room and a messages-per-second limit (burst of 300, 100/s).

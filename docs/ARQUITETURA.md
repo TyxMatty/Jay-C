@@ -124,6 +124,7 @@ Cliente → servidor:
 | `chat` | `text` (1–500 caracteres) | mensagem para a sala; os outros recebem `chat`. Nada fica guardado no servidor |
 | `screen-preview` | `image` (JPEG em data URL, até 48 000 caracteres, ou `null` ao parar) | uma imagem da própria live, a cada 6 s; os outros recebem `screen-preview`, e quem entra depois recebe a última no `joined`. Até 1 a cada 2 s (rajada de 3). Só é enviado se o `joined` listar `screen-preview` em `features` |
 | `leave` | — | sai da sala |
+| `hello` | `name`, `avatar?`, `color?` | (0.5) a conexão passa a acompanhar a lista de salas do servidor, sem entrar em call. Resposta: `server-state`. O app abre uma conexão só para isso, separada da call |
 | *requisição SFU* | `id`, `data` | resposta: `{type: "response", id, ok, data}` ou `{…, ok: false, error}` |
 
 Requisições SFU, com os nomes da API do mediasoup:
@@ -145,7 +146,7 @@ Servidor → cliente:
 
 | type | campos | |
 |---|---|---|
-| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features` | quem já está na sala, o que cada um publica e as capacidades do router. `features`: as mensagens e pedidos novos que o servidor aceita (hoje, `screen-preview` e `close-consumer`); um servidor antigo não manda o campo |
+| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features` | quem já está na sala, o que cada um publica e as capacidades do router. `features`: as mensagens e pedidos novos que o servidor aceita (hoje, `screen-preview`, `close-consumer` e `server-session`); um servidor antigo não manda o campo |
 | `peer-joined` / `peer-left` | `id`, `name`, `avatar?`, `color?` (só no `peer-joined`) | |
 | `peer-updated` | `id`, `avatar`, `color` | alguém trocou ou tirou (`null`) a foto ou a cor de perfil |
 | `chat` | `id`, `name`, `text` | mensagem de alguém da sala (quebras de linha mantidas; caracteres de controle removidos) |
@@ -154,6 +155,9 @@ Servidor → cliente:
 | `producer-state` | `peerId`, `producerId`, `paused` | só para quem consome: mutou ou desligou a câmera, ou voltou |
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = ninguém assiste) | a cada 2 s, para quem transmite a tela: a menor banda entre quem assiste, como o mediasoup estima para cada um. A live nativa (uma camada só) fica abaixo dela |
 | `producer-closed` | `peerId`, `producerId` | só para quem consome |
+| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `features` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma |
+| `room-update` | `room` (como em `server-state`) | (0.5) alguém entrou, saiu ou trocou a foto ou a cor numa sala fixa visível |
+| `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) alguém mutou, desmutou, abriu ou fechou uma live (mensagem pequena, sem as fotos) |
 | `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`), `ref` opcional | |
 
 Erros das requisições: `not-in-room`, `bad-request`, `unknown-transport`, `unknown-producer`, `unknown-consumer`, `duplicate-source`, `cannot-consume`, `internal`.
@@ -175,6 +179,9 @@ Configuração por variáveis de ambiente:
 | `RTC_LISTEN_IP` | 0.0.0.0 | interface da mídia |
 | `ANNOUNCED_ADDRESS` | vazio = o host que cada cliente usou | endereço anunciado nos candidatos ICE |
 | `MEDIASOUP_LOG_LEVEL` | warn | nível de log do mediasoup |
+| `DATA_DIR` | `./data` | (0.5) pasta com o `rooms.json` (as salas fixas). No Docker, `/data`, montada de `./data` ao lado do compose |
+
+**Salas fixas (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "geral" }, { "name": "privada", "hidden": true }] }`. Só elas aparecem na lista, na ordem do arquivo; `hidden` as tira da lista (entra-se pelo nome). Uma sala aberta por um nome que não está ali (DC, ou um app 0.4) é temporária e nunca aparece. Um arquivo ilegível é ignorado (o servidor sobe sem salas fixas e avisa no log).
 
 Proteções:
 - Mensagem de no máximo 64 KB, no máximo 16 pessoas por sala e limite de mensagens por segundo (rajada de 300, 100/s).
