@@ -141,8 +141,14 @@ export function nativeQuality({ resolution, fps, optimizeFor }, screen = window.
   };
 }
 
-/** The producer as the server must see it: what str0m sends (H.264 High + RTX, TWCC, mid). */
-export function nativeRtpParameters({ ssrc, rtxSsrc }) {
+/**
+ * The producer as the server must see it: what str0m sends (H.264 High + RTX, TWCC, mid).
+ * `maxKbps`, the top of the ladder, becomes the encoding's maxBitrate: mediasoup probes each
+ * viewer's link up to twice what its consumers ask for, and without it they ask for what the live
+ * sends now. A live that stepped down then never saw room to climb: a viewer on 1.5 Mbps was
+ * estimated at ~300 kbps for minutes, and the live stayed at 540p (measured).
+ */
+export function nativeRtpParameters({ ssrc, rtxSsrc }, maxKbps) {
   return {
     mid: '0',
     codecs: [
@@ -160,7 +166,7 @@ export function nativeRtpParameters({ ssrc, rtxSsrc }) {
       { uri: 'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01', id: 3 },
       { uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 4 },
     ],
-    encodings: [{ ssrc, rtx: { ssrc: rtxSsrc } }],
+    encodings: [{ ssrc, rtx: { ssrc: rtxSsrc }, maxBitrate: maxKbps * 1000 }],
     rtcp: { cname: 'jayc-native' },
   };
 }
@@ -195,6 +201,7 @@ export async function startNativeLive({ source, request, quality, onEnded }) {
     request('closeTransport', { transportId: transport.id }).catch(() => {});
     await invoke('native_live_stop');
   };
+  const top = nativeQuality(quality);
   let local;
   try {
     local = await invoke('native_live_start', {
@@ -206,7 +213,7 @@ export async function startNativeLive({ source, request, quality, onEnded }) {
         port: candidate.port,
         fingerprint: `sha-256 ${fingerprint.value}`,
       },
-      quality: nativeQuality(quality),
+      quality: top,
       onEvent,
     });
   } catch (error) {
@@ -221,7 +228,7 @@ export async function startNativeLive({ source, request, quality, onEnded }) {
       kind: 'video',
       source: 'screen',
       mode: source.kind === 'window' ? 'window' : 'screen',
-      rtpParameters: nativeRtpParameters(local),
+      rtpParameters: nativeRtpParameters(local, top.maxKbps),
     });
     return {
       id,

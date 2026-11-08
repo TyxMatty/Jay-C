@@ -1,6 +1,8 @@
 //! BGRA capture texture -> NV12 (D3D11 video processor, scaled to the output size) -> hardware
-//! H.264 (async Media Foundation MFT), all on the GPU. One instance per output size: a quality
-//! step change makes a new one, whose first frame is a keyframe with the new SPS.
+//! H.264 (async Media Foundation MFT), all on the GPU. One instance per output size: a step to a
+//! new size makes a new one, whose first frame is a keyframe with the new SPS. A step that only
+//! changes the frame rate keeps it (`set_fps`): a new encoder's keyframe on a slow link froze the
+//! picture for ~0.5-0.9 s at each such step (measured).
 //!
 //! Keyframes only when asked for (a viewer's PLI, a new encoder): measured on the NVIDIA MFT at
 //! 1080p30 and 3 Mbps, each keyframe of the old 4 s GOP was 300-500 KB, 57-95x a normal frame and
@@ -38,7 +40,12 @@ pub struct Output {
 pub struct Encoder {
     pub width: u32,
     pub height: u32,
+    /// The frames per second it gets now (`set_fps`), at most `rate_fps`.
     pub fps: u32,
+    /// The frame rate it was made for. The NVIDIA rate control spends the bitrate over this many
+    /// frames a second whatever it gets (fed half as many, it put out half the bitrate, measured),
+    /// so the bitrate it's given is scaled by rate_fps / fps.
+    rate_fps: u32,
     pub name: String,
     activate: IMFActivate,
     transform: IMFTransform,
@@ -60,12 +67,15 @@ fn pack(hi: u32, lo: u32) -> u64 {
 }
 
 impl Encoder {
-    /// `input`: the capture size; `width` x `height` (even): what gets encoded.
-    pub unsafe fn new(device: &ID3D11Device, input: (u32, u32), width: u32, height: u32, fps: u32, kbps: u32) -> Result<Self> {
+    /// `input`: the capture size; `width` x `height` (even): what gets encoded; `rate_fps`: the most
+    /// frames a second it will get; `fps`: how many it gets for now.
+    pub unsafe fn new(device: &ID3D11Device, input: (u32, u32), width: u32, height: u32, rate_fps: u32, fps: u32, kbps: u32) -> Result<Self> {
+        let fps = fps.clamp(1, rate_fps.max(1));
+        let (rate_fps, scaled) = (rate_fps.max(1), kbps * rate_fps.max(1) / fps);
         let context = device.GetImmediateContext()?;
         let vdevice: ID3D11VideoDevice = device.cast()?;
         let vcontext: ID3D11VideoContext = context.cast()?;
-        let rate = DXGI_RATIONAL { Numerator: fps, Denominator: 1 };
+        let rate = DXGI_RATIONAL { Numerator: rate_fps, Denominator: 1 };
         let content = D3D11_VIDEO_PROCESSOR_CONTENT_DESC {
             InputFrameFormat: D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
             InputFrameRate: rate,
@@ -145,25 +155,25 @@ impl Encoder {
             };
             set(&CODECAPI_AVLowLatencyMode, VARIANT::from(true), "low latency");
             set(&CODECAPI_AVEncCommonRateControlMode, VARIANT::from(eAVEncCommonRateControlMode_CBR.0 as u32), "CBR");
-            set(&CODECAPI_AVEncCommonMeanBitRate, VARIANT::from(kbps * 1000), "bitrate");
+            set(&CODECAPI_AVEncCommonMeanBitRate, VARIANT::from(scaled * 1000), "bitrate");
             set(&CODECAPI_AVEncCommonBufferSize, VARIANT::from(buffer_bits(kbps, fps)), "buffer size");
-            set(&CODECAPI_AVEncMPVGOPSize, VARIANT::from(fps * GOP_SECONDS), "GOP");
+            set(&CODECAPI_AVEncMPVGOPSize, VARIANT::from(rate_fps * GOP_SECONDS), "GOP");
         }
         let out_type = MFCreateMediaType()?;
         out_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
         out_type.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264)?;
-        out_type.SetUINT32(&MF_MT_AVG_BITRATE, kbps * 1000)?;
+        out_type.SetUINT32(&MF_MT_AVG_BITRATE, scaled * 1000)?;
         out_type.SetUINT64(&MF_MT_FRAME_SIZE, pack(width, height))?;
-        out_type.SetUINT64(&MF_MT_FRAME_RATE, pack(fps, 1))?;
+        out_type.SetUINT64(&MF_MT_FRAME_RATE, pack(rate_fps, 1))?;
         out_type.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
         out_type.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
-        out_type.SetUINT32(&MF_MT_MAX_KEYFRAME_SPACING, fps * GOP_SECONDS)?;
+        out_type.SetUINT32(&MF_MT_MAX_KEYFRAME_SPACING, rate_fps * GOP_SECONDS)?;
         transform.SetOutputType(0, &out_type, 0)?;
         let in_type = MFCreateMediaType()?;
         in_type.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)?;
         in_type.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_NV12)?;
         in_type.SetUINT64(&MF_MT_FRAME_SIZE, pack(width, height))?;
-        in_type.SetUINT64(&MF_MT_FRAME_RATE, pack(fps, 1))?;
+        in_type.SetUINT64(&MF_MT_FRAME_RATE, pack(rate_fps, 1))?;
         in_type.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
         transform.SetInputType(0, &in_type, 0)?;
 
@@ -175,6 +185,7 @@ impl Encoder {
             width,
             height,
             fps,
+            rate_fps,
             name: name_str,
             activate,
             transform,
@@ -265,8 +276,19 @@ impl Encoder {
     pub unsafe fn set_bitrate(&self, kbps: u32) {
         if let Some(c) = &self.codec {
             let _ = c.SetValue(&CODECAPI_AVEncCommonBufferSize, &VARIANT::from(buffer_bits(kbps, self.fps)));
-            let _ = c.SetValue(&CODECAPI_AVEncCommonMeanBitRate, &VARIANT::from(kbps * 1000));
+            let _ = c.SetValue(&CODECAPI_AVEncCommonMeanBitRate, &VARIANT::from(kbps * self.rate_fps / self.fps * 1000));
         }
+    }
+
+    /// The most frames a second it can get without a new encoder.
+    pub fn rate_fps(&self) -> u32 {
+        self.rate_fps
+    }
+
+    /// Gets `fps` frames a second from now on (at most `rate_fps`), at `kbps`. No new keyframe.
+    pub unsafe fn set_fps(&mut self, fps: u32, kbps: u32) {
+        self.fps = fps.clamp(1, self.rate_fps);
+        self.set_bitrate(kbps);
     }
 
     pub unsafe fn force_keyframe(&self) {

@@ -355,3 +355,44 @@ O texto do HUD em 1080p30 a ~3,7 Mbps ficou legível linha a linha, onde o 1080p
   - alvo andando 10 ms por segundo (50 → 150 → 50): nenhum intervalo acima de 50 ms em 60 s.
 - **Agora:** o alvo anda no máximo 10 ms por segundo e só sai do lugar quando está a 20 ms ou mais de onde deveria (`nextScreenVideoTarget`, `catch-up.js`). Um salto do som de 30 para 300 ms leva ~26 s para a imagem acompanhar.
 - **Não medido:** o caminho completo com o som da live (o Chrome sem janela não tem a captura nativa); a função é coberta por teste.
+
+## Texto borrado com quem assiste numa conexão fraca (07/11/2026)
+
+**Relato** (0.4.2, um print da própria live): uma janela do Discord compartilhada com texto ilegível, que fica nítido e borra de novo ("vai e volta"). Otimizar para: Texto. Quem assistia estava em outra casa.
+
+**Como medir:**
+- uma janela que imita um chat (`text-test.html`): texto de 11–14 px em quase tudo, uma mensagem nova a cada 4 s (o chat rola), as listras de nitidez e o relógio em blocos;
+- live nativa da janela; quem assiste é um Chrome sem janela, atrás do `udp-shaper` com 1,5 Mbps de download e fila de 200 ms ou 500 ms;
+- 3 min por rodada; o limitador classifica o que descarta (vídeo, RTX, sondagem do mediasoup).
+
+**Causa 1: a estimativa de quem assiste ficava presa embaixo.**
+- O mediasoup só sonda o link de quem assiste até 2× o que os consumers dele pedem (`ProbeController`: a sondagem é limitada a 2× `maxTotalAllocatedBitrate`). Um consumer pede o que o producer manda agora, ou o `maxBitrate` da encoding, se houver.
+- A live do navegador declara `maxBitrate`; a nativa não declarava. Depois de cair, a live mandava ~200 kbps e a estimativa ficava em ~300 kbps, mesmo com 1,5 Mbps de link. Com 70% dessa estimativa, nunca dava para subir.
+- **Antes (0.4.2):** 540p10 e 360p10 o tempo todo; leituras da estimativa de 270 a 415 kbps em 3 min. Nenhuma travada, mas o texto fica pequeno demais quando o card amplia a imagem.
+- **Agora:** o producer nativo declara `maxBitrate` = o topo da escada (`nativeRtpParameters`). As leituras passaram a ir de 400 a 3.600 kbps (as sondagens às vezes passam do link).
+
+**Causa 2: no modo Texto, a escada largava a resolução cedo.** De 1080p15 (1.244 kbps) ela ia para 720p15 e 540p10. Agora: altura escolhida a 60/30/15/10 qps, depois 1080p10 e 1080p5 (415 kbps), e só então 720p5 e 540p5.
+
+**Trocar só os qps não cria codificador novo.**
+- Antes, cada degrau criava um codificador, e o primeiro quadro de um codificador é um quadro-chave: 96–122 KB em 1080p, mesmo a 500 kbps (2 s dessa taxa).
+- Agora o codificador é feito para o maior qps da escada naquela altura, e um degrau só de qps muda o bitrate e o ritmo (`Encoder::set_fps`).
+- O controle de taxa da NVIDIA conta os quadros pelo qps configurado, então o bitrate é escalado por configurado/recebido. Medido com a sonda: um codificador feito para 60 qps, recebendo 5, 10 ou 15 qps com o bitrate escalado, gerou os mesmos quadros, byte a byte, que um feito para a taxa recebida.
+
+**Resultados** (1,5 Mbps para quem assiste, 3 min):
+
+| | Fila de 200 ms | Fila de 500 ms |
+|---|---|---|
+| 0.4.2 | 540p10 / 360p10, sem travadas | não medido |
+| `maxBitrate` + escada | 720p5 quase sempre; 8 travadas (4,8 s), 1.213 pacotes perdidos | 1080p5 e 720p5; 26 travadas (17 s) |
+| + mesmo codificador nos qps | 720p5 quase sempre, 1080p5 às vezes; 4 travadas (2,5 s) | 1080p5 90 s, 720p5 108 s; 23 pacotes perdidos; ~0,7 s de imagem parada a cada mensagem nova |
+
+- Sem limite, a live sobe 1080p 5 → 10 → 15 → 30 → 60 no mesmo codificador, sem quadro-chave (54 qps, sem perda). Numa rodada, a estimativa do próprio envio (local) caiu para 203 kbps de uma vez e voltou em 20 s. Na mesma hora o codificador levou 373 ms para nascer (o PC estava ocupado). Não se repetiu em mais 1,5 min.
+
+**O que sobra: quadros grandes demais em mudanças grandes.**
+- O MFT da NVIDIA ignora o buffer do controle de taxa quando muda quase a tela toda. Na sonda, um quadro comum (NAL tipo 1, não-IDR) saiu com 161 KB, 8× o buffer (1,5 Mbps, 15 qps).
+- No chat, a rolagem a cada mensagem gera quadros assim: com fila de 200 ms o roteador descarta parte deles (perda, NACK, travada curta); com 500 ms eles passam, mas seguram a imagem ~0,7 s.
+- **Ideias, não testadas:** um QP mínimo para limitar o tamanho desses quadros (piora o texto parado?); ou espaçar o envio dos pacotes pela taxa de quem assiste, em vez da do próprio envio (o str0m espaça pela estimativa dele).
+
+**Custo da escada nova:** no modo Texto (o padrão), um vídeo ou jogo numa conexão fraca agora cai para 1080p5 antes de baixar a resolução. Para isso existe o "Movimento", que não mudou.
+
+**Não medido:** a rede real de quem relatou; encoders que não sejam da NVIDIA.

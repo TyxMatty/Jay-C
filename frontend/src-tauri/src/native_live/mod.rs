@@ -400,16 +400,19 @@ unsafe fn run(
         let mut quality = *shared.lock().unwrap();
         let mut budget = (START_KBPS as f64 * BUDGET_SHARE) as u32;
         let mut ladder = Ladder::new(ladder_steps(&quality, capture), budget, Instant::now());
-        let make = |s: Step, budget: u32, capture: (u32, u32)| {
+        // Made for the most frames a second any step at this size has: going between those steps
+        // then keeps the encoder (Encoder::set_fps) and sends no keyframe.
+        let make = |s: Step, steps: &[Step], budget: u32, capture: (u32, u32)| {
             let (w, h) = step_size(capture, s.height);
             let kbps = budget.min(s.max_kbps);
+            let rate = steps.iter().filter(|x| x.height == s.height).map(|x| x.fps).max().unwrap_or(s.fps);
             let began = Instant::now();
-            let enc = Encoder::new(&device, capture, w, h, s.fps, kbps).map_err(err("H.264 encoder"))?;
+            let enc = Encoder::new(&device, capture, w, h, rate, s.fps, kbps).map_err(err("H.264 encoder"))?;
             log::info!("native live: encoder {}x{} -> {w}x{h}@{}, {kbps} kbps ({} ms)", capture.0, capture.1, s.fps, began.elapsed().as_millis());
             let _ = events.send(LiveEvent::Step { width: w, height: h, fps: s.fps });
             Ok::<_, String>(enc)
         };
-        let mut enc = make(ladder.step(), budget, capture)?;
+        let mut enc = make(ladder.step(), &ladder.steps, budget, capture)?;
         log::info!("native live: {} {}x{} -> {}x{}@{}", enc.name, capture.0, capture.1, enc.width, enc.height, enc.fps);
 
         let addr = format!("{}:{}", remote.ip, remote.port).parse().map_err(|e| format!("server address: {e}"))?;
@@ -480,7 +483,7 @@ unsafe fn run(
             }
             if resized {
                 ladder.set_steps(ladder_steps(&quality, capture));
-                enc = make(ladder.step(), budget, capture)?;
+                enc = make(ladder.step(), &ladder.steps, budget, capture)?;
                 (last_forced, keyframe_pending) = (Some(Instant::now()), false);
                 asked = budget.min(ladder.step().max_kbps);
             }
@@ -625,10 +628,19 @@ unsafe fn run(
                     limit.map_or("-".into(), |l| l.to_string()),
                     if too_big { ", the send queue kept growing" } else { "" }
                 );
-                // New size or fps: a new encoder, whose first frame is a keyframe at the new size.
-                enc = make(ladder.step(), budget, capture)?;
-                (last_forced, keyframe_pending, refresh_now, skip_score, stepped_at) = (Some(now), false, true, 0.0, now);
-                asked = budget.min(ladder.step().max_kbps);
+                let s = ladder.step();
+                if step_size(capture, s.height) == (enc.width, enc.height) && s.fps <= enc.rate_fps() {
+                    // Only the frame rate: same encoder, no keyframe.
+                    enc.set_fps(s.fps, budget.min(s.max_kbps));
+                    log::info!("native live: same encoder -> {}x{}@{}, {} kbps", enc.width, enc.height, s.fps, budget.min(s.max_kbps));
+                    let _ = events.send(LiveEvent::Step { width: enc.width, height: enc.height, fps: s.fps });
+                } else {
+                    // New size: a new encoder, whose first frame is a keyframe at the new size.
+                    enc = make(s, &ladder.steps, budget, capture)?;
+                    (last_forced, keyframe_pending, refresh_now) = (Some(now), false, true);
+                }
+                (skip_score, stepped_at) = (0.0, now);
+                asked = budget.min(s.max_kbps);
             } else {
                 if too_big {
                     skip_score = 0.0; // already at the bottom step

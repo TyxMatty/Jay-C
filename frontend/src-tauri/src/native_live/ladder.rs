@@ -1,8 +1,10 @@
 //! Quality ladder: the resolution and frame rate that fit the bandwidth budget.
 //!
 //! The steps come from the quality picked in Settings (the top step) and what it's optimized for:
-//! "detail" (text, the default) keeps the resolution and gives up frame rate first; "motion" keeps
-//! the frame rate and gives up resolution first. A step needs MIN_BPP bits per pixel per frame
+//! "detail" (text, the default) keeps the resolution and gives up frame rate first, down to 5 fps at
+//! 1080p (~415 kbps) before going under it: a chat window for a viewer on 1.5 Mbps got 720p5 and
+//! 1080p5 instead of 540p10 (measured); "motion" keeps the frame rate and gives up resolution first.
+//! Steps that only change the frame rate keep the encoder (mod.rs, Encoder::set_fps): no keyframe. A step needs MIN_BPP bits per pixel per frame
 //! (frames above 30/s count half, as in core/media.js): below that it looks worse than the next one
 //! down. Measured on a 4 Mbps link: 1080p60 at 3.5 Mbps left the HUD text unreadable, worse than
 //! 720p30 at 2.5 Mbps.
@@ -58,7 +60,7 @@ fn kbps(size: (u32, u32), fps: u32, bpp: f64) -> u32 {
 /// The steps for a picked top (`height`, `fps`, `max_kbps`), best first.
 pub fn steps(height: u32, fps: u32, max_kbps: u32, capture: (u32, u32), detail: bool) -> Vec<Step> {
     let shapes: &[(u32, u32)] = if detail {
-        &[(height, fps), (height, 30), (height, 15), (1080, 15), (720, 15), (540, 10), (360, 10)]
+        &[(height, fps), (height, 30), (height, 15), (height, 10), (1080, 10), (1080, 5), (720, 5), (540, 5)]
     } else {
         &[(height, fps), (1080, fps), (720, fps), (720, 30), (540, 30), (360, 30), (360, 15)]
     };
@@ -186,11 +188,13 @@ mod tests {
 
     #[test]
     fn detail_keeps_the_resolution_and_motion_keeps_the_frame_rate() {
-        assert_eq!(shape(&steps(1080, 60, 7500, FHD, true)), [(1080, 60), (1080, 30), (1080, 15), (720, 15), (540, 10), (360, 10)]);
+        assert_eq!(shape(&steps(1080, 60, 7500, FHD, true)), [(1080, 60), (1080, 30), (1080, 15), (1080, 10), (1080, 5), (720, 5), (540, 5)]);
         assert_eq!(shape(&steps(1080, 60, 7500, FHD, false)), [(1080, 60), (720, 60), (720, 30), (540, 30), (360, 30), (360, 15)]);
         // Never above the pick, no repeats.
-        assert_eq!(shape(&steps(720, 30, 2000, FHD, true)), [(720, 30), (720, 15), (540, 10), (360, 10)]);
-        assert_eq!(shape(&steps(1440, 60, 12000, (2560, 1440), true)), [(1440, 60), (1440, 30), (1440, 15), (1080, 15), (720, 15), (540, 10), (360, 10)]);
+        assert_eq!(shape(&steps(720, 30, 2000, FHD, true)), [(720, 30), (720, 15), (720, 10), (720, 5), (540, 5)]);
+        assert_eq!(shape(&steps(1440, 60, 12000, (2560, 1440), true)), [(1440, 60), (1440, 30), (1440, 15), (1440, 10), (1080, 10), (1080, 5), (720, 5), (540, 5)]);
+        // 1080p keeps going down to ~415 kbps (5 fps at 0.04 bpp).
+        assert_eq!(steps(1080, 60, 7500, FHD, true)[4].min_kbps, 415);
     }
 
     #[test]
@@ -211,7 +215,7 @@ mod tests {
         let t0 = Instant::now();
         assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, true), 6000, t0).tier, 0);
         assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, true), 3000, t0).tier, 1);
-        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, true), 10, t0).tier, 5);
+        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, true), 10, t0).tier, 6);
     }
 
     #[test]
@@ -279,6 +283,7 @@ mod tests {
         assert_eq!(l.too_big(t0), Some(1));
         assert_eq!(l.too_big(t0), Some(2));
         assert_eq!(l.too_big(t0), Some(3));
+        assert_eq!(l.too_big(t0), Some(4));
         assert_eq!(l.too_big(t0), None);
     }
 

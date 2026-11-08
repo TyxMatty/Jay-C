@@ -17,7 +17,7 @@ test('the picked quality becomes the top of the native ladder', () => {
 });
 
 test('the native producer matches what the Rust sender puts on the wire', () => {
-  const p = nativeRtpParameters({ ssrc: 1111, rtxSsrc: 2222 });
+  const p = nativeRtpParameters({ ssrc: 1111, rtxSsrc: 2222 }, 7465);
   assert.equal(p.mid, '0');
   const [h264, rtx] = p.codecs;
   assert.equal(h264.payloadType, 102);
@@ -28,7 +28,8 @@ test('the native producer matches what the Rust sender puts on the wire', () => 
     Object.fromEntries(p.headerExtensions.map((e) => [e.id, e.uri.split(/[/:]/).at(-1)])),
     { 2: 'abs-send-time', 3: 'draft-holmer-rmcat-transport-wide-cc-extensions-01', 4: 'mid' },
   );
-  assert.deepEqual(p.encodings, [{ ssrc: 1111, rtx: { ssrc: 2222 } }]);
+  // maxBitrate: mediasoup probes each viewer's link up to it, not just up to what the live sends now.
+  assert.deepEqual(p.encodings, [{ ssrc: 1111, rtx: { ssrc: 2222 }, maxBitrate: 7_465_000 }]);
 });
 
 test('the decoder codec comes from the keyframe\'s SPS', () => {
