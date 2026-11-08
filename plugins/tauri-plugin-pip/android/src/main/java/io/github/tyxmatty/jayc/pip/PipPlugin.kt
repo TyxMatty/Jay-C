@@ -106,8 +106,28 @@ class PipPlugin(private val activity: Activity) : Plugin(activity) {
         if (autoEnter && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) enterNow()
     }
 
+    companion object {
+        @Volatile
+        private var current: PipPlugin? = null
+
+        /**
+         * For the app's Back handler (MainActivity), when the page has nothing left to close:
+         * during a call (auto-enter armed) go to PiP, as Home does, and return true. Sent to the
+         * background instead, the call kept its connection but Android silenced the mic within
+         * seconds (measured: 50 -> 5 packets/s; in PiP it stayed at 50).
+         */
+        @JvmStatic
+        fun enterForBack(): Boolean {
+            val plugin = current ?: return false
+            if (!plugin.autoEnter || !plugin.supported()) return false
+            Log.i(TAG, "Back during a call: entering PiP")
+            return plugin.enterNow()
+        }
+    }
+
     override fun load(webView: WebView) {
         this.webView = webView
+        current = this
         val component = activity as? ComponentActivity
         Log.i(TAG, "load: ComponentActivity=${component != null}")
         component?.let {
@@ -117,6 +137,7 @@ class PipPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     override fun onDestroy() {
+        if (current === this) current = null
         (activity as? ComponentActivity)?.let {
             it.removeOnPictureInPictureModeChangedListener(modeListener)
             it.removeOnUserLeaveHintListener(leaveHintListener)

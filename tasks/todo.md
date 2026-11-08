@@ -300,15 +300,28 @@ Visto pelo usuário em 08/11/2026 (Samsung SM-S711B, Android 16): fechar a mini-
 
 **Verificação:** manual no celular, com o logcat e um bot medindo os pacotes do mic do celular depois de fechar o PiP.
 
+**Achado na T12.G (08/11/2026), importante aqui:** com o app em segundo plano (sem PiP), a call mantém a conexão, mas o Android cala o mic em segundos. Medido no Samsung: 50 → 5 pacotes/s (silêncio do Opus) entre 0–4 s e 10–14 s depois; voltando ao app, 50 de novo. No PiP, fica em 50. Então "fechar o PiP sem derrubar a call" provavelmente precisa de um serviço em primeiro plano do tipo `microphone` (com notificação), senão a call segue muda. Medir antes de decidir.
+
 **Arquivos:** `plugins/tauri-plugin-pip` (Kotlin), talvez `gen/android` (`MainActivity`) · **Tamanho:** M
 
-#### [ ] T12.G: Voltar manda o app para segundo plano (Android)
+#### [x] T12.G: Voltar manda o app para segundo plano (Android)
+**Feito (08/11/2026), medido no Samsung SM-S711B (Android 16):**
+- **O que acontecia:** o `AppPlugin` do Tauri volta no histórico da página (gavetas, tela cheia). Sem histórico, ele chama `activity.onBackPressed()`, a activity termina, e o processo morreu junto (`has died`, logcat). O `FORTIFY` não apareceu desta vez.
+- **A correção, fora da call:** `MainActivity.kt` registra um `OnBackPressedCallback` que chama `moveTaskToBack(true)`. Ele só roda quando o `AppPlugin` passa o Voltar adiante, porque os callbacks rodam do mais novo para o mais velho e o do Tauri entra depois.
+- **A correção, durante a call:** só mandar para segundo plano calava o mic em segundos (50 → 5 pacotes/s), enquanto o Home, que entra no PiP, o mantinha em 50. Agora, com a entrada automática no PiP armada (call aberta), o Voltar entra no PiP como o Home (`PipPlugin.enterForBack`).
+- **Medido:**
+  - com uma gaveta aberta, o 1º Voltar fecha a gaveta e o app fica na frente;
+  - o 2º Voltar manda para segundo plano, com o mesmo pid; ao abrir de novo, a mesma página (um marcador no `window` sobreviveu) e sem recarregar;
+  - Voltar durante a call: entra no PiP, e o bot recebe o mic do celular a 50 pacotes/s de 0–4 s e de 10–14 s depois;
+  - 10 ciclos de Voltar e reabrir fora da call: 10/10 em segundo plano com o mesmo pid, 0 crashes (`FORTIFY` e `Fatal signal`), 0 mortes de processo, 0 PiP.
+
+
 O Voltar na tela inicial do app (sem gaveta aberta) fecha o app inteiro. Deveria mandar para segundo plano, como o Home, sem fechar (e, durante uma call, sem derrubar a call). Visto também 1 vez um crash nativo ao fechar assim (`FORTIFY: pthread_mutex_lock called on a destroyed mutex`, 08/11/2026).
 
 **Critérios:**
-- [ ] Voltar sem nada para fechar: o app vai para segundo plano (`moveTaskToBack`), e o processo continua.
-- [ ] O Voltar continua fechando gavetas, diálogos e o chat antes disso (T11).
-- [ ] O crash não aparece no logcat em 10 saídas seguidas.
+- [x] Voltar sem nada para fechar: o app vai para segundo plano (`moveTaskToBack`), e o processo continua.
+- [x] O Voltar continua fechando gavetas, diálogos e o chat antes disso (T11).
+- [x] O crash não aparece no logcat em 10 saídas seguidas.
 
 **Verificação:** manual no celular com `adb shell input keyevent KEYCODE_BACK` e o logcat.
 
