@@ -125,6 +125,8 @@ Cliente → servidor:
 | `screen-preview` | `image` (JPEG em data URL, até 48 000 caracteres, ou `null` ao parar) | uma imagem da própria live, a cada 6 s; os outros recebem `screen-preview`, e quem entra depois recebe a última no `joined`. Até 1 a cada 2 s (rajada de 3). Só é enviado se o `joined` listar `screen-preview` em `features` |
 | `leave` | — | sai da sala |
 | `hello` | `name`, `avatar?`, `color?` | (0.5) a conexão passa a acompanhar a lista de salas do servidor, sem entrar em call. Resposta: `server-state`. O app abre uma conexão só para isso, separada da call |
+| `admin` | `key` | (0.5) a chave do servidor (`ADMIN_KEY`). Resposta: `{type: "admin", ok: true}` e um `server-state` com `admin: true` e também as salas invisíveis (`hidden: true`); ou `error` `not-admin` / `rate-limited` com `ref: "admin"` |
+| `room-create` / `room-edit` / `room-delete` | `id`, `data`: `{name, newName?, password?, hidden?}` (`password: null` tira a senha) | (0.5, só admin) muda as salas fixas e grava o `rooms.json`; todos recebem um `server-state` novo. Resposta como as do SFU; erros `not-admin`, `bad-request` (inclui invisível sem senha), `room-exists`, `room-in-use` (renomear uma sala com gente), `unknown-room`, `not-saved` |
 | *requisição SFU* | `id`, `data` | resposta: `{type: "response", id, ok, data}` ou `{…, ok: false, error}` |
 
 Requisições SFU, com os nomes da API do mediasoup:
@@ -179,7 +181,8 @@ Configuração por variáveis de ambiente:
 | `RTC_LISTEN_IP` | 0.0.0.0 | interface da mídia |
 | `ANNOUNCED_ADDRESS` | vazio = o host que cada cliente usou | endereço anunciado nos candidatos ICE |
 | `MEDIASOUP_LOG_LEVEL` | warn | nível de log do mediasoup |
-| `DATA_DIR` | `./data` | (0.5) pasta com o `rooms.json` (as salas fixas). No Docker, `/data`, montada de `./data` ao lado do compose |
+| `DATA_DIR` | `./data` | (0.5) pasta com o `rooms.json` (as salas fixas). No Docker, `/data`, montada de `./data` ao lado do compose (no Linux, gravável pelo uid 1000) |
+| `ADMIN_KEY` | vazio = ninguém gerencia | (0.5) quem manda essa chave (`admin`) cria, edita e apaga as salas fixas pelo app. Comparada em tempo constante, nunca vai para log; 5 tentativas por IP, depois uma a cada 10 s |
 
 **Salas fixas (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "geral" }, { "name": "privada", "hidden": true }] }`. Só elas aparecem na lista, na ordem do arquivo; `hidden` as tira da lista (entra-se pelo nome). Uma sala aberta por um nome que não está ali (DC, ou um app 0.4) é temporária e nunca aparece. Um arquivo ilegível é ignorado (o servidor sobe sem salas fixas e avisa no log).
 

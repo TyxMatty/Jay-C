@@ -72,3 +72,12 @@ New-NetFirewallRule -DisplayName "Jay-C media" -Direction Inbound -Protocol UDP 
 On this PC, open **Settings › Server** in Jay-C, enter `localhost:3000` and press **Test**. When it says "Connected", pick a room name.
 
 Then send your friends two things: the server address from step 4 (for example `192.168.1.50:3000`) and the room name. They follow the **Connecting** tab.
+
+## 6. Rooms everyone sees (optional)
+
+Jay-C 0.5 and newer list the server's rooms in the lobby, with who is in each. To manage them from the app, start the server with an **admin key** (a long secret only you know):
+
+- **Node.js:** in PowerShell, `$env:ADMIN_KEY="a-long-secret"; npm run server`.
+- **Docker:** in `docker-compose.yml`, remove the `#` before `ADMIN_KEY`, put your secret there and run `docker compose up -d` again. On Linux, let the server write its rooms once: `mkdir -p data && sudo chown 1000:1000 data`.
+
+Then, in the lobby, click **Manage rooms** and type the key once. You can create rooms, give one a password (it shows a lock) and hide a room that has a password (only who types its name finds it). The server keeps them in `data/rooms.json`. A room joined by any other name works as before, but stays out of the list.

@@ -43,5 +43,7 @@ export function loadConfig() {
 
     // ---- Server data (Jay-C 0.5): the fixed rooms (rooms.json) ----
     dataDir: process.env.DATA_DIR || './data',
+    // Whoever has this key manages the fixed rooms from the app. Empty = nobody does.
+    adminKey: process.env.ADMIN_KEY || '',
   };
 }

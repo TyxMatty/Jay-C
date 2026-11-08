@@ -505,6 +505,57 @@ select {
 }
 
 /* The server's rooms (Jay-C 0.5): one per line, with who is in each below it. */
+.server-rooms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.server-admin-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Server settings (ui/server-settings-modal.js). */
+.server-admin-rooms {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.server-admin-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-control) + 2px);
+  background: var(--surface-2);
+}
+
+.server-admin-room .btn-small {
+  margin-bottom: 0;
+}
+
+.server-room-form,
+.server-admin-key {
+  display: grid;
+  gap: 12px;
+}
+
+.server-room-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .server-rooms,
 .server-room-peers {
   margin: 0;

@@ -127,6 +127,8 @@ Client → server:
 | `screen-preview` | `image` (JPEG data URL, up to 48,000 characters, or `null` when stopping) | a picture of your own stream, every 6 s; the others get `screen-preview`, and whoever joins later gets the last one in `joined`. At most 1 every 2 s (burst of 3). Only sent when `joined` lists `screen-preview` in `features` |
 | `leave` | — | leaves the room |
 | `hello` | `name`, `avatar?`, `color?` | (0.5) the connection follows the server's room list without joining a call. Answer: `server-state`. The app opens a connection just for this, apart from the call |
+| `admin` | `key` | (0.5) the server's key (`ADMIN_KEY`). Answer: `{type: "admin", ok: true}` and a `server-state` with `admin: true` that also has the hidden rooms (`hidden: true`); or `error` `not-admin` / `rate-limited` with `ref: "admin"` |
+| `room-create` / `room-edit` / `room-delete` | `id`, `data`: `{name, newName?, password?, hidden?}` (`password: null` removes it) | (0.5, admin only) changes the fixed rooms and saves `rooms.json`; everyone gets a new `server-state`. Answered like SFU requests; errors `not-admin`, `bad-request` (includes hidden without a password), `room-exists`, `room-in-use` (renaming a room with people in it), `unknown-room`, `not-saved` |
 | *SFU request* | `id`, `data` | reply: `{type: "response", id, ok, data}` or `{…, ok: false, error}` |
 
 SFU requests, named after the mediasoup API:
@@ -181,7 +183,8 @@ Configuration through environment variables:
 | `RTC_LISTEN_IP` | 0.0.0.0 | media interface |
 | `ANNOUNCED_ADDRESS` | empty = the host each client used | address announced in the ICE candidates |
 | `MEDIASOUP_LOG_LEVEL` | warn | mediasoup log level |
-| `DATA_DIR` | `./data` | (0.5) folder with `rooms.json` (the fixed rooms). In Docker, `/data`, mounted from `./data` next to the compose file |
+| `DATA_DIR` | `./data` | (0.5) folder with `rooms.json` (the fixed rooms). In Docker, `/data`, mounted from `./data` next to the compose file (on Linux, writable by uid 1000) |
+| `ADMIN_KEY` | empty = nobody manages | (0.5) whoever sends this key (`admin`) creates, edits and deletes the fixed rooms from the app. Compared in constant time, never logged; 5 tries per IP, then one every 10 s |
 
 **Fixed rooms (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "general" }, { "name": "private", "hidden": true }] }`. Only these show in the list, in the file's order; `hidden` keeps one out of it (joined by name). A room opened by a name that isn't there (DC, or a 0.4 app) is temporary and never shows. An unreadable file is ignored (the server starts with no fixed rooms and says so in the log).
 

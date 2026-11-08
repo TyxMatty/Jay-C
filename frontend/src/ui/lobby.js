@@ -7,6 +7,7 @@ import { t } from '../core/i18n.js';
 import { updatesSupported, checkForUpdate, installUpdate } from '../core/update.js';
 import { ServerSession } from '../core/server-session.js';
 import { toWebSocketUrl } from '../core/server-address.js';
+import { createServerSettingsModal } from './server-settings-modal.js';
 
 // Must match the signaling server's room-name rule.
 const ROOM_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -88,7 +89,19 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
   // The server's rooms with who is in each (Jay-C 0.5, core/server-session.js); a click joins.
   // Hidden on a server without the list (older than 0.5) or with no rooms set up.
   const serverRoomsList = h('ul', { class: 'server-rooms', 'aria-labelledby': 'server-rooms-label' });
-  const serverRoomsField = h('div', { class: 'field', hidden: true }, h('span', { class: 'field-label', id: 'server-rooms-label' }, t('Rooms on this server')), serverRoomsList);
+  // On a server with an admin key: its settings (ui/server-settings-modal.js).
+  let serverSettings = null;
+  const manageButton = h(
+    'button',
+    { type: 'button', class: 'btn btn-secondary btn-small', hidden: true, onClick: () => serverSettings?.open() },
+    t('Manage rooms'),
+  );
+  const serverRoomsField = h(
+    'div',
+    { class: 'field', hidden: true },
+    h('div', { class: 'server-rooms-header' }, h('span', { class: 'field-label', id: 'server-rooms-label' }, t('Rooms on this server')), manageButton),
+    serverRoomsList,
+  );
   const memberRow = (peer) =>
     h(
       'li',
@@ -101,7 +114,9 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
   let session = null;
   const renderServerRooms = () => {
     const rooms = session?.supported ? session.rooms : [];
-    serverRoomsField.hidden = rooms.length === 0;
+    const manageable = Boolean(session?.supported && session.features.includes('server-admin'));
+    manageButton.hidden = !manageable;
+    serverRoomsField.hidden = rooms.length === 0 && !manageable;
     serverRoomsList.replaceChildren(
       ...rooms.map((room) =>
         h(
@@ -120,8 +135,9 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
                 else roomInput.focus();
               },
             },
-            h('span', { class: 'server-room-icon', html: icons.users, 'aria-hidden': 'true' }),
+            h('span', { class: 'server-room-icon', html: room.locked ? icons.lock : icons.users, 'aria-hidden': 'true' }),
             h('span', { class: 'server-room-name' }, room.name),
+            room.hidden ? h('span', { class: 'server-admin-tag' }, t('Hidden')) : null,
             room.peers.length ? h('span', { class: 'server-room-count', 'aria-hidden': 'true' }, String(room.peers.length)) : null,
           ),
           room.peers.length ? h('ul', { class: 'server-room-peers' }, room.peers.map(memberRow)) : null,
@@ -131,12 +147,25 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
   };
   const openSession = () => {
     session?.close();
+    serverSettings?.destroy();
     session = null;
+    serverSettings = null;
     const url = toWebSocketUrl(settings.get().serverAddress);
     if (url) {
-      const { displayName, avatar, profileColor } = settings.get();
-      session = new ServerSession(url, { name: displayName.trim() || 'Jay-C', avatar, color: profileColor });
+      const { displayName, avatar, profileColor, adminKeys } = settings.get();
+      const current = new ServerSession(url, { name: displayName.trim() || 'Jay-C', avatar, color: profileColor });
+      session = current;
       session.addEventListener('change', renderServerRooms);
+      serverSettings = createServerSettingsModal({ session, url });
+      document.body.append(serverSettings.element);
+      // The key given before on this computer: unlocked by itself (a key the server no longer takes is forgotten).
+      if (adminKeys?.[url]) {
+        current.login(adminKeys[url]).catch((error) => {
+          if (error?.code !== 'not-admin') return;
+          const { [url]: _wrong, ...rest } = settings.get().adminKeys;
+          settings.update({ adminKeys: rest });
+        });
+      }
     }
     renderServerRooms();
   };
@@ -144,7 +173,10 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     settings.subscribe((next, prev) => {
       if (next.serverAddress !== prev.serverAddress) openSession();
     }),
-    () => session?.close(),
+    () => {
+      session?.close();
+      serverSettings?.destroy();
+    },
   );
 
   // How others see you: profile color, picture or initial, and name (Settings › Profile edits it).

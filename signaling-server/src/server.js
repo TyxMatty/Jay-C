@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { RoomRegistry, describePeer } from './rooms.js';
@@ -15,6 +15,12 @@ const MAX_AVATAR_LENGTH = 32_000;
 const MAX_PREVIEW_LENGTH = 48_000;
 // Raster images only (an SVG can carry scripts), inline only (a remote URL would track viewers).
 const AVATAR_RE = /^data:image\/(?:webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** The host's changes to the fixed rooms (Jay-C 0.5): request type -> Directory.change kind. */
+const ADMIN_REQUESTS = { 'room-create': 'create', 'room-edit': 'edit', 'room-delete': 'delete' };
+
+/** Compares two secrets in constant time (hashing first evens out their lengths). */
+const sameSecret = (a, b) => timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
 
 /** Requests after which someone's mic or live may have changed (the room list shows both). */
 const STATE_REQUESTS = new Set(['produce', 'closeProducer', 'pauseProducer', 'resumeProducer', 'closeTransport']);
@@ -93,6 +99,9 @@ export function startServer(config, { log = defaultLog } = {}) {
   const directory = new Directory({ dataDir: config.dataDir ?? null, log });
   /** Connections that said `hello`: they get the room list and its changes (Jay-C 0.5). */
   const watchers = new Set();
+  /** Wrong admin keys per IP: 5 tries, then one every 10 s. */
+  const adminAttempts = new Map();
+  const features = [...SERVER_FEATURES, ...(config.adminKey ? ['server-admin'] : [])];
   const sfuReady = Sfu.create(config, log);
 
   /** Someone in a room, as the room list shows them (no share preview: too big for a list). */
@@ -107,15 +116,28 @@ export function startServer(config, { log = defaultLog } = {}) {
   const describeRoom = (name) => ({
     name,
     locked: Boolean(directory.rooms.get(name)?.password),
+    ...(directory.rooms.get(name)?.hidden ? { hidden: true } : {}),
     peers: [...(registry.rooms.get(name)?.values() ?? [])].map(describeMember),
   });
-  const toWatchers = (message) => {
-    for (const watcher of watchers) watcher.send(message);
+  /** News of fixed room `name` to everyone following the list; of a hidden one, only to admins. */
+  const toWatchers = (name, message) => {
+    const room = directory.rooms.get(name);
+    if (!room) return;
+    for (const watcher of watchers) if (!room.hidden || watcher.admin) watcher.send(message);
   };
-  /** A listed room's people changed (joined, left, new picture): its whole entry again. */
-  const roomChanged = (name) => {
-    if (directory.isListed(name)) toWatchers({ type: 'room-update', room: describeRoom(name) });
+  /** The whole list as `peer` may see it (an admin also sees the hidden rooms, to manage them). */
+  const stateFor = (peer) => ({
+    type: 'server-state',
+    rooms: (peer.admin ? directory.all() : directory.listed()).map((room) => describeRoom(room.name)),
+    features,
+    ...(peer.admin ? { admin: true } : {}),
+  });
+  /** The admin changed the rooms: everyone gets the list again. */
+  const listChanged = () => {
+    for (const watcher of watchers) watcher.send(stateFor(watcher));
   };
+  /** A fixed room's people changed (joined, left, new picture): its whole entry again. */
+  const roomChanged = (name) => toWatchers(name, { type: 'room-update', room: describeRoom(name) });
   /** Someone's mic or live changed: a small message, not the whole room (pictures included). */
   const refreshState = (peer, room) => {
     const producers = room.producersOf(peer.id);
@@ -124,7 +146,7 @@ export function startServer(config, { log = defaultLog } = {}) {
     if (micOn === peer.micOn && live === peer.live) return;
     peer.micOn = micOn;
     peer.live = live;
-    if (directory.isListed(peer.room)) toWatchers({ type: 'room-peer', room: peer.room, id: peer.id, micOn, live });
+    toWatchers(peer.room, { type: 'room-peer', room: peer.room, id: peer.id, micOn, live });
   };
   const startedAt = Date.now();
 
@@ -184,6 +206,8 @@ export function startServer(config, { log = defaultLog } = {}) {
       /** For the room list: mic on (a mic producer, not paused) and streaming (a screen producer). */
       micOn: false,
       live: false,
+      /** Gave the server's ADMIN_KEY: may change the fixed rooms. */
+      admin: false,
       room: null,
       announcedAddress: null,
       send(message) {
@@ -224,7 +248,7 @@ export function startServer(config, { log = defaultLog } = {}) {
         iceServers: config.iceServers,
         routerRtpCapabilities: room.rtpCapabilities,
         // Messages newer clients may send only when the server lists them (an old one refuses them).
-        features: SERVER_FEATURES,
+        features,
       });
       roomChanged(msg.room);
       log('info', 'joined', { peer: peer.id, room: msg.room, size: result.others.length + 1 });
@@ -237,7 +261,32 @@ export function startServer(config, { log = defaultLog } = {}) {
       const color = cleanColor(msg.color);
       if (!name || avatar === undefined || color === undefined) return fail('bad-message', 'hello');
       watchers.add(peer);
-      peer.send({ type: 'server-state', rooms: directory.listed().map((room) => describeRoom(room.name)), features: SERVER_FEATURES });
+      peer.send(stateFor(peer));
+    }
+
+    /** The host's key: this connection may then change the fixed rooms. Never logged. */
+    function admin(msg) {
+      const ip = req.socket.remoteAddress;
+      if (!adminAttempts.has(ip)) adminAttempts.set(ip, new TokenBucket({ capacity: 5, perSecond: 0.1 }));
+      if (!adminAttempts.get(ip).take()) return fail('rate-limited', 'admin');
+      if (!config.adminKey || typeof msg.key !== 'string' || !sameSecret(msg.key, config.adminKey)) return fail('not-admin', 'admin');
+      peer.admin = true;
+      log('info', 'admin', { peer: peer.id });
+      peer.send({ type: 'admin', ok: true });
+      if (watchers.has(peer)) peer.send(stateFor(peer));
+    }
+
+    /** Creates, edits or deletes a fixed room (admin only), saves rooms.json and tells everyone. */
+    function adminRequest(msg) {
+      const respond = (error) => peer.send({ type: 'response', id: msg.id, ok: !error, ...(error ? { error } : {}) });
+      if (!peer.admin) return respond('not-admin');
+      const data = msg.data && typeof msg.data === 'object' ? msg.data : {};
+      // A room people are in keeps its name: their call runs under it.
+      if (msg.type === 'room-edit' && data.newName !== undefined && data.newName !== data.name && registry.rooms.has(data.name)) return respond('room-in-use');
+      const error = directory.change(ADMIN_REQUESTS[msg.type], data);
+      if (error === 'not-saved') log('error', 'rooms.json could not be saved', { file: directory.file });
+      if (!error) listChanged();
+      respond(error);
     }
 
     async function request(msg) {
@@ -303,6 +352,10 @@ export function startServer(config, { log = defaultLog } = {}) {
         for (const other of registry.othersInRoom(peer)) other.send({ type: 'chat', id: peer.id, name: peer.name, text });
       } else if (msg.type === 'hello') {
         hello(msg);
+      } else if (msg.type === 'admin') {
+        admin(msg);
+      } else if (Object.hasOwn(ADMIN_REQUESTS, msg.type) && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
+        adminRequest(msg);
       } else if (msg.type === 'leave') {
         leaveRoom(peer).catch(() => {});
       } else if (REQUESTS.has(msg.type) && (typeof msg.id === 'number' || typeof msg.id === 'string')) {

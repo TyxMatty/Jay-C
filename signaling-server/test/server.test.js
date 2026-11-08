@@ -5,6 +5,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from '../src/server.js';
+import { hashPassword } from '../src/directory.js';
 
 const baseConfig = {
   host: '127.0.0.1',
@@ -567,8 +568,8 @@ describe('server session: the room list (Jay-C 0.5)', () => {
 
   before(async () => {
     dataDir = mkdtempSync(join(tmpdir(), 'jayc-rooms-'));
-    writeFileSync(join(dataDir, 'rooms.json'), JSON.stringify({ rooms: [{ name: 'geral' }, { name: 'segredo', hidden: true }, { name: 'bad name!' }] }));
-    server = startServer({ ...baseConfig, maxPeersPerRoom: 4, dataDir }, { log: () => {} });
+    writeFileSync(join(dataDir, 'rooms.json'), JSON.stringify({ rooms: [{ name: 'geral' }, { name: 'segredo', hidden: true, password: hashPassword('s') }, { name: 'bad name!' }] }));
+    server = startServer({ ...baseConfig, maxPeersPerRoom: 4, dataDir, adminKey: 'chave-do-host' }, { log: () => {} });
     port = await server.ready;
   });
 
@@ -588,6 +589,8 @@ describe('server session: the room list (Jay-C 0.5)', () => {
     const { client, state } = await watcher();
     assert.deepEqual(state.rooms, [{ name: 'geral', locked: false, peers: [] }], 'hidden and invalid rooms left out');
     assert.ok(state.features.includes('server-session'));
+    assert.ok(state.features.includes('server-admin'), 'this server has an ADMIN_KEY');
+    assert.equal(state.admin, undefined);
     const bad = connect(port);
     await bad.open();
     bad.send({ type: 'hello' });
@@ -616,4 +619,46 @@ describe('server session: the room list (Jay-C 0.5)', () => {
     assert.deepEqual((await w.next('room-update')).room.peers, []);
     for (const c of [w, temp.client, hidden.client, a.client]) c.close();
   });
+
+  test('the admin key: wrong ones refused (and limited), the right one manages the rooms live', async () => {
+    const { client: w } = await watcher();
+    const { client: a } = await watcher();
+    const req = (client, type, data) => client.request(type, data);
+    assert.equal((await req(a, 'room-create', { name: 'novidade' })).error, 'not-admin', 'not before the key');
+    a.send({ type: 'admin', key: 'errada' });
+    assert.deepEqual(await a.next('error'), { type: 'error', code: 'not-admin', ref: 'admin' });
+    a.send({ type: 'admin', key: 'chave-do-host' });
+    assert.deepEqual(await a.next('admin'), { type: 'admin', ok: true });
+    const adminState = await a.next('server-state');
+    assert.equal(adminState.admin, true);
+    assert.deepEqual(adminState.rooms.map((r) => [r.name, r.hidden ?? false, r.locked]), [['geral', false, false], ['segredo', true, true]], 'an admin sees the hidden room');
+
+    assert.equal((await req(a, 'room-create', { name: 'novidade', password: 'abc' })).ok, true);
+    const seen = await w.next('server-state');
+    assert.deepEqual(seen.rooms.map((r) => [r.name, r.locked]), [['geral', false], ['novidade', true]], 'everyone gets the new list');
+    assert.equal(seen.admin, undefined);
+    await a.next('server-state');
+
+    // Someone is in "geral": it keeps its name; an empty room can be renamed.
+    const inside = await joined(port, 'geral', 'Gil');
+    assert.equal((await req(a, 'room-edit', { name: 'geral', newName: 'papo' })).error, 'room-in-use');
+    assert.equal((await req(a, 'room-edit', { name: 'novidade', newName: 'jogos', password: null })).ok, true);
+    assert.deepEqual((await w.next('server-state')).rooms.map((r) => r.name), ['geral', 'jogos']);
+    assert.equal((await req(a, 'room-delete', { name: 'jogos' })).ok, true);
+    assert.deepEqual((await w.next('server-state')).rooms.map((r) => r.name), ['geral']);
+    for (const c of [w, a, inside.client]) c.close();
+  });
+
+  test('wrong admin keys are limited per IP', async () => {
+    const c = connect(port);
+    await c.open();
+    const codes = [];
+    for (let i = 0; i < 6; i++) {
+      c.send({ type: 'admin', key: 'nope' });
+      codes.push((await c.next('error')).code);
+    }
+    assert.equal(codes.at(-1), 'rate-limited');
+    c.close();
+  });
 });
+

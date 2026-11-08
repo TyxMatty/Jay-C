@@ -72,3 +72,12 @@ New-NetFirewallRule -DisplayName "Jay-C media" -Direction Inbound -Protocol UDP 
 Nesse PC, abra **Configurações › Servidor** no Jay-C, coloque `localhost:3000` e clique em **Testar**. Quando aparecer "Conectou", escolha um nome de sala.
 
 Depois, mande duas coisas pros amigos: o endereço do servidor do passo 4 (como `192.168.1.50:3000`) e o nome da sala. Eles seguem a aba **Conectar**.
+
+## 6. Salas que todo mundo vê (opcional)
+
+O Jay-C 0.5 em diante mostra as salas do servidor no lobby, com quem está em cada uma. Pra gerenciar pelo app, ligue o servidor com uma **chave de admin** (um segredo comprido que só você sabe):
+
+- **Node.js:** no PowerShell, `$env:ADMIN_KEY="um-segredo-comprido"; npm run server`.
+- **Docker:** no `docker-compose.yml`, tire o `#` antes de `ADMIN_KEY`, coloque o seu segredo e rode `docker compose up -d` de novo. No Linux, deixe o servidor gravar as salas uma vez: `mkdir -p data && sudo chown 1000:1000 data`.
+
+Depois, no lobby, clique em **Gerenciar salas** e digite a chave uma vez. Dá pra criar salas, pôr senha numa (ela mostra um cadeado) e esconder uma sala com senha (só acha quem digitar o nome). O servidor guarda tudo em `data/rooms.json`. Uma sala com qualquer outro nome funciona como antes, mas fica fora da lista.

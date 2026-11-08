@@ -51,7 +51,7 @@ Uma conexão `hello` (nome, foto, cor) que não entra em call recebe as salas fi
 - [x] `npm test`: hello, lista, atualização, mic, saída, salas fora da lista (servidor 22, frontend 92).
 - [x] Manual: app de dev e um bot de navegador; contraste no lobby.
 
-### [ ] T4: Admin gerencia as salas
+### [x] T4: Admin gerencia as salas
 Com a `ADMIN_KEY` do servidor (digitada uma vez no app e guardada por servidor), dá para criar, renomear e apagar salas fixas, pôr ou tirar senha e, com senha, deixar a sala invisível. As mudanças vão para o `rooms.json` (gravação atômica) e para a lista de todos na hora.
 
 **Critérios:**
