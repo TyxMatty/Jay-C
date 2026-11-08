@@ -3,7 +3,7 @@ import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { RoomRegistry, describePeer } from './rooms.js';
-import { Directory, ROOM_RE } from './directory.js';
+import { Directory, ROOM_RE, checkPassword } from './directory.js';
 import { TokenBucket } from './rate-limit.js';
 import { loadConfig } from './config.js';
 import { Sfu, resolveAnnouncedAddress } from './sfu.js';
@@ -101,6 +101,8 @@ export function startServer(config, { log = defaultLog } = {}) {
   const watchers = new Set();
   /** Wrong admin keys per IP: 5 tries, then one every 10 s. */
   const adminAttempts = new Map();
+  /** Joins of rooms with a password per IP: 10, then one every 5 s (each check is a scrypt hash). */
+  const passwordAttempts = new Map();
   const features = [...SERVER_FEATURES, ...(config.adminKey ? ['server-admin'] : [])];
   const sfuReady = Sfu.create(config, log);
 
@@ -229,6 +231,14 @@ export function startServer(config, { log = defaultLog } = {}) {
       const color = cleanColor(msg.color);
       if (typeof msg.room !== 'string' || !ROOM_RE.test(msg.room) || !name || avatar === undefined || color === undefined) {
         return fail('bad-message', 'join');
+      }
+      // A fixed room with a password: only with it (msg.password), and a limited number of tries.
+      const fixed = directory.rooms.get(msg.room);
+      if (fixed?.password && peer.room !== msg.room) {
+        const ip = req.socket.remoteAddress;
+        if (!passwordAttempts.has(ip)) passwordAttempts.set(ip, new TokenBucket({ capacity: 10, perSecond: 0.2 }));
+        if (!passwordAttempts.get(ip).take()) return fail('rate-limited', 'join');
+        if (!checkPassword(fixed.password, msg.password)) return fail('wrong-password', 'join');
       }
       if (peer.room && peer.room !== msg.room) await leaveRoom(peer);
 

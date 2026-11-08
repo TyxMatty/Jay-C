@@ -36,6 +36,7 @@ export class SignalingClient extends EventTarget {
   /** Profile picture (data URL) sent on every (re)join; null = none. */
   #avatar = null;
   #color = null;
+  #password = null;
   #attempt = 0;
   #reconnectTimer = null;
   #closed = true;
@@ -54,9 +55,13 @@ export class SignalingClient extends EventTarget {
     this.#url = url;
   }
 
-  /** Connects and joins `room`. Resolves with the server's `joined` message. */
-  join(room, name, avatar = null, color = null) {
+  /**
+   * Connects and joins `room` (with its `password`, if it has one: kept for the rejoins after a
+   * drop, never stored). Resolves with the server's `joined` message.
+   */
+  join(room, name, avatar = null, color = null, password = null) {
     this.#room = room;
+    this.#password = password;
     this.#name = name;
     this.#avatar = avatar;
     this.#color = color;
@@ -137,7 +142,7 @@ export class SignalingClient extends EventTarget {
 
     ws.onopen = () => {
       const profile = { ...(this.#avatar ? { avatar: this.#avatar } : {}), ...(this.#color ? { color: this.#color } : {}) };
-      ws.send(JSON.stringify({ type: 'join', room: this.#room, name: this.#name, ...profile }));
+      ws.send(JSON.stringify({ type: 'join', room: this.#room, name: this.#name, ...profile, ...(this.#password ? { password: this.#password } : {}) }));
     };
 
     ws.onmessage = (event) => {

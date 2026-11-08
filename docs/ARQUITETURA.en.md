@@ -121,7 +121,7 @@ Client → server:
 
 | type | fields | |
 |---|---|---|
-| `join` | `room`, `name`, `avatar?`, `color?` | joins the room (creates it if it doesn't exist) |
+| `join` | `room`, `name`, `avatar?`, `color?`, `password?` | joins the room (creates it if it doesn't exist). (0.5) A fixed room with a password needs `password`; otherwise `error` `wrong-password` with `ref: "join"`. 10 tries per IP, then one every 5 s (`rate-limited`). The app sends the password again on reconnect |
 | `profile` | `avatar` (data URL or `null`), `color` (`{from, to?, angle?}` or `null`) | changes the profile picture or color during the call; the others get `peer-updated`. The color only accepts `#rrggbb` and an integer angle 0–360 |
 | `chat` | `text` (1–500 characters) | message to the room; the others get `chat`. Nothing is stored on the server |
 | `screen-preview` | `image` (JPEG data URL, up to 48,000 characters, or `null` when stopping) | a picture of your own stream, every 6 s; the others get `screen-preview`, and whoever joins later gets the last one in `joined`. At most 1 every 2 s (burst of 3). Only sent when `joined` lists `screen-preview` in `features` |
@@ -162,7 +162,7 @@ Server → client:
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `features` | (0.5) answer to `hello`: the visible fixed rooms and who is in each |
 | `room-update` | `room` (as in `server-state`) | (0.5) someone joined, left or changed their picture or color in a visible fixed room |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) someone muted, unmuted, started or stopped a live (a small message, without the pictures) |
-| `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`), optional `ref` | |
+| `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`; 0.5: `wrong-password`, `not-admin`), optional `ref` | |
 
 Request errors: `not-in-room`, `bad-request`, `unknown-transport`, `unknown-producer`, `unknown-consumer`, `duplicate-source`, `cannot-consume`, `internal`.
 

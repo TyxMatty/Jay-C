@@ -95,7 +95,7 @@ export function mountApp(root) {
     show(lobby.element, lobby.destroy);
   };
 
-  async function join({ name, room }) {
+  async function join({ name, room, password = null }) {
     const url = toWebSocketUrl(settings.get().serverAddress);
     const call = new Call();
     call.excludedApps = settings.get().excludedApps;
@@ -111,6 +111,7 @@ export function mountApp(root) {
       micShape: { gain: prefs.micGain, gateDb: prefs.micGate },
       micFilter: prefs.micFilter,
       audio: prefs.callAudio,
+      password,
     });
     // Muting or deafening is saved as it happens, so it holds even if the app is closed mid-call.
     call.addEventListener('local-updated', () => {

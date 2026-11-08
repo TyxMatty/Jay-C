@@ -187,7 +187,7 @@ export class Call extends EventTarget {
   }
 
   /** Opens local media, joins the room and starts sending/receiving through the SFU. */
-  async join({ url, room, name, avatar = null, color = null, micProcessing = DEFAULT_MIC_PROCESSING, micDeviceId = null, micShape = null, micFilter = 'jay-c', audio = undefined }) {
+  async join({ url, room, name, avatar = null, color = null, micProcessing = DEFAULT_MIC_PROCESSING, micDeviceId = null, micShape = null, micFilter = 'jay-c', audio = undefined, password = null }) {
     this.room = room;
     // Muted or deafened as the last call was left: the mic producer then starts paused.
     ({ micMuted: this.#micMuted, deafened: this.deafened, micBeforeDeafen: this.#micBeforeDeafen } = startCallAudio(audio));
@@ -250,7 +250,7 @@ export class Call extends EventTarget {
 
     let joined;
     try {
-      joined = await signaling.join(room, name, avatar, color);
+      joined = await signaling.join(room, name, avatar, color, password);
       await this.#setup(joined);
     } catch (error) {
       signaling.close();

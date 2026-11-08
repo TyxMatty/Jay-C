@@ -119,7 +119,7 @@ Cliente → servidor:
 
 | type | campos | |
 |---|---|---|
-| `join` | `room`, `name`, `avatar?`, `color?` | entra na sala (cria se não existir) |
+| `join` | `room`, `name`, `avatar?`, `color?`, `password?` | entra na sala (cria se não existir). (0.5) Uma sala fixa com senha só com `password`; senão `error` `wrong-password` com `ref: "join"`. 10 tentativas por IP, depois uma a cada 5 s (`rate-limited`). O app reenvia a senha ao reconectar |
 | `profile` | `avatar` (data URL ou `null`), `color` (`{from, to?, angle?}` ou `null`) | troca a foto ou a cor de perfil durante a chamada; os outros recebem `peer-updated`. A cor só aceita `#rrggbb` e ângulo inteiro 0–360 |
 | `chat` | `text` (1–500 caracteres) | mensagem para a sala; os outros recebem `chat`. Nada fica guardado no servidor |
 | `screen-preview` | `image` (JPEG em data URL, até 48 000 caracteres, ou `null` ao parar) | uma imagem da própria live, a cada 6 s; os outros recebem `screen-preview`, e quem entra depois recebe a última no `joined`. Até 1 a cada 2 s (rajada de 3). Só é enviado se o `joined` listar `screen-preview` em `features` |
@@ -160,7 +160,7 @@ Servidor → cliente:
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `features` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma |
 | `room-update` | `room` (como em `server-state`) | (0.5) alguém entrou, saiu ou trocou a foto ou a cor numa sala fixa visível |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) alguém mutou, desmutou, abriu ou fechou uma live (mensagem pequena, sem as fotos) |
-| `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`), `ref` opcional | |
+| `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`; 0.5: `wrong-password`, `not-admin`), `ref` opcional | |
 
 Erros das requisições: `not-in-room`, `bad-request`, `unknown-transport`, `unknown-producer`, `unknown-consumer`, `duplicate-source`, `cannot-consume`, `internal`.
 

@@ -602,7 +602,10 @@ describe('server session: the room list (Jay-C 0.5)', () => {
   test('joining, the mic and leaving show up live; temporary and hidden rooms never do', async () => {
     const { client: w } = await watcher();
     const temp = await joined(port, 'temporaria', 'Tina');
-    const hidden = await joined(port, 'segredo', 'Sid');
+    const hidden = { client: connect(port) };
+    await hidden.client.open();
+    hidden.client.send({ type: 'join', room: 'segredo', name: 'Sid', password: 's' });
+    await hidden.client.next('joined');
     const a = await joined(port, 'geral', 'Alice');
     assert.ok(a.msg.features.includes('server-session'));
     const update = await w.next('room-update');
@@ -659,6 +662,26 @@ describe('server session: the room list (Jay-C 0.5)', () => {
     }
     assert.equal(codes.at(-1), 'rate-limited');
     c.close();
+  });
+
+  test('a room with a password: only with it, and wrong tries are limited per IP', async () => {
+    const tryJoin = async (password) => {
+      const c = connect(port);
+      await c.open();
+      c.send({ type: 'join', room: 'segredo', name: 'Pat', ...(password !== undefined ? { password } : {}) });
+      const msg = await c.waitFor((m) => m.type === 'joined' || m.type === 'error', 'join answer');
+      c.close();
+      return msg.type === 'joined' ? 'joined' : msg.code;
+    };
+    assert.equal(await tryJoin(undefined), 'wrong-password', 'no password');
+    assert.equal(await tryJoin('S'), 'wrong-password');
+    assert.equal(await tryJoin('s'), 'joined');
+    const answers = [];
+    for (let i = 0; i < 9; i++) answers.push(await tryJoin('nope'));
+    assert.equal(answers.at(-1), 'rate-limited');
+    const open = await joined(port, 'geral', 'Open');
+    assert.equal(open.msg.room, 'geral', 'a room without a password needs none');
+    open.client.close();
   });
 });
 

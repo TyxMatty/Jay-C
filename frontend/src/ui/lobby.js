@@ -20,6 +20,7 @@ const JOIN_ERRORS = {
   unreachable: "Couldn't reach the server. Check Settings › Server.",
   timeout: "The server didn't answer. Check Settings › Server.",
   'bad-message': 'The server rejected that name or room.',
+  'rate-limited': 'Too many tries. Wait a little and try again.',
 };
 
 /**
@@ -56,6 +57,14 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     placeholder: t('e.g. friday-game-night'),
     value: current.lastRoom,
   });
+
+  // A room with a password: the list shows a lock, or the server answered wrong-password (a hidden
+  // room typed by name). Kept only in the call's memory, for rejoins.
+  const passwordInput = h('input', { id: 'lobby-password', class: 'input', type: 'password', maxlength: 64, autocomplete: 'off' });
+  const passwordField = h('div', { class: 'field', hidden: true }, h('label', { for: 'lobby-password' }, t('Room password')), passwordInput);
+  /** Rooms the server said need a password (typed by name, not in the list). */
+  const askedPassword = new Set();
+  const needsPassword = (room) => askedPassword.has(room) || Boolean(session?.rooms.some((r) => r.name === room && r.locked));
 
   // Rooms joined lately: one click joins again.
   const recentList = h('div', { class: 'recent-rooms', role: 'group', 'aria-labelledby': 'recent-rooms-label' });
@@ -113,6 +122,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     );
   let session = null;
   const renderServerRooms = () => {
+    update();
     const rooms = session?.supported ? session.rooms : [];
     const manageable = Boolean(session?.supported && session.features.includes('server-admin'));
     manageButton.hidden = !manageable;
@@ -132,6 +142,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
                 roomInput.value = room.name;
                 clearError();
                 if (!joinButton.disabled) form.requestSubmit();
+                else if (room.locked) passwordInput.focus();
                 else roomInput.focus();
               },
             },
@@ -219,6 +230,8 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     const serverOk = state !== 'unset' && state !== 'invalid';
     const nameOk = nameInput.value.trim().length > 0;
     const roomOk = ROOM_RE.test(roomInput.value.trim());
+    const locked = roomOk && needsPassword(roomInput.value.trim());
+    passwordField.hidden = !locked;
 
     delete hint.dataset.tone;
     if (!serverOk) {
@@ -239,7 +252,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
       hint.textContent = ''; // the card's intro already says it; this line is for errors and setup
     }
 
-    joinButton.disabled = joining || !serverOk || !nameOk || !roomOk;
+    joinButton.disabled = joining || !serverOk || !nameOk || !roomOk || (locked && !passwordInput.value);
     joinLabel.textContent = joining ? t('Joining…') : t('Join room');
   };
 
@@ -249,6 +262,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
   };
   nameInput.addEventListener('input', clearError);
   roomInput.addEventListener('input', clearError);
+  passwordInput.addEventListener('input', clearError);
   cleanups.push(serverStatus.subscribe(update));
 
   const onSubmit = async (e) => {
@@ -257,10 +271,18 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     joining = true;
     error = null;
     update();
+    const room = roomInput.value.trim();
+    const password = passwordField.hidden ? null : passwordInput.value;
     try {
-      await onJoin({ name: nameInput.value.trim(), room: roomInput.value.trim() });
+      await onJoin({ name: nameInput.value.trim(), room, password });
     } catch (err) {
-      error = JOIN_ERRORS[err?.code] ? t(JOIN_ERRORS[err.code]) : t("Couldn't join: {reason}", { reason: err?.message ?? err });
+      if (err?.code === 'wrong-password') {
+        askedPassword.add(room);
+        error = password ? t('Wrong password.') : t('This room has a password.');
+        queueMicrotask(() => passwordInput.focus());
+      } else {
+        error = JOIN_ERRORS[err?.code] ? t(JOIN_ERRORS[err.code]) : t("Couldn't join: {reason}", { reason: err?.message ?? err });
+      }
     } finally {
       joining = false;
       update();
@@ -306,6 +328,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     h('div', { class: 'field' }, h('label', { for: 'lobby-name' }, t('Display name')), nameInput),
     serverRoomsField,
     h('div', { class: 'field' }, h('label', { for: 'lobby-room' }, t('Room')), h('div', { class: 'input-prefix' }, h('span', { 'aria-hidden': 'true' }, '#'), roomInput)),
+    passwordField,
     recentField,
     h('div', { class: 'field' }, joinButton, hint),
   );

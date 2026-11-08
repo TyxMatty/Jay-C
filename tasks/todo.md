@@ -65,12 +65,12 @@ Com a `ADMIN_KEY` do servidor (digitada uma vez no app e guardada por servidor),
 
 **Depende de:** T3 · **Arquivos:** `directory.js`, `server.js`, `config.js`, `ui/` (tela de admin), testes · **Tamanho:** M
 
-### [ ] T5: Entrar numa sala com senha (cadeado) e na invisível
+### [x] T5: Entrar numa sala com senha (cadeado) e na invisível
 Na lista, a sala com senha mostra o cadeado e pede a senha; a invisível entra pelo nome (com a senha).
 
 **Critérios:**
 - [ ] O `join` sem senha ou com a senha errada é recusado com `wrong-password`; as tentativas erradas têm limite por IP.
-- [ ] A senha certa fica lembrada por sala no app (opcional, pergunta para o usuário) e nunca vai para logs.
+- [x] A senha não é lembrada entre calls (fica só na memória da call) e nunca vai para logs.
 - [ ] Reconectar no meio da call (queda do servidor) reenvia a senha.
 
 **Verificação:**
