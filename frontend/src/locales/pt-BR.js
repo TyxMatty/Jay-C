@@ -412,4 +412,6 @@ export default {
   "You have the latest version.": "Você está na versão mais nova.",
   "Leave the call to update: the installer closes Jay-C.": "Saia da chamada para atualizar: o instalador fecha o Jay-C.",
   "Downloading… The installer opens next, and Jay-C closes.": "Baixando… O instalador abre em seguida, e o Jay-C fecha.",
+  "In a call in #{room}": "Em call em #{room}",
+  "Tap to go back to the call.": "Toque para voltar pra call.",
 };

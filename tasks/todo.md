@@ -291,7 +291,28 @@ Tocar ou segurar um botão no celular pinta o retângulo azul do Android (`-webk
 
 **Arquivos:** `styles/app.css` · **Tamanho:** S
 
-#### [ ] T12.F: Fechar o PiP não fecha o app (Android)
+#### [ ] T12.F: Fechar o PiP não fecha o app (Android): implementada, falta testar num aparelho
+**Medido antes (08/11/2026, Samsung pelo cabo, app de dev):**
+- **Fechar o PiP pelo X não matou o processo** (mesmo pid). A activity ficou escondida (`setForceHidden`), a call seguiu conectada, e abrir pelo ícone voltou à mesma call, sem recarregar.
+- **O mic foi calado em ~15 s** (50 → 13,75 → 4,5 pacotes/s).
+- **O "fecha o app" do relato** bate com o recarregamento do modo dev pelo Wi-Fi. Não testado num APK instalado.
+
+**Implementado (decisão do usuário: notificação durante a call):**
+- **`CallService` (plugin `pip`):** serviço em primeiro plano do tipo `microphone`. A notificação diz "Em call em #sala", com "Ligar/Desligar microfone" e "Sair da chamada", e um toque abre o app. Os textos vêm traduzidos da página.
+- **Ciclo de vida:** o `core/activity-pip.js` inicia o serviço com o PiP da call, atualiza o rótulo em `setState({ micOn })` e para no `destroy`. Os botões chegam à página pelo evento `callAction`.
+- **WebView:** com o serviço rodando, ela não é pausada quando o PiP fecha.
+- **Permissões no manifest do plugin:** `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE` e `POST_NOTIFICATIONS`. A última é pedida uma vez no Android 13+; negada, o serviço roda e só a notificação some.
+- **Compila:** o build Android passa e o `npm test` também. **Nada foi testado num aparelho:** o celular caiu do USB, e o emulador fechou sozinho durante a instalação.
+
+**Testes pendentes (combinado com o usuário: depois):**
+- [ ] A notificação aparece na call, e o serviço roda (`dumpsys activity services`).
+- [ ] Fechar o PiP: o mic segue chegando ao bot, e `dumpsys audio` não marca a captura como `silenced`.
+- [ ] Botões da notificação: o Mutar muda o mic no app e o rótulo, e o Sair encerra a call, o serviço e a notificação.
+- [ ] Sair pelo app e trocar de sala (parar e iniciar em seguida): o serviço não fica preso nem duplicado.
+- [ ] Permissão de notificação negada: o serviço roda mesmo assim.
+- [ ] App morto no meio da call: nenhuma notificação fantasma.
+- [ ] Voltar durante a call (T12.G) com o serviço.
+- [ ] Um APK instalado, fora do modo dev: fechar o PiP não fecha o app.
 Visto pelo usuário em 08/11/2026 (Samsung SM-S711B, Android 16): fechar a mini-janela da live fecha o app inteiro. Deveria mandar o app para segundo plano, com a call seguindo (o som continua, e o app volta na mesma tela). No logcat, ao fechar: `stopped(true)` na activity e `pipModeChanged active=false`. No modo dev, a página perdeu a conexão com o Vite e recarregou ao voltar, e a call caiu: separar o que é do PiP e o que é só do Vite (testar também num APK que não seja dev).
 
 **Critérios:**

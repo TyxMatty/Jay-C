@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-call-service-update"
+description = "Enables the call_service_update command without any pre-configured scope."
+commands.allow = ["call_service_update"]
+
+[[permission]]
+identifier = "deny-call-service-update"
+description = "Denies the call_service_update command without any pre-configured scope."
+commands.deny = ["call_service_update"]

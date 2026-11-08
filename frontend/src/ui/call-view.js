@@ -289,6 +289,8 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
   const pip = pipSupported()
     ? createPip({
         icons, // our own PiP window draws the same buttons (Windows)
+        room: call.room, // Android: the in-call notification names the room
+        micOn: call.micOn,
         togglemicrophone: () => micButton.click(),
         togglecamera: () => camButton.click(),
         hangup: () => call.leave(),

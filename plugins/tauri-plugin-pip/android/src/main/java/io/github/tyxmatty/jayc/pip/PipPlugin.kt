@@ -43,6 +43,23 @@ class EnterArgs {
     var height: Int = 9
 }
 
+/** The in-call notification (CallService), its texts already translated by the page. */
+@InvokeArg
+class CallServiceArgs {
+    var title: String = "Jay-C"
+    var text: String = ""
+    var mute: String = "Mute"
+    var unmute: String = "Unmute"
+    var leave: String = "Leave"
+    var channel: String = "Calls"
+    var muted: Boolean = false
+}
+
+@InvokeArg
+class CallServiceUpdateArgs {
+    var muted: Boolean = false
+}
+
 /**
  * Picture-in-Picture for the whole activity (Android's WebView has no <video> PiP).
  *
@@ -87,6 +104,9 @@ class PipPlugin(private val activity: Activity) : Plugin(activity) {
         val view = webView ?: return
         if (inPip) {
             view.onResume()
+        } else if (CallService.running) {
+            // A call goes on in the background (with its notification): the page runs it.
+            Log.i(TAG, "PiP ended during a call: the WebView keeps running")
         } else if (activity is ComponentActivity &&
             !activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
         ) {
@@ -128,6 +148,7 @@ class PipPlugin(private val activity: Activity) : Plugin(activity) {
     override fun load(webView: WebView) {
         this.webView = webView
         current = this
+        CallService.onAction = { action -> trigger("callAction", JSObject().put("action", action)) }
         val component = activity as? ComponentActivity
         Log.i(TAG, "load: ComponentActivity=${component != null}")
         component?.let {
@@ -138,10 +159,39 @@ class PipPlugin(private val activity: Activity) : Plugin(activity) {
 
     override fun onDestroy() {
         if (current === this) current = null
+        CallService.onAction = null
+        CallService.stop(activity)
         (activity as? ComponentActivity)?.let {
             it.removeOnPictureInPictureModeChangedListener(modeListener)
             it.removeOnUserLeaveHintListener(leaveHintListener)
         }
+    }
+
+    /** A call began: keep its microphone in the background, with a notification (CallService). */
+    @Command
+    fun callServiceStart(invoke: Invoke) {
+        val args = invoke.parseArgs(CallServiceArgs::class.java)
+        // Android 13+: the notification needs this permission (asked once; denied, the service
+        // still runs and keeps the microphone, only the notification is hidden).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4712)
+        }
+        CallService.start(activity, CallService.Texts(args.title, args.text, args.mute, args.unmute, args.leave, args.channel), args.muted)
+        invoke.resolve()
+    }
+
+    @Command
+    fun callServiceUpdate(invoke: Invoke) {
+        CallService.update(activity, invoke.parseArgs(CallServiceUpdateArgs::class.java).muted)
+        invoke.resolve()
+    }
+
+    @Command
+    fun callServiceStop(invoke: Invoke) {
+        CallService.stop(activity)
+        invoke.resolve()
     }
 
     @Command

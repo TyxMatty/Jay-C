@@ -1,6 +1,6 @@
 ## Default Permission
 
-Lets the app put itself in Picture-in-Picture during a call and hear when it does, and go full screen for a stream (mobile).
+Lets the app put itself in Picture-in-Picture during a call and hear when it does, go full screen for a stream, and keep a call going in the background with a notification (mobile).
 
 #### This default permission set includes the following:
 
@@ -8,6 +8,9 @@ Lets the app put itself in Picture-in-Picture during a call and hear when it doe
 - `allow-set-auto-enter`
 - `allow-enter`
 - `allow-set-immersive`
+- `allow-call-service-start`
+- `allow-call-service-update`
+- `allow-call-service-stop`
 - `allow-register-listener`
 - `allow-remove-listener`
 
@@ -19,6 +22,84 @@ Lets the app put itself in Picture-in-Picture during a call and hear when it doe
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`pip:allow-call-service-start`
+
+</td>
+<td>
+
+Enables the call_service_start command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`pip:deny-call-service-start`
+
+</td>
+<td>
+
+Denies the call_service_start command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`pip:allow-call-service-stop`
+
+</td>
+<td>
+
+Enables the call_service_stop command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`pip:deny-call-service-stop`
+
+</td>
+<td>
+
+Denies the call_service_stop command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`pip:allow-call-service-update`
+
+</td>
+<td>
+
+Enables the call_service_update command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`pip:deny-call-service-update`
+
+</td>
+<td>
+
+Denies the call_service_update command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>

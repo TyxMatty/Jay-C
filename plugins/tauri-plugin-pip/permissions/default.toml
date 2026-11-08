@@ -1,10 +1,13 @@
 [default]
-description = "Lets the app put itself in Picture-in-Picture during a call and hear when it does, and go full screen for a stream (mobile)."
+description = "Lets the app put itself in Picture-in-Picture during a call and hear when it does, go full screen for a stream, and keep a call going in the background with a notification (mobile)."
 permissions = [
   "allow-is-supported",
   "allow-set-auto-enter",
   "allow-enter",
   "allow-set-immersive",
+  "allow-call-service-start",
+  "allow-call-service-update",
+  "allow-call-service-stop",
   "allow-register-listener",
   "allow-remove-listener",
 ]
