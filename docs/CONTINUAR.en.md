@@ -150,7 +150,9 @@ iOS (milestone 15, code only) was left for after launch.
 - **How to regenerate:** `scripts/wolf-icon.ps1` and then `tauri icon` (see CLAUDE.md, "Ícone").
 - Shipped in installer 0.3.1.
 
-**After 0.4.2 (07/11/2026), no installer yet:**
+**Installer 0.4.3 (08/11/2026):** 0.4.2 with what's below, built by the installer workflow on GitHub (tag `v0.4.3`). The server didn't change. Anyone on 0.4.2 gets the update notice in the app.
+
+**Between 0.4.2 and 0.4.3 (07–08/11/2026):**
 - **Hitches every few seconds when watching a live** (a 0.4.2 regression): the picture's buffer followed the sound's in jumps, and each jump up held the picture ~100 ms. Now it moves 10 ms a second, which doesn't show (`docs/spikes/10-live-nativa.md`, "Travadas a cada poucos segundos em quem assiste").
 - **Blurry text for a viewer on a weak link:** the native live didn't declare `maxBitrate`, and mediasoup didn't probe the viewer's link above 2x what it sent. The estimate stayed at ~300 kbps on a 1.5 Mbps link, and the live stuck at 540p/360p. Now it declares its top. In Text mode the ladder keeps 1080p down to 5 fps, and a step that only changes the frame rate keeps the encoder (no keyframe). At 1.5 Mbps: 720p5 and 1080p5 instead of 540p10. On NVIDIA, the frames of a big change (the chat scrolling) went far over the limit. Now the minimum QP is 26 (a still picture settles and costs almost nothing), and a live sending little doesn't let the viewer's estimate pull its budget down. At 1.5 Mbps with a 500 ms queue: 1080p15 with no loss, ~0.3 s hold per message. With a 200 ms queue each message lost ~19 packets (~0.4 s).
 - **Sending paced at the viewer's rate:** str0m now comes from a copy in `frontend/src-tauri/third_party/str0m` (changes in `JAYC.md`; reapply them when updating str0m). The live caps the pacer at the highest viewer read of the last 30 s (1 Mbps floor) and reads the pacer's real queue. Chat at 1.5 Mbps with a 200 ms queue: from 953 to 2 packets lost, 1080p throughout (`docs/spikes/10-live-nativa.md`, "Texto borrado com quem assiste numa conexão fraca", "Quadros grandes" and "Espaçar o envio").
