@@ -231,7 +231,7 @@ Ampliar a câmera (ou a live) de outra pessoa só para si, sem mudar o que ela m
 Um gesto de deslizar abre a gaveta da esquerda (coluna dos servidores, "Chamada direta", calls e canais), como o botão ☰ de hoje.
 
 **Critérios:**
-- [ ] **Direção a confirmar com o usuário:** ele escreveu "swiping left". No Discord, deslizar o dedo **para a direita** (a partir da borda esquerda) abre a lista da esquerda, e para a esquerda abre os membros. Proposta: a mesma coisa.
+- [ ] **Direção (decidida pelo usuário em 08/11/2026, como no Discord):** deslizar o dedo **para a direita** abre a gaveta da esquerda (servidores, "Chamada direta", calls e canais). Deslizar **para a esquerda** abre a de membros.
 - [ ] Deslizar de volta fecha. O gesto não briga com a rolagem vertical (só conta se for mais de lado que para cima ou para baixo) nem com o zoom da T12.B e a barra arrastável da call.
 - [ ] Respeita "Animações: Desligado" (a gaveta abre sem acompanhar o dedo).
 
