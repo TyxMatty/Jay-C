@@ -156,6 +156,32 @@ select {
 
 /* ---------- Buttons ---------- */
 
+/* Pressing anything clickable (finger or mouse) shows it: a darker layer over the background (under
+   the text, so the label stays put), and with motion on a slight shrink. It replaces Android's blue
+   tap highlight. The call bar keeps its own bounce. Darkening, not a layer of the text color: that
+   pulled the background toward the text and took the Soft style's muted labels under 4.5:1
+   (measured 4.09). On dark themes darkening raises the contrast of light labels, so it can be
+   stronger; on light themes it lowers it, so it stays faint. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --press-overlay: rgb(0 0 0 / 0.05);
+}
+
+:root[data-theme='dark'] {
+  --press-overlay: rgb(0 0 0 / 0.18);
+}
+
+:is(button, [role='tab'], [role='button'], .segmented label, a[href]):active:not(:disabled, [aria-disabled='true']) {
+  background-image: linear-gradient(var(--press-overlay), var(--press-overlay));
+}
+
+:root[data-motion='full'] :is(button, [role='tab'], [role='button'], .segmented label):not(.control-btn):active:not(:disabled, [aria-disabled='true']) {
+  scale: 0.97;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

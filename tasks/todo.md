@@ -266,13 +266,26 @@ Segurar um botão no celular seleciona o texto dele (e o Android mostra o menu d
 
 **Arquivos:** `styles/app.css` · **Tamanho:** S
 
-#### [ ] T12.E: Feedback de toque, sem o realce azul
+#### [x] T12.E: Feedback de toque, sem o realce azul
 Tocar ou segurar um botão no celular pinta o retângulo azul do Android (`-webkit-tap-highlight-color`), e não há outro sinal de que o toque pegou.
 
+**Feito (08/11/2026):**
+- **O realce azul:** `-webkit-tap-highlight-color: transparent` no `html`.
+- **O retorno no lugar dele:** tudo o que é clicável (`button`, `[role=tab]`, `[role=button]`, as opções `.segmented` e links), enquanto pressionado, ganha uma camada escura sobre o fundo e embaixo do texto (`--press-overlay`). Com as animações ligadas, também encolhe para 0,97. A barra da call fica com o próprio pulo (`scale(0.9)`).
+- **Por que escurecer:** a primeira versão usava uma camada da cor do texto a 12%. Ela puxava o fundo para o texto, e o Suave caiu para 4,09 (claro) e 4,40 (escuro) nos rótulos discretos.
+- **Intensidade por tema:**
+  - escuro, 18%: num fundo escuro com texto claro, escurecer aumenta o contraste (Neon escuro: 6,74 → 6,99);
+  - claro, 5%: no claro, escurecer diminui o contraste, então fica fraca.
+- **Contraste pressionado:** o `contrast-audit.js` não enxerga a camada. Medido com um script que compõe o fundo real + a camada contra a cor do rótulo, nos 6 combos (lobby e Configurações › Aparência no celular): nenhuma falha. O pior caso é 4,60 (Suave claro, a pílula do servidor), e o botão de destaque fica em 4,99 no Calmo escuro.
+- **Medido no Samsung com o dedo de verdade** (`adb input swipe` parado em "Entrar na sala", Calmo escuro):
+  - durante o toque: `:active`, a camada de 18%, `scale: 0.97` e o realce transparente; ao soltar, tudo volta;
+  - o pixel do botão: `rgb(170,139,255)` parado e `rgb(153,133,209)` com o dedo.
+- **Visto e não tratado:** o `:hover` "gruda" depois de um toque no celular, até tocar em outro lugar. Num botão de destaque, o hover é mais claro.
+
 **Critérios:**
-- [ ] Sem o retângulo azul em nenhum botão.
-- [ ] No lugar, um retorno próprio no estilo: o botão escurece ou encolhe um pouco enquanto o dedo está nele (`:active`), nos 3 estilos e nos dois temas. Com "Animações: Desligado", sem movimento, só a cor.
-- [ ] O contraste continua ≥ 4,5:1 no estado pressionado.
+- [x] Sem o retângulo azul em nenhum botão.
+- [x] No lugar, um retorno próprio no estilo: o botão escurece ou encolhe um pouco enquanto o dedo está nele (`:active`), nos 3 estilos e nos dois temas. Com "Animações: Desligado", sem movimento, só a cor.
+- [x] O contraste continua ≥ 4,5:1 no estado pressionado.
 
 **Verificação:** manual no celular; `contrast-audit.js` com o estado pressionado forçado (CDP `CSS.forcePseudoState`).
 
