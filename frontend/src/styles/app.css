@@ -28,6 +28,14 @@ body {
   user-select: none;
 }
 
+/* Dialogs and popovers sit in the top layer and don't get the body's `none` (measured in the
+   WebView: a <dialog> under a `none` parent computes `text`, so on a phone a long press in
+   Settings selected tabs and buttons). */
+dialog,
+[popover] {
+  user-select: none;
+}
+
 /* Text meant to be copied stays selectable. */
 input,
 textarea,

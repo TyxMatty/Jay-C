@@ -242,12 +242,25 @@ Um gesto de deslizar abre a gaveta da esquerda (coluna dos servidores, "Chamada 
 
 **Arquivos:** `ui/app-shell.js` (gavetas), `core/swipe.js` (novo), `styles/` · **Tamanho:** S
 
-#### [ ] T12.D: Botões sem seleção de texto no celular
+#### [x] T12.D: Botões sem seleção de texto no celular
 Segurar um botão no celular seleciona o texto dele (e o Android mostra o menu de copiar).
 
+**Feito (08/11/2026):**
+- **Onde acontecia:** o usuário viu nas Configurações. No lobby, um toque longo de 1 s em 4 botões não selecionava nada.
+- **A causa (medida na WebView):** o `<dialog>` fica na top layer e não herda o `user-select: none` do `body`. A cadeia era `BODY none → DIV none → DIALOG text`, e tudo dentro dele (abas, botões, rótulos, dicas) vinha `text`.
+- **A correção:** `dialog, [popover] { user-select: none }` em `styles/app.css`. Os popovers (painel da live, menu do botão direito) também estão na top layer.
+- **Medido no Samsung SM-S711B, com toques longos reais nas Configurações, no comportamento antigo e com a correção:**
+  - aba "Perfil": selecionava "Perfil" → nada;
+  - botão "Escolher foto": "Escolher" → nada;
+  - dica: "quando" → nada;
+  - opção "Sólida": cursor de texto → nada.
+- **Continua selecionável:** o campo do nome e o Markdown do guia (computado `text`). O usuário confirmou no celular.
+- **Desktop (Chromium no painel):** o diálogo e as abas também computam `none`. O arraste real não foi possível, porque o painel estava escondido.
+- O `-webkit-touch-callout` não existe no Chromium: não foi preciso.
+
 **Critérios:**
-- [ ] Segurar qualquer botão, aba ou item da lista não seleciona texto nem abre o menu do sistema (`-webkit-user-select`, `-webkit-touch-callout`).
-- [ ] Campos de texto, mensagens do chat e o guia continuam selecionáveis (como no desktop, 0.3.4).
+- [x] Segurar qualquer botão, aba ou item da lista não seleciona texto nem abre o menu do sistema (`-webkit-user-select`, `-webkit-touch-callout`).
+- [x] Campos de texto, mensagens do chat e o guia continuam selecionáveis (como no desktop, 0.3.4).
 
 **Verificação:** manual no celular (toque longo real) e no desktop (o arraste da 0.3.4 continua sem selecionar).
 
