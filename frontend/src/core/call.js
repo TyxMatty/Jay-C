@@ -177,6 +177,11 @@ export class Call extends EventTarget {
     return Boolean(this.local.audio) && !this.#micMuted;
   }
 
+  /** Our id on the server (in its room list too); a new one after an automatic reconnect. */
+  get selfId() {
+    return this.#signaling?.id ?? null;
+  }
+
   get cameraOn() {
     return Boolean(this.local.video);
   }

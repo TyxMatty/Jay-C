@@ -15,6 +15,7 @@ import { createServerRail } from './server-rail.js';
 import { createChannelList } from './channel-list.js';
 import { createTextChannel } from './text-channel.js';
 import { createServerSettingsModal } from './server-settings-modal.js';
+import { createVoicePanel } from './voice-panel.js';
 import { ServerSession } from '../core/server-session.js';
 import { findServer, nameServer } from '../core/servers.js';
 import { addRecentRoom } from '../core/recent-rooms.js';
@@ -78,20 +79,37 @@ export function mountApp(root) {
   const settingsModal = createSettingsModal({ openGuide, getCall: () => currentCall, openWelcome: () => welcomeModal.open() });
   const openSettings = (focus) => settingsModal.open(focus);
   welcomeModal = createWelcomeModal({ openGuide, openSettings });
-  // The shell (Jay-C 0.5): saved servers | the server's channels | the main area. A call covers it
-  // and leaves it running underneath (the room list stays live).
-  const main = h('div', { class: 'shell-main' });
+  // The shell (Jay-C 0.5): saved servers | the server's channels (and the voice panel) | the main
+  // area. A call shows in the main area; picking a channel hides it there, still mounted and playing
+  // (out of the page, its media elements would pause and the voices would go silent).
+  const paneSlot = h('div', { class: 'shell-pane' });
+  const main = h('div', { class: 'shell-main' }, paneSlot);
+  const side = h('div', { class: 'shell-side' });
   const rail = createServerRail({ onAdd: () => openSettings('server') });
-  const shell = h('div', { class: 'shell' }, rail.element, main);
+  const shell = h('div', { class: 'shell' }, rail.element, side, main);
   const view = h('div', { class: 'view' }, shell);
   let endCall = null;
+  /** The call we're in: { call, url, view (ui/call-view.js), name } or null. */
+  let voice = null;
+  /** The call as the channel list shows it (ui/channel-list.js Voice). */
+  const getVoice = () => {
+    if (!voice) return null;
+    const { call, url, name } = voice;
+    return {
+      url,
+      room: call.room,
+      selfId: call.selfId,
+      me: { id: call.selfId, name, avatar: call.avatar, color: call.color, micOn: call.micOn, live: call.sharing, deafened: call.deafened },
+      others: [...call.participants.values()].map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, color: p.color, micOn: p.media.audio, live: p.media.screen })),
+    };
+  };
 
   /** The server on screen: its room list connection, admin settings and channel list. */
   let session = null;
   let sessionUrl = null;
   let serverSettings = null;
   let channelList = null;
-  /** The main area: "Direct call" (`what` null, with `home`) or a text channel (`what` = its name). */
+  /** The main area: `what` = 'home' ("Direct call", with `home`), 'call' or `channel:<name>`. */
   let pane = null;
 
   /** How the list's connection says hello (its channel messages carry it). */
@@ -108,15 +126,21 @@ export function mountApp(root) {
 
   const showPane = (what) => {
     pane?.destroy();
-    if (what === null) {
+    paneSlot.hidden = what === 'call';
+    if (voice) voice.view.element.hidden = what !== 'call';
+    if (what === 'call') {
+      pane = { what, destroy() {} };
+      paneSlot.replaceChildren();
+    } else if (what === 'home') {
       const home = createLobby({ openSettings, openGuide, onJoin: join, session });
       pane = { what, home, destroy: home.destroy };
-      main.replaceChildren(home.element);
+      paneSlot.replaceChildren(home.element);
     } else {
       const url = sessionUrl;
-      const channel = createTextChannel({ session, channel: what, onRead: (id) => markRead(url, what, id) });
+      const name = what.slice('channel:'.length);
+      const channel = createTextChannel({ session, channel: name, onRead: (id) => markRead(url, name, id) });
       pane = { what, destroy: channel.destroy };
-      main.replaceChildren(h('div', { class: 'channel-pane' }, h('h1', { class: 'channel-pane-title' }, `# ${what}`), channel.element));
+      paneSlot.replaceChildren(h('div', { class: 'channel-pane' }, h('h1', { class: 'channel-pane-title' }, `# ${name}`), channel.element));
       channel.focus();
     }
     channelList.select(what);
@@ -128,7 +152,7 @@ export function mountApp(root) {
     const named = nameServer(servers, serverAddress, session.serverName);
     if (named !== servers) settings.update({ servers: named });
     // The channel on screen was deleted.
-    if (pane.what !== null && !session.channels.some((c) => c.name === pane.what)) showPane(null);
+    if (pane.what.startsWith('channel:') && !session.channels.some((c) => `channel:${c.name}` === pane.what)) showPane('home');
   };
 
   const openServer = () => {
@@ -158,18 +182,22 @@ export function mountApp(root) {
       session,
       url,
       title: findServer(servers, serverAddress)?.name ?? (serverAddress || t('No server')),
-      onHome: () => showPane(null),
+      getVoice,
+      onHome: () => showPane('home'),
       onRoom: (room) => {
-        if (pane.what !== null) showPane(null);
+        // The call we're in: back to it. Another room: joined from "Direct call" (its password field
+        // and errors), leaving this call first.
+        if (voice?.url === url && voice.call.room === room.name) return showPane('call');
+        if (pane.what !== 'home') showPane('home');
         pane.home.joinRoom(room.name);
       },
-      onChannel: showPane,
+      onChannel: (name) => showPane(`channel:${name}`),
       onManage: () => serverSettings?.open(),
     });
     if (channelList) channelList.element.replaceWith(next.element);
-    else shell.insertBefore(next.element, main);
+    else side.prepend(next.element);
     channelList = next;
-    showPane(null);
+    showPane('home');
   };
   settings.subscribe((next, prev) => next.serverAddress !== prev.serverAddress && openServer());
   // The list's connection stays open: a new name, picture or color reaches it once typing stops.
@@ -189,6 +217,7 @@ export function mountApp(root) {
   });
 
   async function join({ name, room, password = null }) {
+    endCall?.({ switching: true }); // one call at a time: another room leaves this one
     const url = toWebSocketUrl(settings.get().serverAddress);
     const call = new Call();
     call.excludedApps = settings.get().excludedApps;
@@ -254,17 +283,34 @@ export function mountApp(root) {
       });
       currentCall = call;
       const callView = createCallView(call, { displayName: name, onLeft: () => endCall?.(), openSettings });
-      endCall = () => {
+      const server = findServer(settings.get().servers, settings.get().serverAddress)?.name ?? settings.get().serverAddress;
+      const voicePanel = createVoicePanel({ call, server, onOpen: () => showPane('call'), onMic: callView.toggleMic, onDeafen: callView.toggleDeafen });
+      // The list shows who is in the call and our mic and deafen: redrawn once per burst of changes.
+      let refreshTimer = null;
+      const refreshList = () => {
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => channelList.refresh(), 50);
+      };
+      const callEvents = ['local-updated', 'participant-added', 'participant-removed', 'participant-updated'];
+      for (const type of callEvents) call.addEventListener(type, refreshList);
+      endCall = ({ switching = false } = {}) => {
         endCall = null;
         currentCall = null;
+        voice = null;
         unsubscribe();
+        for (const type of callEvents) call.removeEventListener(type, refreshList);
+        clearTimeout(refreshTimer);
         call.leave();
-        callView.remove();
-        shell.hidden = false;
-        if (reloadForLanguage) location.reload();
+        callView.element.remove();
+        voicePanel.destroy();
+        if (pane.what === 'call') showPane('home');
+        else channelList.refresh();
+        if (reloadForLanguage && !switching) location.reload(); // not while joining another room
       };
-      view.append(callView);
-      shell.hidden = true;
+      voice = { call, url, view: callView, name };
+      main.append(callView.element);
+      side.append(voicePanel.element);
+      showPane('call');
     } catch (error) {
       // Joined but the call screen failed: don't leave a connected call behind the lobby's error.
       currentCall = null;

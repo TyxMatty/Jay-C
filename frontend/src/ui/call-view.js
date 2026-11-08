@@ -227,6 +227,7 @@ function controlButton({ label, onClick, variant = '' }) {
 
 /**
  * The in-call screen. Calls `onLeft()` once the call has ended.
+ * Returns its element and its mic and deafen buttons' actions (for the voice panel, ui/voice-panel.js).
  * @param {import('../core/call.js').Call} call
  */
 export function createCallView(call, { displayName, onLeft, openSettings }) {
@@ -716,5 +717,5 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
 
   // The bar can sit on any edge (section[data-bar]), so the rest of the call is one column of its own.
   section.append(h('div', { class: 'call-main' }, header, banner, stage, waiting, toast, chat.element), controlBar.element, audioMenu.element, ...(sharePanel ? [sharePanel] : []));
-  return section;
+  return { element: section, toggleMic: () => micButton.click(), toggleDeafen: () => deafButton.click() };
 }

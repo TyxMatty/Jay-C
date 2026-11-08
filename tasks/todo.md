@@ -148,7 +148,7 @@ O app abre na coluna de servidores salvos. Escolher um mostra os canais (calls c
 
 **Depende de:** T3, T4, T7 · **Arquivos:** `ui/app-shell.js`, `ui/server-rail.js` (novo), `ui/channel-list.js` (novo), `store/settings.js`, `styles/` · **Tamanho:** L (se passar de 5 arquivos, separar a coluna de servidores numa tarefa própria)
 
-### [ ] T10: Call encaixada
+### [x] T10: Call encaixada
 Com a call aberta, dá para ir a um canal de texto e a call continua. Um painel "conectado à voz" embaixo dos canais traz mic, deafen e sair; clicar na call volta à visão de hoje.
 
 **Critérios:**

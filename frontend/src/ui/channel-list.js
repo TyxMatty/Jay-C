@@ -1,6 +1,7 @@
 // The server's channels (Jay-C 0.5), next to the server column: "Direct call" (join any room by
 // its name), the server's call rooms with who is in each, and its text channels with a dot on the
-// unread ones. On a server older than 0.5 only "Direct call" is there.
+// unread ones. On a server older than 0.5 only "Direct call" is there. The call we're in always
+// shows, with us in it (a room out of the server's list too: a DC, or a hidden one).
 import { h, arrowFocus } from './dom.js';
 import { icons } from './icons.js';
 import { settings } from '../store/settings.js';
@@ -17,16 +18,24 @@ const memberRow = (peer) =>
     h('span', { class: 'server-room-peer-name' }, peer.name),
     peer.live ? h('span', { class: 'server-room-live' }, t('LIVE')) : null,
     peer.micOn ? null : h('span', { class: 'server-room-muted', html: icons.micOff, role: 'img', 'aria-label': t('Muted') }),
+    peer.deafened ? h('span', { class: 'server-room-muted', html: icons.headphonesOff, role: 'img', 'aria-label': t('Deafened') }) : null,
   );
 
 /**
- * @param {{ session: import('../core/server-session.js').ServerSession | null, url: string | null,
- *   title: string, onHome: () => void, onRoom: (room: object) => void, onChannel: (name: string) => void,
- *   onManage: () => void }} options url: the server's WebSocket URL (unread marks are kept per server).
+ * The call we're in, for the list.
+ * @typedef {{ url: string, room: string, selfId: string | null, me: object, others: object[] }} Voice
+ *   me / others: { id, name, avatar, color, micOn, live, deafened? } (our own deafen only: it isn't shared).
  */
-export function createChannelList({ session, url, title, onHome, onRoom, onChannel, onManage }) {
-  /** What the main area shows: a text channel's name, or null for "Direct call". */
-  let selected = null;
+
+/**
+ * @param {{ session: import('../core/server-session.js').ServerSession | null, url: string | null,
+ *   title: string, getVoice: () => Voice | null, onHome: () => void, onRoom: (room: object) => void,
+ *   onChannel: (name: string) => void, onManage: () => void }} options url: the server's WebSocket
+ *   URL (unread marks are kept per server).
+ */
+export function createChannelList({ session, url, title, getVoice, onHome, onRoom, onChannel, onManage }) {
+  /** What the main area shows: 'home' ("Direct call"), 'call', or `channel:<name>`. */
+  let selected = 'home';
   const heading = h('h2', { class: 'channel-list-title' }, title);
   const manageButton = h('button', { type: 'button', class: 'icon-btn icon-btn-small', hidden: true, 'aria-label': t('Server settings'), title: t('Server settings'), html: icons.settings, onClick: onManage });
   const homeButton = h(
@@ -47,7 +56,16 @@ export function createChannelList({ session, url, title, onHome, onRoom, onChann
   const render = () => {
     if (session?.serverName) heading.textContent = session.serverName;
     const supported = Boolean(session?.supported);
-    const rooms = supported ? session.rooms : [];
+    const voice = getVoice();
+    const here = voice?.url === url ? voice : null;
+    let rooms = supported ? session.rooms : [];
+    if (here) {
+      // Us as we are now (the server's copy lags a moment, and never has deafen).
+      const self = (peer) => (peer.id === here.selfId ? here.me : peer);
+      rooms = rooms.some((r) => r.name === here.room)
+        ? rooms.map((r) => (r.name === here.room ? { ...r, peers: r.peers.map(self) } : r))
+        : [{ name: here.room, locked: false, hidden: true, peers: [here.me, ...here.others] }, ...rooms];
+    }
     const channels = supported ? session.channels : [];
     manageButton.hidden = !(supported && session.features.includes('server-admin'));
     note.textContent = !session
@@ -57,7 +75,7 @@ export function createChannelList({ session, url, title, onHome, onRoom, onChann
         : !supported && serverStatus.get().state === 'offline'
           ? t("Can't reach this server right now.")
           : '';
-    homeButton.setAttribute('aria-current', String(selected === null));
+    homeButton.setAttribute('aria-current', String(selected === 'home'));
 
     roomsSection.hidden = rooms.length === 0;
     roomsList.replaceChildren(
@@ -67,7 +85,15 @@ export function createChannelList({ session, url, title, onHome, onRoom, onChann
           { class: 'server-room' },
           h(
             'button',
-            { type: 'button', class: 'server-room-btn', dataset: { key: `room:${room.name}` }, 'aria-label': t('Join {room} ({count} in the call)', { room: room.name, count: room.peers.length }), onClick: () => onRoom(room) },
+            {
+              type: 'button',
+              class: `server-room-btn${here?.room === room.name ? ' in-call' : ''}`,
+              dataset: { key: `room:${room.name}` },
+              'aria-current': here?.room === room.name ? String(selected === 'call') : null,
+              'aria-label':
+                here?.room === room.name ? t('Back to the call in {room}', { room: room.name }) : t('Join {room} ({count} in the call)', { room: room.name, count: room.peers.length }),
+              onClick: () => onRoom(room),
+            },
             h('span', { class: 'server-room-icon', html: room.locked ? icons.lock : icons.users, 'aria-hidden': 'true' }),
             h('span', { class: 'server-room-name' }, room.name),
             room.hidden ? h('span', { class: 'server-admin-tag' }, t('Hidden')) : null,
@@ -82,7 +108,7 @@ export function createChannelList({ session, url, title, onHome, onRoom, onChann
     const read = settings.get().channelsRead?.[url] ?? {};
     channelsList.replaceChildren(
       ...channels.map((channel) => {
-        const unread = channel.name !== selected && isUnread(channel, read);
+        const unread = `channel:${channel.name}` !== selected && isUnread(channel, read);
         return h(
           'li',
           { class: 'server-room' },
@@ -92,7 +118,7 @@ export function createChannelList({ session, url, title, onHome, onRoom, onChann
               type: 'button',
               class: 'server-room-btn',
               dataset: { key: `channel:${channel.name}` },
-              'aria-current': String(channel.name === selected),
+              'aria-current': String(`channel:${channel.name}` === selected),
               'aria-label': unread ? t('Open #{channel} (new messages)', { channel: channel.name }) : t('Open #{channel}', { channel: channel.name }),
               onClick: () => onChannel(channel.name),
             },
@@ -117,11 +143,13 @@ export function createChannelList({ session, url, title, onHome, onRoom, onChann
 
   return {
     element,
-    /** @param {string | null} what a text channel's name, or null for "Direct call" */
+    /** @param {string} what 'home', 'call' or `channel:<name>` */
     select(what) {
       selected = what;
       renderKeepingFocus();
     },
+    /** The call changed (someone joined, muted...). */
+    refresh: renderKeepingFocus,
     destroy() {
       session?.removeEventListener('change', renderKeepingFocus);
       unsubscribe();
