@@ -289,7 +289,7 @@ O Voltar na tela inicial do app (sem gaveta aberta) fecha o app inteiro. Deveria
 **Arquivos:** `gen/android` (`MainActivity`) ou um plugin, `ui/app-shell.js` (o histórico das gavetas) · **Tamanho:** S
 
 ### [ ] T13: Imagens e vídeos nos chats
-Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. O arquivo vai para o servidor, e o app só carrega mídia do próprio servidor. As decisões em aberto estão no `plan.md`, pergunta 8.
+Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. O arquivo vai para o servidor, e o app só carrega mídia do próprio servidor. As decisões (onde ficam, limites, quanto tempo) estão no `plan.md`, item 8, respondidas pelo usuário em 08/11/2026.
 
 **Critérios:**
 - [ ] Tipos aceitos conferidos pelo conteúdo (os primeiros bytes), não só pela extensão. O tamanho máximo vem do servidor (`features`), e um arquivo grande demais é recusado antes de subir.

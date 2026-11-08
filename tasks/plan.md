@@ -161,8 +161,8 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 5. **Coluna de servidores:** é a lista de endereços salvos (hoje `serverAddress` é um só)? Proposta: sim, com o endereço de hoje migrado como o primeiro.
 6. **Senha também para canais de texto,** ou só para salas de call? Proposta: só salas de call.
 7. **Invisível só com senha** (como entendi do pedido), ou pode haver sala fixa invisível sem senha? Proposta: só com senha.
-8. **Imagens e vídeos (T13):** as propostas a decidir antes da T13:
+8. **Imagens e vídeos (T13), decidido pelo usuário em 08/11/2026** (fica como T13, depois da T12):
    - **Onde ficam os arquivos:** no servidor (`DATA_DIR/media/`), enviados pelo app; nada de links externos, pelo mesmo motivo dos GIFs (a CSP e o IP de quem vê).
-   - **Limites:** imagem até 8 MB e vídeo até 50 MB? O host decide pelo servidor (`MAX_UPLOAD_MB`).
-   - **Tipos:** PNG, JPEG, WebP e GIF; vídeo MP4 (H.264) e WebM, que o WebView2 e a WebView do Android tocam.
-   - **Quanto tempo ficam:** nos canais, enquanto a mensagem estiver nas últimas 500. No chat da call, até a call esvaziar, porque o chat da call não tem histórico.
+   - **Limites:** imagem até 8 MB e vídeo até 50 MB. O host pode mudar pelo servidor (`MAX_UPLOAD_MB`).
+   - **Quanto tempo ficam:** como as mensagens. Nos canais, enquanto a mensagem estiver nas últimas 500. No chat da call, até a call esvaziar, porque o chat da call não tem histórico.
+   - **Tipos (proposta, não perguntada):** PNG, JPEG, WebP e GIF; vídeo MP4 (H.264) e WebM, que o WebView2 e a WebView do Android tocam.
