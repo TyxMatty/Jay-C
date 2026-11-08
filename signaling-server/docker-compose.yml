@@ -33,8 +33,10 @@ services:
       # The server's fixed rooms: ./data/rooms.json next to this file (Jay-C 0.5). On Linux, let the
       # container write it once: mkdir -p data && sudo chown 1000:1000 data
       DATA_DIR: /data
-      # Whoever has this key manages the rooms from the app (Manage rooms, in the lobby).
+      # Whoever has this key manages the rooms from the app (the gear next to the server's name).
       # ADMIN_KEY: "a-long-secret"
+      # The name the app shows for this server (empty = its address).
+      # SERVER_NAME: "My server"
     volumes:
       - ./data:/data
     read_only: true

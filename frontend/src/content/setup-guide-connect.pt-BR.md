@@ -13,7 +13,7 @@ Peça a quem hospeda o endereço do servidor e o nome da sala. O endereço é pa
 
 ## 2. Conecte o app
 
-Abra **Configurações › Servidor**, coloque o endereço com a porta e clique em **Testar**. Quando aparecer "Conectou", digite o nome da sala no lobby e entre: todo mundo que entrar com o mesmo nome de sala cai na mesma chamada.
+Abra **Configurações › Servidor** (ou o **+** na coluna da esquerda), coloque o endereço com a porta e clique em **Testar**. Quando aparecer "Conectou", clique em **Adicionar**: o servidor aparece à esquerda, com as calls e os canais de texto dele. Entre numa call pela lista, ou digite o nome de uma sala em **Chamada direta**: todo mundo que entrar com o mesmo nome de sala cai na mesma chamada.
 
 ![Configurações › Servidor com um endereço funcionando](/assets/setup/step5_connect.png)
 

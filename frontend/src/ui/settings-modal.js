@@ -5,6 +5,7 @@ import { icons } from './icons.js';
 import { settings } from '../store/settings.js';
 import { toWebSocketUrl, DEFAULT_PORT } from '../core/server-address.js';
 import { checkServer } from '../core/server-check.js';
+import { addServer, removeServer, moveServer, findServer } from '../core/servers.js';
 import { screenAudioSupported } from '../core/screen-audio.js';
 import { SUGGESTED_APPS, addExcludedApp, removeExcludedApp, exeKey } from '../core/excluded-apps.js';
 import * as systemAudio from 'tauri-plugin-system-audio-api';
@@ -318,6 +319,8 @@ export function createSettingsModal({ openGuide, getCall = () => null, openWelco
   const defaultHint = () =>
     setHint(t("Your server's IP and port, e.g. 192.168.1.50:{port}. The port defaults to {port}.", { port: DEFAULT_PORT }));
 
+  // The saved servers (core/servers.js): the app's left column shows them; here they are added,
+  // ordered and removed.
   const serverInput = h('input', {
     id: 'settings-server',
     class: 'input',
@@ -325,21 +328,29 @@ export function createSettingsModal({ openGuide, getCall = () => null, openWelco
     autocomplete: 'off',
     spellcheck: 'false',
     placeholder: `192.168.1.50:${DEFAULT_PORT}`,
-    value: current.serverAddress,
     'aria-describedby': 'settings-server-hint',
-    onChange: (e) => {
-      const value = e.target.value.trim();
-      settings.update({ serverAddress: value });
-      if (value && !toWebSocketUrl(value)) setHint(t('That does not look like a valid address.'), 'error');
-      else defaultHint();
+    onKeydown: (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      addServerTyped();
     },
   });
+  const addServerTyped = () => {
+    const value = serverInput.value.trim();
+    if (!toWebSocketUrl(value)) return setHint(t('Enter a valid address first.'), 'error');
+    const servers = addServer(settings.get().servers, value);
+    // Added (or already there): it goes on screen.
+    settings.update({ servers, serverAddress: findServer(servers, value).address });
+    serverInput.value = '';
+    setHint(t('Added. It is on screen now.'), 'success');
+  };
+  const addButton = h('button', { type: 'button', class: 'btn' }, t('Add'));
+  addButton.addEventListener('click', addServerTyped);
 
   const testButton = h('button', { type: 'button', class: 'btn btn-secondary' }, t('Test'));
   testButton.addEventListener('click', async () => {
-    const value = serverInput.value.trim();
-    settings.update({ serverAddress: value });
-    const url = toWebSocketUrl(value);
+    // The address typed, or else the server on screen.
+    const url = toWebSocketUrl(serverInput.value.trim() || settings.get().serverAddress);
     if (!url) return setHint(t('Enter a valid address first.'), 'error');
 
     testButton.disabled = true;
@@ -350,6 +361,44 @@ export function createSettingsModal({ openGuide, getCall = () => null, openWelco
     else if (result.reason === 'timeout') setHint(t('No answer (timed out). Check the IP, port and firewall.'), 'error');
     else setHint(t('Could not connect. Is the server running and the port open?'), 'error');
   });
+
+  const serverList = h('ol', { class: 'order-list', 'aria-labelledby': 'settings-servers-label' });
+  const serversField = h('div', { class: 'field' }, h('span', { class: 'field-label', id: 'settings-servers-label' }, t('Your servers')), serverList);
+  const renderServers = () => {
+    const { servers, serverAddress } = settings.get();
+    serversField.hidden = servers.length === 0;
+    // Rebuilt on each change; keep focus on the button pressed (or its row) so it can be pressed again.
+    const focused = document.activeElement?.dataset?.server;
+    serverList.replaceChildren(
+      ...servers.map((server, i) => {
+        const label = server.name ? `${server.name} (${server.address})` : server.address;
+        const button = (action, icon, text, onClick, disabled = false) =>
+          h('button', { type: 'button', class: 'icon-btn icon-btn-small', 'aria-label': t(text, { server: label }), title: t(text, { server: label }), dataset: { server: `${server.address}|${action}` }, disabled, html: icon, onClick });
+        const set = (servers) => settings.update({ servers });
+        const remove = () => {
+          const rest = removeServer(settings.get().servers, server.address);
+          const onScreen = findServer([server], settings.get().serverAddress);
+          settings.update({ servers: rest, ...(onScreen ? { serverAddress: rest[0]?.address ?? '' } : {}) });
+        };
+        return h(
+          'li',
+          { 'aria-current': findServer([server], serverAddress) ? 'true' : null },
+          h('span', {}, label),
+          button('up', icons.arrowUp, 'Move {server} up', () => set(moveServer(settings.get().servers, server.address, -1)), i === 0),
+          button('down', icons.arrowDown, 'Move {server} down', () => set(moveServer(settings.get().servers, server.address, 1)), i === servers.length - 1),
+          button('remove', icons.trash, 'Remove {server}', remove),
+        );
+      }),
+    );
+    if (focused) {
+      const [address] = focused.split('|');
+      const again = serverList.querySelector(`[data-server="${CSS.escape(focused)}"]`);
+      const row = [...serverList.querySelectorAll('[data-server]')].filter((b) => b.dataset.server.startsWith(`${address}|`) && !b.disabled);
+      (again && !again.disabled ? again : (row[0] ?? serverInput)).focus();
+    }
+  };
+  settings.subscribe((next, prev) => (next.servers !== prev.servers || next.serverAddress !== prev.serverAddress) && renderServers());
+  renderServers();
 
   defaultHint();
 
@@ -680,11 +729,12 @@ export function createSettingsModal({ openGuide, getCall = () => null, openWelco
           'fieldset',
           {},
           h('h3', {}, t('Server')),
+          serversField,
           h(
             'div',
             { class: 'field' },
-            h('label', { for: 'settings-server' }, t('Signaling server address')),
-            h('div', { class: 'input-row' }, serverInput, testButton),
+            h('label', { for: 'settings-server' }, t('Add a server')),
+            h('div', { class: 'input-row' }, serverInput, testButton, addButton),
             serverHint,
             h(
               'p',

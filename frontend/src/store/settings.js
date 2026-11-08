@@ -1,6 +1,7 @@
 import { DEFAULT_STREAM_QUALITY, DEFAULT_MIC_PROCESSING } from '../core/media.js';
 import { DEFAULT_APPEARANCE } from '../core/appearance.js';
 import { DEFAULT_CALL_BAR } from '../core/call-bar.js';
+import { savedServers } from '../core/servers.js';
 
 // User preferences persisted in localStorage. public/theme-init.js reads the same key.
 const STORAGE_KEY = 'jayc.settings';
@@ -26,6 +27,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
   appearance: DEFAULT_APPEARANCE,
   /** Call controls: { position: 'bottom' | 'right' | 'top' | 'left', order: control keys }. */
   callBar: DEFAULT_CALL_BAR,
+  /**
+   * Servers in the left column (ui/server-rail.js), in order: { address, name? } (name: what the
+   * server calls itself, once seen). The one on screen is `serverAddress`.
+   */
+  servers: [],
   /** Admin keys given to servers (ui/server-settings-modal.js), by WebSocket URL: entered once each. */
   adminKeys: {},
   /** The last message seen in each text channel, by server URL then channel: { [url]: { [name]: id } }. */
@@ -70,6 +76,7 @@ function load() {
       micProcessing: { ...DEFAULT_MIC_PROCESSING, ...saved.micProcessing },
       appearance: { ...DEFAULT_APPEARANCE, ...saved.appearance },
       callBar: { ...DEFAULT_CALL_BAR, ...saved.callBar },
+      servers: savedServers(saved),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

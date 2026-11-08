@@ -353,8 +353,8 @@ select {
   height: 18px;
 }
 
-/* Narrow windows: just the card (the version stays in Settings › Help). */
-@media (max-width: 899px) {
+/* A narrow main area: just the card (the version stays in Settings › Help). */
+@container (max-width: 899px) {
   .lobby-hero,
   .lobby-version {
     display: none;
@@ -505,13 +505,6 @@ select {
 }
 
 /* The server's rooms (Jay-C 0.5): one per line, with who is in each below it. */
-.server-rooms-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .server-admin-tag {
   padding: 1px 6px;
   border: 1px solid var(--border);
@@ -540,12 +533,12 @@ select {
   background: var(--accent);
 }
 
-.text-channel-dialog .text-channel {
+.text-channel {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: min(70vh, 640px);
-  padding: 0 20px 16px;
+  min-height: 0;
 }
 
 .text-channel .chat-empty {
@@ -1062,6 +1055,13 @@ fieldset > h3 {
 
 .order-list li span {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The server on screen (Settings › Server). */
+.order-list li[aria-current='true'] {
+  border-color: var(--accent);
 }
 
 .icon-btn-small {
@@ -1682,6 +1682,205 @@ fieldset > h3 {
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* ---------- Shell (Jay-C 0.5): saved servers | the server's channels | the main area ---------- */
+
+.shell {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto 248px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.server-rail,
+.server-rail-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.server-rail {
+  padding: 12px 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.server-rail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.server-rail-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.server-rail-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.server-rail-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.server-rail-btn[aria-current='true'] {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.server-rail-add {
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.server-rail-add svg {
+  width: 20px;
+  height: 20px;
+}
+
+.channel-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+}
+
+.channel-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.channel-list-title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-list-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px 8px 16px;
+  overflow-y: auto;
+}
+
+.channel-list-section h3 {
+  margin: 0 0 4px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Flat rows here (the server settings keep the boxed ones). */
+.channel-list .server-room-btn {
+  border-color: transparent;
+  background: transparent;
+}
+
+.channel-list .server-room-btn:hover {
+  border-color: transparent;
+  background: var(--surface-2);
+}
+
+.channel-list .server-room-btn[aria-current='true'] {
+  background: var(--accent-soft);
+}
+
+.channel-list .server-room-peers {
+  padding-left: 28px;
+}
+
+.channel-list-note {
+  margin: 0;
+  padding: 0 10px;
+}
+
+.channel-list-note:empty {
+  display: none;
+}
+
+/* The main area sizes the lobby (its hero hides when narrow, see .lobby-hero). */
+.shell-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  container-type: inline-size;
+}
+
+.channel-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 16px 20px;
+}
+
+.channel-pane-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+/* Phones until the drawers (T11): servers in a row on top, then the channels, then the main area. */
+@media (max-width: 599px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .server-rail,
+  .server-rail-list {
+    flex-direction: row;
+  }
+
+  .server-rail {
+    padding: 8px 12px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .channel-list {
+    max-height: 35vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
 }
 
 /* ---------- Call ---------- */

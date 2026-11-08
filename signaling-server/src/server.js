@@ -141,6 +141,7 @@ export function startServer(config, { log = defaultLog } = {}) {
     type: 'server-state',
     rooms: (peer.admin ? directory.all() : directory.listed()).map((room) => describeRoom(room.name)),
     channels: channels.all(),
+    ...(config.serverName ? { name: config.serverName } : {}),
     features,
     ...(peer.admin ? { admin: true } : {}),
   });

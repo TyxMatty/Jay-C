@@ -69,15 +69,17 @@ New-NetFirewallRule -DisplayName "Jay-C media" -Direction Inbound -Protocol UDP 
 
 ## 5. Connect, and invite your friends
 
-On this PC, open **Settings › Server** in Jay-C, enter `localhost:3000` and press **Test**. When it says "Connected", pick a room name.
+On this PC, open **Settings › Server** in Jay-C, enter `localhost:3000`, press **Test** and then **Add**. When it says "Connected", pick a room name.
 
 Then send your friends two things: the server address from step 4 (for example `192.168.1.50:3000`) and the room name. They follow the **Connecting** tab.
 
 ## 6. Rooms everyone sees (optional)
 
-Jay-C 0.5 and newer list the server's rooms in the lobby, with who is in each. To manage them from the app, start the server with an **admin key** (a long secret only you know):
+Jay-C 0.5 and newer list the server's rooms next to it, with who is in each. To manage them from the app, start the server with an **admin key** (a long secret only you know):
 
 - **Node.js:** in PowerShell, `$env:ADMIN_KEY="a-long-secret"; npm run server`.
 - **Docker:** in `docker-compose.yml`, remove the `#` before `ADMIN_KEY`, put your secret there and run `docker compose up -d` again. On Linux, let the server write its rooms once: `mkdir -p data && sudo chown 1000:1000 data`.
 
-Then, in the lobby, click **Manage rooms** and type the key once. You can create text channels (the server keeps their last 500 messages) and rooms, give one a password (it shows a lock) and hide a room that has a password (only who types its name finds it). The server keeps them in its `data` folder. A room joined by any other name works as before, but stays out of the list.
+To show a name instead of the address, also set `SERVER_NAME` (e.g. `$env:SERVER_NAME="Game nights"`, or in `docker-compose.yml`).
+
+Then click the gear next to the server's name, above its channels, and type the key once. You can create text channels (the server keeps their last 500 messages) and rooms, give one a password (it shows a lock) and hide a room that has a password (only who types its name finds it). The server keeps them in its `data` folder. A room joined by any other name works as before, but stays out of the list.

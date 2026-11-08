@@ -46,6 +46,8 @@ export class ServerSession extends EventTarget {
   channels = [];
   /** null until the server answers; false = a server without the room list. */
   supported = null;
+  /** What the server calls itself (SERVER_NAME), or null. */
+  serverName = null;
   /** What the server accepts (from `server-state`): 'server-admin' = it has an admin key. */
   features = [];
   /** This connection gave the admin key: it sees the hidden rooms and may change them. */
@@ -73,6 +75,12 @@ export class ServerSession extends EventTarget {
   /** The name this connection says hello with (its own channel messages carry it). */
   get name() {
     return this.#profile.name;
+  }
+
+  /** A new name, picture or color (Settings › Profile): said again, for the next channel messages. */
+  setProfile(profile) {
+    this.#profile = profile;
+    if (this.supported) this.#send({ type: 'hello', ...profile });
   }
 
   close() {
@@ -193,6 +201,7 @@ export class ServerSession extends EventTarget {
         this.features = Array.isArray(msg.features) ? msg.features : [];
         this.admin = msg.admin === true;
         this.channels = Array.isArray(msg.channels) ? msg.channels : [];
+        this.serverName = typeof msg.name === 'string' && msg.name ? msg.name : null;
         // Every list from the server (the first, after a drop, after an admin change): what's open can catch up.
         this.dispatchEvent(new Event('connected'));
       }

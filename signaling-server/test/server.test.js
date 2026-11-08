@@ -693,7 +693,7 @@ describe('text channels (Jay-C 0.5)', () => {
 
   before(async () => {
     dataDir = mkdtempSync(join(tmpdir(), 'jayc-channels-srv-'));
-    server = startServer({ ...baseConfig, dataDir, adminKey: 'chave-do-host' }, { log: () => {} });
+    server = startServer({ ...baseConfig, dataDir, adminKey: 'chave-do-host', serverName: 'Casa do Host' }, { log: () => {} });
     port = await server.ready;
   });
 
@@ -710,7 +710,8 @@ describe('text channels (Jay-C 0.5)', () => {
   };
 
   test('text channels: the admin makes one, messages reach everyone on the server, history pages back', async () => {
-    const { client: admin } = await watcher();
+    const { client: admin, state } = await watcher();
+    assert.equal(state.name, 'Casa do Host', 'SERVER_NAME');
     admin.send({ type: 'admin', key: 'chave-do-host' });
     await admin.next('admin');
     await admin.next('server-state');

@@ -1,6 +1,6 @@
 // A text channel (Jay-C 0.5): its last messages from the server, older ones when scrolled to the
 // top, new ones live, and a box to write. Everyone on the server sees it; the server keeps the
-// last 500 messages. Used inside a dialog from the lobby for now (the channel list comes later).
+// last 500 messages. Shown in the main area when picked in the channel list (ui/app-shell.js).
 import { h } from './dom.js';
 import { icons } from './icons.js';
 import { createChatLog } from './chat-log.js';

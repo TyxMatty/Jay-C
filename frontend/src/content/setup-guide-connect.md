@@ -13,7 +13,7 @@ Ask the host for the server address and the room name. The address looks like `1
 
 ## 2. Connect the app
 
-Open **Settings › Server**, enter the address with the port and press **Test**. When it says "Connected", type the room name in the lobby and join: everyone who enters the same room name joins the same call.
+Open **Settings › Server** (or **+** in the column on the left), enter the address with the port and press **Test**. When it says "Connected", press **Add**: the server shows up on the left, with its calls and text channels. Join a call from the list, or type a room name in **Direct call**: everyone who enters the same room name joins the same call.
 
 ![Settings › Server with a working address](/assets/setup/step5_connect.png)
 

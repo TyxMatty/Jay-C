@@ -45,5 +45,7 @@ export function loadConfig() {
     dataDir: process.env.DATA_DIR || './data',
     // Whoever has this key manages the fixed rooms from the app. Empty = nobody does.
     adminKey: process.env.ADMIN_KEY || '',
+    // Shown in the app's server column and sidebar (empty = its address).
+    serverName: (process.env.SERVER_NAME || '').trim().slice(0, 32),
   };
 }

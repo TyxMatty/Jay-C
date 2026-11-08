@@ -11,6 +11,12 @@ import { createWelcomeModal } from './welcome-modal.js';
 import { shouldShowWelcome } from '../core/welcome.js';
 import { createLobby } from './lobby.js';
 import { createCallView } from './call-view.js';
+import { createServerRail } from './server-rail.js';
+import { createChannelList } from './channel-list.js';
+import { createTextChannel } from './text-channel.js';
+import { createServerSettingsModal } from './server-settings-modal.js';
+import { ServerSession } from '../core/server-session.js';
+import { findServer, nameServer } from '../core/servers.js';
 import { addRecentRoom } from '../core/recent-rooms.js';
 import { startDiscordPresence } from '../core/discord-presence.js';
 import { t } from '../core/i18n.js';
@@ -72,14 +78,107 @@ export function mountApp(root) {
   const settingsModal = createSettingsModal({ openGuide, getCall: () => currentCall, openWelcome: () => welcomeModal.open() });
   const openSettings = (focus) => settingsModal.open(focus);
   welcomeModal = createWelcomeModal({ openGuide, openSettings });
-  const view = h('div', { class: 'view' });
-  let destroyView = () => {};
+  // The shell (Jay-C 0.5): saved servers | the server's channels | the main area. A call covers it
+  // and leaves it running underneath (the room list stays live).
+  const main = h('div', { class: 'shell-main' });
+  const rail = createServerRail({ onAdd: () => openSettings('server') });
+  const shell = h('div', { class: 'shell' }, rail.element, main);
+  const view = h('div', { class: 'view' }, shell);
+  let endCall = null;
 
-  const show = (element, destroy = () => {}) => {
-    destroyView();
-    destroyView = destroy;
-    view.replaceChildren(element);
+  /** The server on screen: its room list connection, admin settings and channel list. */
+  let session = null;
+  let sessionUrl = null;
+  let serverSettings = null;
+  let channelList = null;
+  /** The main area: "Direct call" (`what` null, with `home`) or a text channel (`what` = its name). */
+  let pane = null;
+
+  /** How the list's connection says hello (its channel messages carry it). */
+  const sessionProfile = () => {
+    const { displayName, avatar, profileColor } = settings.get();
+    return { name: displayName.trim() || 'Jay-C', avatar, color: profileColor };
   };
+
+  const markRead = (url, name, id) => {
+    const all = settings.get().channelsRead ?? {};
+    if ((all[url]?.[name] ?? 0) >= id) return;
+    settings.update({ channelsRead: { ...all, [url]: { ...all[url], [name]: id } } });
+  };
+
+  const showPane = (what) => {
+    pane?.destroy();
+    if (what === null) {
+      const home = createLobby({ openSettings, openGuide, onJoin: join, session });
+      pane = { what, home, destroy: home.destroy };
+      main.replaceChildren(home.element);
+    } else {
+      const url = sessionUrl;
+      const channel = createTextChannel({ session, channel: what, onRead: (id) => markRead(url, what, id) });
+      pane = { what, destroy: channel.destroy };
+      main.replaceChildren(h('div', { class: 'channel-pane' }, h('h1', { class: 'channel-pane-title' }, `# ${what}`), channel.element));
+      channel.focus();
+    }
+    channelList.select(what);
+  };
+
+  const onSessionChange = () => {
+    if (!session.supported) return;
+    const { servers, serverAddress } = settings.get();
+    const named = nameServer(servers, serverAddress, session.serverName);
+    if (named !== servers) settings.update({ servers: named });
+    // The channel on screen was deleted.
+    if (pane.what !== null && !session.channels.some((c) => c.name === pane.what)) showPane(null);
+  };
+
+  const openServer = () => {
+    session?.close();
+    serverSettings?.destroy();
+    channelList?.destroy();
+    session = serverSettings = null;
+    const { serverAddress, servers, adminKeys } = settings.get();
+    const url = toWebSocketUrl(serverAddress);
+    sessionUrl = url;
+    if (url) {
+      const current = new ServerSession(url, sessionProfile());
+      session = current;
+      session.addEventListener('change', onSessionChange);
+      serverSettings = createServerSettingsModal({ session, url });
+      document.body.append(serverSettings.element);
+      // The key given before on this computer: unlocked by itself (a key the server no longer takes is forgotten).
+      if (adminKeys?.[url]) {
+        current.login(adminKeys[url]).catch((error) => {
+          if (error?.code !== 'not-admin') return;
+          const { [url]: _wrong, ...rest } = settings.get().adminKeys;
+          settings.update({ adminKeys: rest });
+        });
+      }
+    }
+    const next = createChannelList({
+      session,
+      url,
+      title: findServer(servers, serverAddress)?.name ?? (serverAddress || t('No server')),
+      onHome: () => showPane(null),
+      onRoom: (room) => {
+        if (pane.what !== null) showPane(null);
+        pane.home.joinRoom(room.name);
+      },
+      onChannel: showPane,
+      onManage: () => serverSettings?.open(),
+    });
+    if (channelList) channelList.element.replaceWith(next.element);
+    else shell.insertBefore(next.element, main);
+    channelList = next;
+    showPane(null);
+  };
+  settings.subscribe((next, prev) => next.serverAddress !== prev.serverAddress && openServer());
+  // The list's connection stays open: a new name, picture or color reaches it once typing stops.
+  let profileTimer = null;
+  settings.subscribe((next, prev) => {
+    if (next.displayName === prev.displayName && next.avatar === prev.avatar && next.profileColor === prev.profileColor) return;
+    clearTimeout(profileTimer);
+    profileTimer = setTimeout(() => session?.setProfile(sessionProfile()), 800);
+  });
 
   // A new language applies on a fresh page: now, or when the call ends (reloading would drop it).
   let reloadForLanguage = false;
@@ -88,12 +187,6 @@ export function mountApp(root) {
     if (currentCall) reloadForLanguage = true;
     else location.reload();
   });
-
-  const showLobby = () => {
-    if (reloadForLanguage) return location.reload();
-    const lobby = createLobby({ openSettings, openGuide, onJoin: join });
-    show(lobby.element, lobby.destroy);
-  };
 
   async function join({ name, room, password = null }) {
     const url = toWebSocketUrl(settings.get().serverAddress);
@@ -160,11 +253,18 @@ export function mountApp(root) {
         }
       });
       currentCall = call;
-      show(createCallView(call, { displayName: name, onLeft: showLobby, openSettings }), () => {
+      const callView = createCallView(call, { displayName: name, onLeft: () => endCall?.(), openSettings });
+      endCall = () => {
+        endCall = null;
         currentCall = null;
         unsubscribe();
         call.leave();
-      });
+        callView.remove();
+        shell.hidden = false;
+        if (reloadForLanguage) location.reload();
+      };
+      view.append(callView);
+      shell.hidden = true;
     } catch (error) {
       // Joined but the call screen failed: don't leave a connected call behind the lobby's error.
       currentCall = null;
@@ -191,7 +291,7 @@ export function mountApp(root) {
   );
 
   root.replaceChildren(header, view, settingsModal.element, guideModal.element, welcomeModal.element);
-  showLobby();
+  openServer();
   // Marked as seen when it opens (not on close): it shows by itself once, even if the app is
   // closed mid-tour, and doesn't depend on the dialog's close event.
   if (shouldShowWelcome(settings.get())) {

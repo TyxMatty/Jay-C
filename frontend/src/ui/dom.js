@@ -30,3 +30,16 @@ export function h(tag, props = {}, ...children) {
   }
   return el;
 }
+
+/** ArrowUp/ArrowDown move the focus between the container's `selector` elements (Tab still works). */
+export function arrowFocus(container, selector) {
+  container.addEventListener('keydown', (e) => {
+    const step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    const items = [...container.querySelectorAll(selector)].filter((el) => !el.disabled && el.offsetParent !== null);
+    const i = items.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    items[(i + step + items.length) % items.length].focus();
+  });
+}

@@ -160,7 +160,7 @@ Servidor → cliente:
 | `producer-state` | `peerId`, `producerId`, `paused` | só para quem consome: mutou ou desligou a câmera, ou voltou |
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = ninguém assiste) | a cada 2 s, para quem transmite a tela: a menor banda entre quem assiste, como o mediasoup estima para cada um. A live nativa (uma camada só) fica abaixo dela |
 | `producer-closed` | `peerId`, `producerId` | só para quem consome |
-| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma |
+| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma; `name` é o `SERVER_NAME`, se houver |
 | `room-update` | `room` (como em `server-state`) | (0.5) alguém entrou, saiu ou trocou a foto ou a cor numa sala fixa visível |
 | `channel-message` | `channel`, `message: {id, at, name, color?, text}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms) |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) alguém mutou, desmutou, abriu ou fechou uma live (mensagem pequena, sem as fotos) |
@@ -186,6 +186,7 @@ Configuração por variáveis de ambiente:
 | `ANNOUNCED_ADDRESS` | vazio = o host que cada cliente usou | endereço anunciado nos candidatos ICE |
 | `MEDIASOUP_LOG_LEVEL` | warn | nível de log do mediasoup |
 | `DATA_DIR` | `./data` | (0.5) pasta com o `rooms.json` (as salas fixas), o `channels.json` (os canais de texto) e `history/<canal>.json` (as últimas 500 mensagens de cada um, gravadas ~0,3 s depois de chegar). No Docker, `/data`, montada de `./data` ao lado do compose (no Linux, gravável pelo uid 1000) |
+| `SERVER_NAME` | vazio = o endereço | (0.5) o nome do servidor na coluna de servidores e na lista de canais do app (até 32 caracteres) |
 | `ADMIN_KEY` | vazio = ninguém gerencia | (0.5) quem manda essa chave (`admin`) cria, edita e apaga as salas fixas pelo app. Comparada em tempo constante, nunca vai para log; 5 tentativas por IP, depois uma a cada 10 s |
 
 **Salas fixas (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "geral" }, { "name": "privada", "hidden": true }] }`. Só elas aparecem na lista, na ordem do arquivo; `hidden` as tira da lista (entra-se pelo nome). Uma sala aberta por um nome que não está ali (DC, ou um app 0.4) é temporária e nunca aparece. Um arquivo ilegível é ignorado (o servidor sobe sem salas fixas e avisa no log).

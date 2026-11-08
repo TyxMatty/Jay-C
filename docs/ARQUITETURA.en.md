@@ -162,7 +162,7 @@ Server → client:
 | `producer-state` | `peerId`, `producerId`, `paused` | only for consumers: muted or turned the camera off, or back on |
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = nobody watching) | every 2 s, to whoever shares a screen: the smallest bandwidth among the viewers, as mediasoup estimates it towards each. The native live (a single layer) stays under it |
 | `producer-closed` | `peerId`, `producerId` | only for consumers |
-| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features` | (0.5) answer to `hello`: the visible fixed rooms and who is in each |
+| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?` | (0.5) answer to `hello`: the visible fixed rooms and who is in each; `name` is `SERVER_NAME`, when set |
 | `room-update` | `room` (as in `server-state`) | (0.5) someone joined, left or changed their picture or color in a visible fixed room |
 | `channel-message` | `channel`, `message: {id, at, name, color?, text}` | (0.5) a new message in a text channel (`id` grows per channel; `at` in ms) |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) someone muted, unmuted, started or stopped a live (a small message, without the pictures) |
@@ -188,6 +188,7 @@ Configuration through environment variables:
 | `ANNOUNCED_ADDRESS` | empty = the host each client used | address announced in the ICE candidates |
 | `MEDIASOUP_LOG_LEVEL` | warn | mediasoup log level |
 | `DATA_DIR` | `./data` | (0.5) folder with `rooms.json` (the fixed rooms), `channels.json` (the text channels) and `history/<channel>.json` (each one's last 500 messages, written ~0.3 s after they arrive). In Docker, `/data`, mounted from `./data` next to the compose file (on Linux, writable by uid 1000) |
+| `SERVER_NAME` | empty = its address | (0.5) the server's name in the app's server column and channel list (up to 32 characters) |
 | `ADMIN_KEY` | empty = nobody manages | (0.5) whoever sends this key (`admin`) creates, edits and deletes the fixed rooms from the app. Compared in constant time, never logged; 5 tries per IP, then one every 10 s |
 
 **Fixed rooms (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "general" }, { "name": "private", "hidden": true }] }`. Only these show in the list, in the file's order; `hidden` keeps one out of it (joined by name). A room opened by a name that isn't there (DC, or a 0.4 app) is temporary and never shows. An unreadable file is ignored (the server starts with no fixed rooms and says so in the log).

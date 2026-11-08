@@ -5,11 +5,6 @@ import { serverStatus } from '../core/server-status.js';
 import { profileBackground } from '../core/profile-color.js';
 import { t } from '../core/i18n.js';
 import { updatesSupported, checkForUpdate, installUpdate } from '../core/update.js';
-import { ServerSession } from '../core/server-session.js';
-import { toWebSocketUrl } from '../core/server-address.js';
-import { createServerSettingsModal } from './server-settings-modal.js';
-import { createTextChannel } from './text-channel.js';
-import { isUnread } from '../core/text-channels.js';
 
 // Must match the signaling server's room-name rule.
 const ROOM_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -26,10 +21,12 @@ const JOIN_ERRORS = {
 };
 
 /**
- * "Join a room" screen.
- * @param {{ openSettings: (focus?: string) => void, openGuide: () => void, onJoin: (opts: { name: string, room: string }) => Promise<void> }} options
+ * "Direct call": join any room on the server by its name (the main area's home, ui/app-shell.js).
+ * @param {{ openSettings: (focus?: string) => void, openGuide: () => void,
+ *   onJoin: (opts: { name: string, room: string, password?: string | null }) => Promise<void>,
+ *   session: import('../core/server-session.js').ServerSession | null }} options session: the server's room list, to know the locked rooms.
  */
-export function createLobby({ openSettings, openGuide, onJoin }) {
+export function createLobby({ openSettings, openGuide, onJoin, session }) {
   const current = settings.get();
   const cleanups = [];
 
@@ -97,170 +94,10 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     );
   };
 
-  // The server's rooms with who is in each (Jay-C 0.5, core/server-session.js); a click joins.
-  // Hidden on a server without the list (older than 0.5) or with no rooms set up.
-  const serverRoomsList = h('ul', { class: 'server-rooms', 'aria-labelledby': 'server-rooms-label' });
-  // On a server with an admin key: its settings (ui/server-settings-modal.js).
-  let serverSettings = null;
-  const manageButton = h(
-    'button',
-    { type: 'button', class: 'btn btn-secondary btn-small', hidden: true, onClick: () => serverSettings?.open() },
-    t('Manage rooms'),
-  );
-  const serverRoomsField = h(
-    'div',
-    { class: 'field', hidden: true },
-    h('div', { class: 'server-rooms-header' }, h('span', { class: 'field-label', id: 'server-rooms-label' }, t('Rooms on this server')), manageButton),
-    serverRoomsList,
-  );
-  const memberRow = (peer) =>
-    h(
-      'li',
-      { class: 'server-room-peer' },
-      h('span', { class: 'server-room-avatar', style: `--tile-bg: ${profileBackground(peer.color, peer.name)}`, 'aria-hidden': 'true' }, peer.avatar ? h('img', { src: peer.avatar, alt: '' }) : (peer.name[0] ?? '?').toUpperCase()),
-      h('span', { class: 'server-room-peer-name' }, peer.name),
-      peer.live ? h('span', { class: 'server-room-live' }, t('LIVE')) : null,
-      peer.micOn ? null : h('span', { class: 'server-room-muted', html: icons.micOff, role: 'img', 'aria-label': t('Muted') }),
-    );
-  let session = null;
-  let sessionUrl = null;
-
-  // Text channels (Jay-C 0.5): one opens in a dialog (ui/text-channel.js); a dot marks the unread ones.
-  const channelsList = h('ul', { class: 'server-rooms', 'aria-labelledby': 'server-channels-label' });
-  const channelsField = h('div', { class: 'field', hidden: true }, h('span', { class: 'field-label', id: 'server-channels-label' }, t('Text channels')), channelsList);
-  const readHere = () => settings.get().channelsRead?.[sessionUrl] ?? {};
-  const markRead = (url, name, id) => {
-    const all = settings.get().channelsRead ?? {};
-    if ((all[url]?.[name] ?? 0) >= id) return;
-    settings.update({ channelsRead: { ...all, [url]: { ...all[url], [name]: id } } });
-  };
-  let openChannelDialog = null;
-  const openChannel = (name) => {
-    const url = sessionUrl;
-    const view = createTextChannel({ session, channel: name, onRead: (id) => markRead(url, name, id) });
-    const dialog = h(
-      'dialog',
-      { class: 'modal modal-wide text-channel-dialog', 'aria-labelledby': 'text-channel-title' },
-      h(
-        'header',
-        { class: 'modal-header' },
-        h('h2', { id: 'text-channel-title' }, `# ${name}`),
-        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Close'), html: icons.close, onClick: () => dialog.close() }),
-      ),
-      view.element,
-    );
-    dialog.addEventListener('close', () => {
-      view.destroy();
-      dialog.remove();
-      if (openChannelDialog === dialog) openChannelDialog = null;
-    });
-    dialog.addEventListener('click', (e) => {
-      if (e.target === dialog) dialog.close();
-    });
-    document.body.append(dialog);
-    openChannelDialog = dialog;
-    dialog.showModal();
-    view.focus();
-  };
-  const renderChannels = () => {
-    const channels = session?.supported ? session.channels : [];
-    channelsField.hidden = channels.length === 0;
-    const read = readHere();
-    channelsList.replaceChildren(
-      ...channels.map((channel) => {
-        const unread = isUnread(channel, read);
-        return h(
-          'li',
-          { class: 'server-room' },
-          h(
-            'button',
-            {
-              type: 'button',
-              class: 'server-room-btn',
-              'aria-label': unread ? t('Open #{channel} (new messages)', { channel: channel.name }) : t('Open #{channel}', { channel: channel.name }),
-              onClick: () => openChannel(channel.name),
-            },
-            h('span', { class: 'server-room-icon server-channel-hash', 'aria-hidden': 'true' }, '#'),
-            h('span', { class: `server-room-name${unread ? ' unread' : ''}` }, channel.name),
-            unread ? h('span', { class: 'channel-unread', 'aria-hidden': 'true' }) : null,
-          ),
-        );
-      }),
-    );
-  };
-
-  const renderServerRooms = () => {
-    update();
-    renderChannels();
-    const rooms = session?.supported ? session.rooms : [];
-    const manageable = Boolean(session?.supported && session.features.includes('server-admin'));
-    manageButton.hidden = !manageable;
-    serverRoomsField.hidden = rooms.length === 0 && !manageable;
-    serverRoomsList.replaceChildren(
-      ...rooms.map((room) =>
-        h(
-          'li',
-          { class: 'server-room' },
-          h(
-            'button',
-            {
-              type: 'button',
-              class: 'server-room-btn',
-              'aria-label': t('Join {room} ({count} in the call)', { room: room.name, count: room.peers.length }),
-              onClick: () => {
-                roomInput.value = room.name;
-                clearError();
-                if (!joinButton.disabled) form.requestSubmit();
-                else if (room.locked) passwordInput.focus();
-                else roomInput.focus();
-              },
-            },
-            h('span', { class: 'server-room-icon', html: room.locked ? icons.lock : icons.users, 'aria-hidden': 'true' }),
-            h('span', { class: 'server-room-name' }, room.name),
-            room.hidden ? h('span', { class: 'server-admin-tag' }, t('Hidden')) : null,
-            room.peers.length ? h('span', { class: 'server-room-count', 'aria-hidden': 'true' }, String(room.peers.length)) : null,
-          ),
-          room.peers.length ? h('ul', { class: 'server-room-peers' }, room.peers.map(memberRow)) : null,
-        ),
-      ),
-    );
-  };
-  const openSession = () => {
-    session?.close();
-    serverSettings?.destroy();
-    session = null;
-    serverSettings = null;
-    const url = toWebSocketUrl(settings.get().serverAddress);
-    sessionUrl = url;
-    if (url) {
-      const { displayName, avatar, profileColor, adminKeys } = settings.get();
-      const current = new ServerSession(url, { name: displayName.trim() || 'Jay-C', avatar, color: profileColor });
-      session = current;
-      session.addEventListener('change', renderServerRooms);
-      serverSettings = createServerSettingsModal({ session, url });
-      document.body.append(serverSettings.element);
-      // The key given before on this computer: unlocked by itself (a key the server no longer takes is forgotten).
-      if (adminKeys?.[url]) {
-        current.login(adminKeys[url]).catch((error) => {
-          if (error?.code !== 'not-admin') return;
-          const { [url]: _wrong, ...rest } = settings.get().adminKeys;
-          settings.update({ adminKeys: rest });
-        });
-      }
-    }
-    renderServerRooms();
-  };
-  cleanups.push(
-    settings.subscribe((next, prev) => {
-      if (next.serverAddress !== prev.serverAddress) openSession();
-      if (next.channelsRead !== prev.channelsRead) renderChannels();
-    }),
-    () => {
-      openChannelDialog?.close();
-      session?.close();
-      serverSettings?.destroy();
-    },
-  );
+  // A room in the server's list (or one the server asked about) needs its password before joining.
+  const onSessionChange = () => update();
+  session?.addEventListener('change', onSessionChange);
+  cleanups.push(() => session?.removeEventListener('change', onSessionChange));
 
   // How others see you: profile color, picture or initial, and name (Settings › Profile edits it).
   const profileAvatar = h('div', { class: 'lobby-profile-avatar', 'aria-hidden': 'true' });
@@ -395,11 +232,9 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     { class: 'card lobby-card', onSubmit },
     profile,
     updateBox,
-    h('h1', {}, t('Join a room')),
+    h('h1', {}, t('Direct call')),
     h('p', {}, t('Share the room name with friends on the same server.')),
     h('div', { class: 'field' }, h('label', { for: 'lobby-name' }, t('Display name')), nameInput),
-    serverRoomsField,
-    channelsField,
     h('div', { class: 'field' }, h('label', { for: 'lobby-room' }, t('Room')), h('div', { class: 'input-prefix' }, h('span', { 'aria-hidden': 'true' }, '#'), roomInput)),
     passwordField,
     recentField,
@@ -424,10 +259,18 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
   const element = h('main', { class: 'lobby' }, hero, form, h('p', { class: 'lobby-version' }, `Jay-C ${__APP_VERSION__}`));
   renderProfile();
   renderRecent();
-  openSession();
+  update();
 
   return {
     element,
+    /** Joins a room from the channel list (a locked one asks for its password here first). */
+    joinRoom(room) {
+      roomInput.value = room;
+      clearError();
+      if (!joinButton.disabled) form.requestSubmit();
+      else if (needsPassword(room)) passwordInput.focus();
+      else roomInput.focus();
+    },
     destroy: () => cleanups.forEach((fn) => fn()),
   };
 }

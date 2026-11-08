@@ -122,7 +122,7 @@ Abrir um canal de texto mostra o histórico e as mensagens novas; o campo de env
 
 ## Fase 3: layout estilo Discord
 
-### [ ] T8: DC, entrar direto numa sala pelo nome
+### [x] T8: DC, entrar direto numa sala pelo nome
 O caminho de hoje (endereço + nome da sala) fica como "Direct call". A sala criada assim é temporária e invisível na lista do servidor.
 
 **Critérios:**
@@ -134,7 +134,7 @@ O caminho de hoje (endereço + nome da sala) fica como "Direct call". A sala cri
 
 **Depende de:** T4 · **Arquivos:** `ui/lobby.js`, `rooms.js`, testes · **Tamanho:** S
 
-### [ ] T9: Shell nova: coluna de servidores, canais e área principal
+### [x] T9: Shell nova: coluna de servidores, canais e área principal
 O app abre na coluna de servidores salvos. Escolher um mostra os canais (calls com quem está nelas, canais de texto) e a área principal. A call ainda abre como hoje (tela cheia); o encaixe é a T10.
 
 **Critérios:**
