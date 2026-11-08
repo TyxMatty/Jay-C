@@ -152,6 +152,7 @@ iOS (milestone 15, code only) was left for after launch.
 
 **After 0.4.3 (08/11/2026), no installer yet** (0.5 plan: `tasks/plan.md` and `tasks/todo.md`):
 - **Deafen only the call:** it silences the voices, and a watched live's sound keeps playing at its own volume (`core/playback.js`: a live goes straight to the output, outside the voices bus). Covered by a test; not measured at the speakers (a browser bot doesn't send screen sound).
+- **Mute and deafen kept between calls** (`callAudio` in settings, `core/call-audio.js`): the next call starts as the last one was left, saved as it changes (it holds even if the app closes mid-call). Undeafening brings the mic back only if it wasn't muted before. Tested in the dev app: mute, leave, come back muted; deafen, leave, come back deafened; undeafening keeps the mic off.
 
 **Installer 0.4.3 (08/11/2026):** 0.4.2 with what's below, built by the installer workflow on GitHub (tag `v0.4.3`). The server didn't change. Anyone on 0.4.2 gets the update notice in the app.
 

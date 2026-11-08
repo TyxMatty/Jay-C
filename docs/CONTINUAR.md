@@ -150,6 +150,7 @@ O iOS (etapa 15, só o código) ficou para depois do lançamento.
 
 **Depois da 0.4.3 (08/11/2026), ainda sem instalador** (plano da 0.5: `tasks/plan.md` e `tasks/todo.md`):
 - **Deafen só da call:** silencia as vozes, e o som de uma live assistida continua tocando, com o volume dela (`core/playback.js`: a live vai direto para a saída, fora do canal das vozes). Coberto por teste; não medido no alto-falante (um bot de navegador não transmite o som da tela).
+- **Mute e deafen salvos entre calls** (`callAudio` no settings, `core/call-audio.js`): a próxima call começa como a anterior foi deixada, e o estado é salvo na hora em que muda (vale até se o app fechar no meio da call). Desligar o deafen volta o mic só se ele não estava mutado antes. Testado no app de dev: mutar, sair e voltar mutado; deafen, sair e voltar com deafen; desligar o deafen mantém o mic desligado.
 
 **Instalador 0.4.3 (08/11/2026):** a 0.4.2 com o que está abaixo, gerado pelo workflow do instalador no GitHub (tag `v0.4.3`). O servidor não mudou. Quem está na 0.4.2 recebe o aviso de atualização no app.
 

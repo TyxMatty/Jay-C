@@ -20,7 +20,7 @@ O `playback.js` passa a ter um barramento para o som das lives (`screen-audio`) 
 
 **Depende de:** nada · **Arquivos:** `core/playback.js`, `ui/call-view.js`, teste · **Tamanho:** S
 
-### [ ] T2: Mute e deafen salvos entre calls
+### [x] T2: Mute e deafen salvos entre calls
 O estado do mic e do deafen ao sair (ou ao fechar o app) é guardado e restaurado na próxima call.
 
 **Critérios:**

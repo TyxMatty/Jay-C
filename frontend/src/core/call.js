@@ -17,6 +17,7 @@ import { nativeMicSupported, startNativeMic, listMics, micNeedsRestart, micCallS
 import { startNativeLive, stopNativeLive } from './native-live.js';
 import { capturePreview } from './screen-preview.js';
 import { bufferDelayMs, catchUp, nextScreenVideoTarget } from './catch-up.js';
+import { savedCallAudio, startCallAudio } from './call-audio.js';
 import { t } from './i18n.js';
 
 /** Screen-share sound: stereo Opus at music quality, no DTX (silence detection would clip quiet passages). */
@@ -162,6 +163,11 @@ export class Call extends EventTarget {
   /** Whether the mic was on when we deafened: undeafening turns it back on. */
   #micBeforeDeafen = false;
 
+  /** The mic and deafen as the user has them, to carry into the next call (core/call-audio.js). */
+  get audioState() {
+    return savedCallAudio({ deafened: this.deafened, micMuted: this.#micMuted, micBeforeDeafen: this.#micBeforeDeafen });
+  }
+
   /** Left (or ended): nothing more happens in this call. */
   get ended() {
     return this.#ended;
@@ -181,8 +187,10 @@ export class Call extends EventTarget {
   }
 
   /** Opens local media, joins the room and starts sending/receiving through the SFU. */
-  async join({ url, room, name, avatar = null, color = null, micProcessing = DEFAULT_MIC_PROCESSING, micDeviceId = null, micShape = null, micFilter = 'jay-c' }) {
+  async join({ url, room, name, avatar = null, color = null, micProcessing = DEFAULT_MIC_PROCESSING, micDeviceId = null, micShape = null, micFilter = 'jay-c', audio = undefined }) {
     this.room = room;
+    // Muted or deafened as the last call was left: the mic producer then starts paused.
+    ({ micMuted: this.#micMuted, deafened: this.deafened, micBeforeDeafen: this.#micBeforeDeafen } = startCallAudio(audio));
     this.avatar = avatar;
     this.color = color;
     this.micProcessing = { ...micProcessing };

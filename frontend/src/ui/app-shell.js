@@ -110,6 +110,13 @@ export function mountApp(root) {
       micDeviceId: prefs.micDevice,
       micShape: { gain: prefs.micGain, gateDb: prefs.micGate },
       micFilter: prefs.micFilter,
+      audio: prefs.callAudio,
+    });
+    // Muting or deafening is saved as it happens, so it holds even if the app is closed mid-call.
+    call.addEventListener('local-updated', () => {
+      const audio = call.audioState;
+      const saved = settings.get().callAudio;
+      if (audio.muted !== saved?.muted || audio.deafened !== saved?.deafened) settings.update({ callAudio: audio });
     });
     if (import.meta.env.DEV) window.__jaycCall = call; // for debugging from devtools
     // Discord status (Settings › Profile), until the call ends; turning it off and on keeps the time.

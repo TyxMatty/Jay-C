@@ -26,6 +26,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   appearance: DEFAULT_APPEARANCE,
   /** Call controls: { position: 'bottom' | 'right' | 'top' | 'left', order: control keys }. */
   callBar: DEFAULT_CALL_BAR,
+  /** The mic and deafen as the last call was left (core/call-audio.js): the next one starts so. */
+  callAudio: { muted: false, deafened: false },
   /** Interface language: 'system' (the OS language), 'en' or 'pt-BR' (core/i18n.js). */
   language: 'system',
   /** The look: 'calm', 'neon' or 'soft' (core/style.js, styles/theme.css). */
