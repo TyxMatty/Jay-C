@@ -3095,8 +3095,11 @@ html[data-activity-pip] .activity-pip-video {
   z-index: 1000;
 }
 
+/* Clipped too: in a window ~200 px wide the top bar overflows, and a page wider than the window
+   makes the WebView zoom out, leaving the video short of the window's edges. */
 html[data-activity-pip] body > :not(.activity-pip-video) {
   visibility: hidden;
+  overflow: clip;
 }
 
 /* ---------- Share panel (popover) ---------- */

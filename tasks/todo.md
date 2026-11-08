@@ -168,10 +168,10 @@ Painel de membros do servidor (online por sala) à direita; no Android (tela est
 **Critérios:**
 - [x] Membros online por sala; quem está em live aparece marcado.
 - [x] A 375 px de largura: nada corta, nada rola na horizontal; as gavetas abrem por botão.
-- [ ] O PiP do Android continua funcionando. **Não medido:** o emulador não roda neste PC e nenhum celular estava ligado.
+- [x] O PiP do Android continua funcionando. Medido num celular (Android 16), com a call na tela e escondida; o vídeo não enchia a janela e foi corrigido.
 
 **Verificação:**
-- [ ] Manual no emulador (`scripts/android-dev.ps1`): não deu (ver acima).
+- [x] Manual num celular de verdade (`scripts/android-dev.ps1 --host <IP do PC>`), no lugar do emulador, que não roda neste PC.
 - [x] Com `Emulation.setDeviceMetricsOverride` (375 e 360 px), cliques e teclas reais pelo CDP; o Voltar do Android simulado com user agent de Android.
 
 **Depende de:** T10 · **Arquivos:** `ui/members-panel.js` (novo), `ui/app-shell.js`, `styles/` · **Tamanho:** M
@@ -202,3 +202,8 @@ Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda 
 ## Release 0.5.0
 - [ ] Docs (ARQUITETURA 4 e 10, CONTINUAR, guia do servidor com `DATA_DIR` e `TENOR_API_KEY`), versão, tag, notas.
 - [ ] Instalador testado numa máquina ou conta de teste; app 0.4.3 contra o servidor 0.5 e o contrário.
+
+## Bugs para corrigir depois
+
+- [ ] **Android: fechar o PiP da live fecha o app inteiro** (visto pelo usuário em 08/11/2026, no Samsung SM-S711B com Android 16). Deveria só mandar o app para segundo plano, com a call seguindo. No logcat, ao fechar a mini-janela: `stopped(true)` na activity e `pipModeChanged active=false`. No modo dev, a página perdeu a conexão com o Vite e recarregou ao voltar, e a call caiu. Falta separar o que é do PiP e o que é só do Vite.
+- [ ] **Android: sair pelo Voltar derruba o processo ao fechar.** Visto 1 vez (08/11/2026, mesmo aparelho), com o Voltar no "Chamada direta", sem gaveta aberta: `FORTIFY: pthread_mutex_lock called on a destroyed mutex` no logcat, logo depois de a activity parar. Para quem usa, o app só fecha, mas é um crash nativo.
