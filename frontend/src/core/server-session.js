@@ -35,11 +35,15 @@ export function applyServerMessage(rooms, msg) {
 }
 
 /**
- * Events: `change` (rooms, `supported` or `admin` changed).
+ * Events: `change` (rooms, channels, `supported` or `admin` changed), `connected` (a whole list
+ * arrived: first, after a drop, after an admin change), `message` (a new text
+ * channel message: detail { channel, message }), `channel-error` (detail { code }: a message wasn't taken).
  */
 export class ServerSession extends EventTarget {
   /** @type {{ name: string, locked: boolean, hidden?: boolean, peers: object[] }[]} */
   rooms = [];
+  /** The text channels: name and the id of their last message. @type {{ name: string, lastId: number }[]} */
+  channels = [];
   /** null until the server answers; false = a server without the room list. */
   supported = null;
   /** What the server accepts (from `server-state`): 'server-admin' = it has an admin key. */
@@ -66,6 +70,11 @@ export class ServerSession extends EventTarget {
     this.#open();
   }
 
+  /** The name this connection says hello with (its own channel messages carry it). */
+  get name() {
+    return this.#profile.name;
+  }
+
   close() {
     this.#closed = true;
     clearTimeout(this.#timer);
@@ -85,7 +94,17 @@ export class ServerSession extends EventTarget {
     });
   }
 
-  /** An admin request ('room-create', 'room-edit', 'room-delete'); rejects with a ServerSessionError. */
+  /** Sends a message to text channel `channel`; false when not connected (nothing sent). */
+  sendChannel(channel, text) {
+    return this.#send({ type: 'channel-send', channel, text });
+  }
+
+  /** Up to 50 messages of `channel` older than id `before` (the newest without it), oldest first. */
+  async channelHistory(channel, before) {
+    return (await this.request('channel-history', { channel, ...(before ? { before } : {}) })).messages;
+  }
+
+  /** A request answered with data ('channel-history', the admin's 'room-*' and 'channel-*'); rejects with a ServerSessionError. */
   request(type, data) {
     const id = this.#nextId++;
     return new Promise((resolve, reject) => {
@@ -148,7 +167,7 @@ export class ServerSession extends EventTarget {
         if (!pending) return;
         this.#pending.delete(msg.id);
         clearTimeout(pending.timer);
-        return msg.ok ? pending.resolve() : pending.reject(new ServerSessionError(msg.error));
+        return msg.ok ? pending.resolve(msg.data ?? null) : pending.reject(new ServerSessionError(msg.error));
       }
       if (msg.type === 'admin' || (msg.type === 'error' && msg.ref === 'admin')) {
         if (msg.type === 'error') this.#adminKey = null; // a wrong key isn't retried on reconnect
@@ -158,6 +177,14 @@ export class ServerSession extends EventTarget {
         else pending?.reject(new ServerSessionError(msg.code));
         return;
       }
+      if (msg.type === 'channel-message') {
+        this.channels = this.channels.map((c) => (c.name === msg.channel ? { ...c, lastId: Math.max(c.lastId, msg.message.id) } : c));
+        this.dispatchEvent(new CustomEvent('message', { detail: { channel: msg.channel, message: msg.message } }));
+        return this.#changed();
+      }
+      if (msg.type === 'error' && msg.ref === 'channel-send') {
+        return this.dispatchEvent(new CustomEvent('channel-error', { detail: { code: msg.code } }));
+      }
       const next = applyServerMessage(this.rooms, msg);
       if (!next) return;
       if (msg.type === 'server-state') {
@@ -165,6 +192,9 @@ export class ServerSession extends EventTarget {
         this.#attempt = 0;
         this.features = Array.isArray(msg.features) ? msg.features : [];
         this.admin = msg.admin === true;
+        this.channels = Array.isArray(msg.channels) ? msg.channels : [];
+        // Every list from the server (the first, after a drop, after an admin change): what's open can catch up.
+        this.dispatchEvent(new Event('connected'));
       }
       this.rooms = next;
       this.#changed();

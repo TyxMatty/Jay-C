@@ -8,6 +8,8 @@ import { updatesSupported, checkForUpdate, installUpdate } from '../core/update.
 import { ServerSession } from '../core/server-session.js';
 import { toWebSocketUrl } from '../core/server-address.js';
 import { createServerSettingsModal } from './server-settings-modal.js';
+import { createTextChannel } from './text-channel.js';
+import { isUnread } from '../core/text-channels.js';
 
 // Must match the signaling server's room-name rule.
 const ROOM_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -121,8 +123,75 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
       peer.micOn ? null : h('span', { class: 'server-room-muted', html: icons.micOff, role: 'img', 'aria-label': t('Muted') }),
     );
   let session = null;
+  let sessionUrl = null;
+
+  // Text channels (Jay-C 0.5): one opens in a dialog (ui/text-channel.js); a dot marks the unread ones.
+  const channelsList = h('ul', { class: 'server-rooms', 'aria-labelledby': 'server-channels-label' });
+  const channelsField = h('div', { class: 'field', hidden: true }, h('span', { class: 'field-label', id: 'server-channels-label' }, t('Text channels')), channelsList);
+  const readHere = () => settings.get().channelsRead?.[sessionUrl] ?? {};
+  const markRead = (url, name, id) => {
+    const all = settings.get().channelsRead ?? {};
+    if ((all[url]?.[name] ?? 0) >= id) return;
+    settings.update({ channelsRead: { ...all, [url]: { ...all[url], [name]: id } } });
+  };
+  let openChannelDialog = null;
+  const openChannel = (name) => {
+    const url = sessionUrl;
+    const view = createTextChannel({ session, channel: name, onRead: (id) => markRead(url, name, id) });
+    const dialog = h(
+      'dialog',
+      { class: 'modal modal-wide text-channel-dialog', 'aria-labelledby': 'text-channel-title' },
+      h(
+        'header',
+        { class: 'modal-header' },
+        h('h2', { id: 'text-channel-title' }, `# ${name}`),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Close'), html: icons.close, onClick: () => dialog.close() }),
+      ),
+      view.element,
+    );
+    dialog.addEventListener('close', () => {
+      view.destroy();
+      dialog.remove();
+      if (openChannelDialog === dialog) openChannelDialog = null;
+    });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+    document.body.append(dialog);
+    openChannelDialog = dialog;
+    dialog.showModal();
+    view.focus();
+  };
+  const renderChannels = () => {
+    const channels = session?.supported ? session.channels : [];
+    channelsField.hidden = channels.length === 0;
+    const read = readHere();
+    channelsList.replaceChildren(
+      ...channels.map((channel) => {
+        const unread = isUnread(channel, read);
+        return h(
+          'li',
+          { class: 'server-room' },
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'server-room-btn',
+              'aria-label': unread ? t('Open #{channel} (new messages)', { channel: channel.name }) : t('Open #{channel}', { channel: channel.name }),
+              onClick: () => openChannel(channel.name),
+            },
+            h('span', { class: 'server-room-icon server-channel-hash', 'aria-hidden': 'true' }, '#'),
+            h('span', { class: `server-room-name${unread ? ' unread' : ''}` }, channel.name),
+            unread ? h('span', { class: 'channel-unread', 'aria-hidden': 'true' }) : null,
+          ),
+        );
+      }),
+    );
+  };
+
   const renderServerRooms = () => {
     update();
+    renderChannels();
     const rooms = session?.supported ? session.rooms : [];
     const manageable = Boolean(session?.supported && session.features.includes('server-admin'));
     manageButton.hidden = !manageable;
@@ -162,6 +231,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     session = null;
     serverSettings = null;
     const url = toWebSocketUrl(settings.get().serverAddress);
+    sessionUrl = url;
     if (url) {
       const { displayName, avatar, profileColor, adminKeys } = settings.get();
       const current = new ServerSession(url, { name: displayName.trim() || 'Jay-C', avatar, color: profileColor });
@@ -183,8 +253,10 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
   cleanups.push(
     settings.subscribe((next, prev) => {
       if (next.serverAddress !== prev.serverAddress) openSession();
+      if (next.channelsRead !== prev.channelsRead) renderChannels();
     }),
     () => {
+      openChannelDialog?.close();
       session?.close();
       serverSettings?.destroy();
     },
@@ -327,6 +399,7 @@ export function createLobby({ openSettings, openGuide, onJoin }) {
     h('p', {}, t('Share the room name with friends on the same server.')),
     h('div', { class: 'field' }, h('label', { for: 'lobby-name' }, t('Display name')), nameInput),
     serverRoomsField,
+    channelsField,
     h('div', { class: 'field' }, h('label', { for: 'lobby-room' }, t('Room')), h('div', { class: 'input-prefix' }, h('span', { 'aria-hidden': 'true' }, '#'), roomInput)),
     passwordField,
     recentField,

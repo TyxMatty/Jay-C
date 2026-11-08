@@ -28,6 +28,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   callBar: DEFAULT_CALL_BAR,
   /** Admin keys given to servers (ui/server-settings-modal.js), by WebSocket URL: entered once each. */
   adminKeys: {},
+  /** The last message seen in each text channel, by server URL then channel: { [url]: { [name]: id } }. */
+  channelsRead: {},
   /** The mic and deafen as the last call was left (core/call-audio.js): the next one starts so. */
   callAudio: { muted: false, deafened: false },
   /** Interface language: 'system' (the OS language), 'en' or 'pt-BR' (core/i18n.js). */

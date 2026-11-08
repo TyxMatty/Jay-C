@@ -101,7 +101,7 @@ Canais de texto por servidor: listar, criar e apagar (admin), mensagens ao vivo 
 
 **Depende de:** T3, T5 · **Arquivos:** `server.js`, `store.js`, `signaling-server/src/channels.js` (novo), testes · **Tamanho:** M
 
-### [ ] T7: Canal de texto na interface
+### [x] T7: Canal de texto na interface
 Abrir um canal de texto mostra o histórico e as mensagens novas; o campo de envio reaproveita o do chat da call (Markdown, quebras de linha).
 
 **Critérios:**

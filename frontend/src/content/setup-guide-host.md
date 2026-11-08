@@ -80,4 +80,4 @@ Jay-C 0.5 and newer list the server's rooms in the lobby, with who is in each. T
 - **Node.js:** in PowerShell, `$env:ADMIN_KEY="a-long-secret"; npm run server`.
 - **Docker:** in `docker-compose.yml`, remove the `#` before `ADMIN_KEY`, put your secret there and run `docker compose up -d` again. On Linux, let the server write its rooms once: `mkdir -p data && sudo chown 1000:1000 data`.
 
-Then, in the lobby, click **Manage rooms** and type the key once. You can create rooms, give one a password (it shows a lock) and hide a room that has a password (only who types its name finds it). The server keeps them in `data/rooms.json`. A room joined by any other name works as before, but stays out of the list.
+Then, in the lobby, click **Manage rooms** and type the key once. You can create text channels (the server keeps their last 500 messages) and rooms, give one a password (it shows a lock) and hide a room that has a password (only who types its name finds it). The server keeps them in its `data` folder. A room joined by any other name works as before, but stays out of the list.

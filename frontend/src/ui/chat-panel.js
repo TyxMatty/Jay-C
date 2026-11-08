@@ -3,13 +3,12 @@
 // server keeps no history). Text is always inserted as text, never as HTML.
 import { h } from './dom.js';
 import { icons } from './icons.js';
+import { createChatLog } from './chat-log.js';
 import { t } from '../core/i18n.js';
 
 const MAX_LENGTH = 500;
 /** Older messages are dropped past this, so a long call doesn't grow the page forever. */
 const MAX_SHOWN = 200;
-/** Messages from the same person within this gap share one avatar and name (like Discord). */
-const GROUP_MS = 5 * 60 * 1000;
 
 /**
  * @param {{ send: (text: string) => boolean, onIncoming?: (message: { name: string, text: string }) => void }} options
@@ -19,7 +18,7 @@ const GROUP_MS = 5 * 60 * 1000;
 export function createChatPanel({ send, onIncoming }) {
   const badge = h('span', { class: 'control-badge', hidden: true });
   const button = h('button', { type: 'button', class: 'control-btn', 'aria-expanded': 'false', html: icons.chat }, badge);
-  const log = h('ol', { class: 'chat-log', role: 'log', 'aria-live': 'polite', 'aria-label': t('Messages') });
+  const chatLog = createChatLog({ label: t('Messages'), max: MAX_SHOWN });
   const empty = h(
     'div',
     { class: 'chat-empty' },
@@ -40,7 +39,7 @@ export function createChatPanel({ send, onIncoming }) {
     { class: 'chat-panel', hidden: true, 'aria-label': t('Chat') },
     h('header', { class: 'chat-header' }, h('h2', {}, t('Chat')), close),
     empty,
-    log,
+    chatLog.element,
     status,
     form,
   );
@@ -62,7 +61,7 @@ export function createChatPanel({ send, onIncoming }) {
     if (open) {
       unread = 0;
       input.focus();
-      log.lastElementChild?.scrollIntoView({ block: 'end' });
+      chatLog.scrollToEnd();
     } else {
       button.focus();
     }
@@ -95,36 +94,19 @@ export function createChatPanel({ send, onIncoming }) {
      *   avatar: the sender's picture (data URL); background: their profile color, behind the initial.
      */
     add({ id, name, text, mine, avatar = null, background = '' }) {
-      const now = Date.now();
-      const time = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const shownName = mine ? t('You') : name || t('Guest');
-      const sender = mine ? 'me' : `peer:${id ?? name ?? ''}`;
-      // Several in a row from the same person, close together: one avatar, name and time on top.
-      const previous = log.lastElementChild;
-      const continued = previous?.dataset.sender === sender && now - Number(previous.dataset.at) < GROUP_MS;
-      const face = h(
-        'span',
-        { class: 'chat-avatar', 'aria-hidden': 'true' },
-        avatar ? h('img', { src: avatar, alt: '' }) : ((mine ? name : shownName).trim()[0] ?? '?').toUpperCase(),
+      chatLog.append(
+        {
+          sender: mine ? 'me' : `peer:${id ?? name ?? ''}`,
+          name: mine ? t('You') : name || t('Guest'),
+          initial: mine ? name : undefined, // our own initial, not the one of "You"
+          text,
+          mine,
+          avatar,
+          background,
+        },
+        { follow: mine },
       );
-      if (background) face.style.setProperty('--tile-bg', background);
-      log.append(
-        h(
-          'li',
-          { class: `chat-message${mine ? ' mine' : ''}${continued ? ' continued' : ''}`, dataset: { sender, at: String(now) } },
-          face,
-          h(
-            'div',
-            { class: 'chat-body' },
-            h('div', { class: 'chat-meta' }, h('strong', {}, shownName), h('time', {}, time)),
-            h('p', { class: 'chat-text' }, text),
-          ),
-        ),
-      );
-      while (log.children.length > MAX_SHOWN) log.firstElementChild.remove();
       empty.hidden = true;
-      const stuckToBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
-      if (stuckToBottom || mine) log.lastElementChild.scrollIntoView({ block: 'end' });
       if (!mine && panel.hidden) {
         unread++;
         renderButton();

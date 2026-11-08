@@ -80,4 +80,4 @@ O Jay-C 0.5 em diante mostra as salas do servidor no lobby, com quem está em ca
 - **Node.js:** no PowerShell, `$env:ADMIN_KEY="um-segredo-comprido"; npm run server`.
 - **Docker:** no `docker-compose.yml`, tire o `#` antes de `ADMIN_KEY`, coloque o seu segredo e rode `docker compose up -d` de novo. No Linux, deixe o servidor gravar as salas uma vez: `mkdir -p data && sudo chown 1000:1000 data`.
 
-Depois, no lobby, clique em **Gerenciar salas** e digite a chave uma vez. Dá pra criar salas, pôr senha numa (ela mostra um cadeado) e esconder uma sala com senha (só acha quem digitar o nome). O servidor guarda tudo em `data/rooms.json`. Uma sala com qualquer outro nome funciona como antes, mas fica fora da lista.
+Depois, no lobby, clique em **Gerenciar salas** e digite a chave uma vez. Dá pra criar canais de texto (o servidor guarda as últimas 500 mensagens de cada um) e salas, pôr senha numa (ela mostra um cadeado) e esconder uma sala com senha (só acha quem digitar o nome). O servidor guarda tudo na pasta `data` dele. Uma sala com qualquer outro nome funciona como antes, mas fica fora da lista.

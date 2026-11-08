@@ -141,6 +141,78 @@ export function createServerSettingsModal({ session, url }) {
     nameInput.focus();
   };
 
+  // Text channels: a name each (rename keeps the messages).
+  let editingChannel = null; // null = closed, '' = a new one, else the name being renamed
+  let confirmDeleteChannel = null;
+  const channelNameInput = h('input', { id: 'server-channel-name', class: 'input', maxlength: 64, autocomplete: 'off', spellcheck: 'false' });
+  const channelForm = h(
+    'form',
+    {
+      class: 'server-room-form',
+      onSubmit: async (e) => {
+        e.preventDefault();
+        const name = channelNameInput.value.trim();
+        showError(null);
+        if (!ROOM_RE.test(name)) {
+          status.textContent = t('Channel names use letters, numbers, - and _ only.');
+          status.dataset.tone = 'error';
+          return;
+        }
+        try {
+          if (editingChannel === '') await session.request('channel-create', { name });
+          else await session.request('channel-edit', { name: editingChannel, newName: name });
+          editingChannel = null;
+          render();
+        } catch (error) {
+          showError(error);
+        }
+      },
+    },
+    h('div', { class: 'field' }, h('label', { for: 'server-channel-name' }, t('Channel name')), channelNameInput),
+    h(
+      'div',
+      { class: 'server-room-form-actions' },
+      h('button', { type: 'button', class: 'btn btn-secondary', onClick: () => ((editingChannel = null), render()) }, t('Cancel')),
+      h('button', { type: 'submit', class: 'btn' }, t('Save')),
+    ),
+  );
+  const openChannelForm = (name) => {
+    editingChannel = name;
+    channelNameInput.value = name;
+    showError(null);
+    render();
+    channelNameInput.focus();
+  };
+  const channelRow = (channel) =>
+    h(
+      'li',
+      { class: 'server-admin-room' },
+      h('span', { class: 'server-room-icon server-channel-hash', 'aria-hidden': 'true' }, '#'),
+      h('span', { class: 'server-room-name' }, channel.name),
+      h('button', { type: 'button', class: 'btn btn-secondary btn-small', onClick: () => openChannelForm(channel.name) }, t('Rename')),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-secondary btn-small',
+          onClick: async () => {
+            if (confirmDeleteChannel !== channel.name) {
+              confirmDeleteChannel = channel.name;
+              return render();
+            }
+            confirmDeleteChannel = null;
+            try {
+              await session.request('channel-delete', { name: channel.name });
+            } catch (error) {
+              showError(error);
+            }
+            render();
+          },
+        },
+        confirmDeleteChannel === channel.name ? t('Delete with its messages?') : t('Delete'),
+      ),
+    );
+
   const roomRow = (room) =>
     h(
       'li',
@@ -181,16 +253,23 @@ export function createServerSettingsModal({ session, url }) {
     const list = session.rooms.length
       ? h('ul', { class: 'server-admin-rooms' }, session.rooms.map(roomRow))
       : h('p', { class: 'hint' }, t('No rooms yet. Rooms you create show up for everyone on this server.'));
+    const channelList = session.channels.length
+      ? h('ul', { class: 'server-admin-rooms' }, session.channels.map(channelRow))
+      : h('p', { class: 'hint' }, t('No text channels yet.'));
     body.replaceChildren(
+      h('h3', { class: 'server-admin-heading' }, t('Call rooms')),
       list,
       editing === null ? h('button', { type: 'button', class: 'btn btn-secondary', onClick: () => openForm('') }, t('New room')) : roomForm,
+      h('h3', { class: 'server-admin-heading' }, t('Text channels')),
+      channelList,
+      editingChannel === null ? h('button', { type: 'button', class: 'btn btn-secondary', onClick: () => openChannelForm('') }, t('New channel')) : channelForm,
       status,
     );
   };
   // The list changes live (someone else's change, a reconnect): keep the form, redraw the rest.
   const onChange = () => {
     if (!dialog.open) return;
-    if (editing === null) render();
+    if (editing === null && editingChannel === null) render();
     else if (editing && !roomOf(editing)) {
       editing = null;
       render();
@@ -237,6 +316,8 @@ export function createServerSettingsModal({ session, url }) {
     open() {
       editing = null;
       confirmDelete = null;
+      editingChannel = null;
+      confirmDeleteChannel = null;
       showError(null);
       render();
       dialog.showModal();

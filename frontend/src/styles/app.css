@@ -521,6 +521,47 @@ select {
   font-weight: 500;
 }
 
+/* Text channels (Jay-C 0.5): "#" instead of an icon, a dot when there are new messages. */
+.server-channel-hash {
+  width: 16px;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.server-room-name.unread {
+  font-weight: 800;
+}
+
+.channel-unread {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.text-channel-dialog .text-channel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: min(70vh, 640px);
+  padding: 0 20px 16px;
+}
+
+.text-channel .chat-empty {
+  flex: 1;
+}
+
+.server-admin-heading {
+  margin: 20px 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.server-admin-heading:first-child {
+  margin-top: 0;
+}
+
 /* Server settings (ui/server-settings-modal.js). */
 .server-admin-rooms {
   display: grid;
@@ -2919,18 +2960,20 @@ html[data-activity-pip] body > :not(.activity-pip-video) {
   background: color-mix(in srgb, var(--surface-2) 60%, transparent);
 }
 
+/* The sender's color as a ring, the initial in the theme's text color: readable for any color
+   (white on a light one wasn't). */
 .chat-avatar {
   display: grid;
   place-items: center;
   width: 36px;
   height: 36px;
   overflow: hidden;
+  border: 3px solid transparent;
   border-radius: 50%;
-  background: var(--tile-bg, var(--surface-2));
-  color: #fff;
+  background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box, var(--tile-bg, var(--surface-2)) border-box;
+  color: var(--text);
   font-size: 15px;
   font-weight: 700;
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
 }
 
 .chat-avatar img {
