@@ -150,6 +150,9 @@ iOS (milestone 15, code only) was left for after launch.
 - **How to regenerate:** `scripts/wolf-icon.ps1` and then `tauri icon` (see CLAUDE.md, "Ícone").
 - Shipped in installer 0.3.1.
 
+**After 0.4.2 (07/11/2026), no installer yet:**
+- **Hitches every few seconds when watching a live** (a 0.4.2 regression): the picture's buffer followed the sound's in jumps, and each jump up held the picture ~100 ms. Now it moves 10 ms a second, which doesn't show (`docs/spikes/10-live-nativa.md`, "Travadas a cada poucos segundos em quem assiste").
+
 **Installer 0.4.2 (07/11/2026):** 0.4.1 with what's below, built by the installer workflow on GitHub (tag `v0.4.2`). The server didn't change: a 0.4.1 server works the same. It's the first version with auto-update; anyone on 0.4.1 or older installs this one by hand (or through Jay-H).
 
 **Between 0.4.1 and 0.4.2 (07/11/2026):**

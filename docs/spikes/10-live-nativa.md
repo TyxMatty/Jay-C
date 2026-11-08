@@ -345,3 +345,13 @@ O texto do HUD em 1080p30 a ~3,7 Mbps ficou legível linha a linha, onde o 1080p
 - Medido com a live de uma janela, no mesmo PC e sem limite de rede.
 - Os 55 ms e os 20 ms foram calibrados nesta máquina.
 - Uma live de alguém com o app antigo só tem a parte de quem assiste: o som segue ~120 ms atrás.
+
+**Travadas a cada poucos segundos em quem assiste (0.4.2, 07/11/2026):**
+- **Relato:** "travando a cada 3s em um vídeo de outra pessoa".
+- **Causa:** quem assiste mudava o `jitterBufferTarget` da imagem a cada segundo, sempre que o buffer do som andava 10 ms ou mais. O Chrome aplica um alvo maior de uma vez, segurando a imagem. Numa rede com variação, o buffer do som anda o tempo todo.
+- **Medido** (Chrome sem janela, live de canvas a 30 qps, alvo trocado por fora):
+  - alvo fixo: nenhum intervalo entre quadros acima de 56 ms em 60 s;
+  - alvo indo 50 ↔ 110 ms a cada segundo: cada subida segurou a imagem ~90–100 ms, e cada descida pulou quadros;
+  - alvo andando 10 ms por segundo (50 → 150 → 50): nenhum intervalo acima de 50 ms em 60 s.
+- **Agora:** o alvo anda no máximo 10 ms por segundo e só sai do lugar quando está a 20 ms ou mais de onde deveria (`nextScreenVideoTarget`, `catch-up.js`). Um salto do som de 30 para 300 ms leva ~26 s para a imagem acompanhar.
+- **Não medido:** o caminho completo com o som da live (o Chrome sem janela não tem a captura nativa); a função é coberta por teste.

@@ -18,9 +18,27 @@ export const SCREEN_AUDIO_LEAD_MS = 20;
 /** Never hold a live's picture back more than this: an audio further behind gets renewed instead. */
 export const SCREEN_VIDEO_MAX_HOLD_MS = 400;
 
+/**
+ * The picture's target moves at most this much per check (once a second). Chrome applies a higher
+ * target at once by holding the picture: a 60 ms jump froze it for ~90 ms every time, and following
+ * the sound's buffer on a jittery link did that every few seconds (field report, then measured);
+ * 10 ms steps never showed (no frame gap over 50 ms at 30 fps).
+ */
+export const SCREEN_VIDEO_STEP_MS = 10;
+/** Closer than this to where it should be, the target stays: the sound's buffer moves all the time. */
+export const SCREEN_VIDEO_DEADBAND_MS = 20;
+
 /** The jitterBufferTarget (ms) for a live's picture, given its sound's receive buffer delay (ms). */
 export function screenVideoTargetMs(audioBufferMs) {
   return Math.round(Math.min(SCREEN_VIDEO_MAX_HOLD_MS, Math.max(0, audioBufferMs + SCREEN_AUDIO_LEAD_MS)));
+}
+
+/** The picture's next target from its `current` one (null = never set), or null to leave it. */
+export function nextScreenVideoTarget(current, audioBufferMs) {
+  const from = current ?? 0;
+  const gap = screenVideoTargetMs(audioBufferMs) - from;
+  if (Math.abs(gap) < SCREEN_VIDEO_DEADBAND_MS) return null;
+  return from + Math.sign(gap) * SCREEN_VIDEO_STEP_MS;
 }
 
 /** The receive buffer's average delay (ms) between two inbound-rtp stats, or null without new audio. */

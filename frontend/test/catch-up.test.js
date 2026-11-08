@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bufferDelayMs, catchUp, screenVideoTargetMs, BEHIND_MS, RENEW_GAP_MS, SCREEN_AUDIO_LEAD_MS, SCREEN_VIDEO_MAX_HOLD_MS } from '../src/core/catch-up.js';
+import { bufferDelayMs, catchUp, screenVideoTargetMs, nextScreenVideoTarget, BEHIND_MS, RENEW_GAP_MS, SCREEN_AUDIO_LEAD_MS, SCREEN_VIDEO_MAX_HOLD_MS } from '../src/core/catch-up.js';
 
 test('the buffer delay over an interval', () => {
   // 48000 samples emitted in a second, each 2.5 s in the buffer: 120000 s of summed delay.
@@ -31,4 +31,19 @@ test("a live's picture waits for its sound: the audio buffer plus the sharer's l
   assert.equal(screenVideoTargetMs(30), 30 + SCREEN_AUDIO_LEAD_MS);
   assert.equal(screenVideoTargetMs(0), SCREEN_AUDIO_LEAD_MS);
   assert.equal(screenVideoTargetMs(2500), SCREEN_VIDEO_MAX_HOLD_MS, 'far behind: catch-up renews the audio instead');
+});
+
+test("a live's picture target creeps 10 ms a second and ignores small moves: a jump freezes the picture", () => {
+  assert.equal(nextScreenVideoTarget(null, 30), 10, 'never set: from 0, one step');
+  assert.equal(nextScreenVideoTarget(20, 30), 30);
+  assert.equal(nextScreenVideoTarget(140, 30), 130, 'down one step too');
+  assert.equal(nextScreenVideoTarget(45, 30), null, 'within 20 ms of 50: stays');
+  // The sound's buffer jumps from 30 to 300 ms: the picture follows a step at a time, never in one go.
+  let target = 50, steps = 0;
+  for (let next; (next = nextScreenVideoTarget(target, 300)) != null; steps++) {
+    assert.equal(Math.abs(next - target), 10);
+    target = next;
+  }
+  assert.ok(Math.abs(target - screenVideoTargetMs(300)) < 20);
+  assert.equal(steps, 26);
 });

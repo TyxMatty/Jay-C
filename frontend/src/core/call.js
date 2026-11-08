@@ -16,7 +16,7 @@ import { startScreenAudio } from './screen-audio.js';
 import { nativeMicSupported, startNativeMic, listMics, micNeedsRestart, micCallState, jayANotices } from './native-mic.js';
 import { startNativeLive, stopNativeLive } from './native-live.js';
 import { capturePreview } from './screen-preview.js';
-import { bufferDelayMs, catchUp, screenVideoTargetMs } from './catch-up.js';
+import { bufferDelayMs, catchUp, nextScreenVideoTarget } from './catch-up.js';
 import { t } from './i18n.js';
 
 /** Screen-share sound: stereo Opus at music quality, no DTX (silence detection would clip quiet passages). */
@@ -916,8 +916,8 @@ export class Call extends EventTarget {
     const video = [...participant.consumers.values()].find((e) => e.source === 'screen' && e.consumer.kind === 'video');
     const receiver = video?.consumer.closed ? null : video?.consumer.rtpReceiver;
     if (!receiver || !('jitterBufferTarget' in receiver)) return;
-    const target = screenVideoTargetMs(audioBufferMs);
-    if (Math.abs((receiver.jitterBufferTarget ?? 0) - target) >= 10) receiver.jitterBufferTarget = target;
+    const target = nextScreenVideoTarget(receiver.jitterBufferTarget, audioBufferMs);
+    if (target != null) receiver.jitterBufferTarget = target;
   }
 
   /** A fresh consumer for an audio whose receive buffer fell far behind: it plays from live again. */

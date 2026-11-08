@@ -148,6 +148,9 @@ O iOS (etapa 15, só o código) ficou para depois do lançamento.
 - **Como regenerar:** `scripts/wolf-icon.ps1` e depois `tauri icon` (ver CLAUDE.md, "Ícone").
 - Publicado no instalador 0.3.1.
 
+**Depois da 0.4.2 (07/11/2026), ainda sem instalador:**
+- **Travadas a cada poucos segundos em quem assiste uma live** (regressão da 0.4.2): o buffer da imagem seguia o do som aos saltos, e cada salto para cima segurava a imagem ~100 ms. Agora ele anda 10 ms por segundo, o que não aparece (`docs/spikes/10-live-nativa.md`, "Travadas a cada poucos segundos em quem assiste").
+
 **Instalador 0.4.2 (07/11/2026):** a 0.4.1 com o que está abaixo, gerado pelo workflow do instalador no GitHub (tag `v0.4.2`). O servidor não mudou: um servidor 0.4.1 funciona igual. É a primeira versão com atualização automática; quem está na 0.4.1 ou antes instala esta à mão (ou pelo Jay-H).
 
 **Entre a 0.4.1 e a 0.4.2 (07/11/2026):**
