@@ -4,6 +4,8 @@
 import { h } from './dom.js';
 import { icons } from './icons.js';
 import { createChatLog } from './chat-log.js';
+import { createAttach } from './attach.js';
+import { createMediaLoader } from '../core/attachment-net.js';
 import { profileBackground } from '../core/profile-color.js';
 import { mergeMessages } from '../core/text-channels.js';
 import { t } from '../core/i18n.js';
@@ -22,17 +24,28 @@ const SEND_ERRORS = {
  *   onRead: (lastId: number) => void }} options onRead: the newest message shown (for unread marks).
  */
 export function createTextChannel({ session, channel, onRead }) {
-  const chatLog = createChatLog({ label: t('Messages in #{channel}', { channel }), max: MAX_SHOWN });
+  const access = () => (session.media && session.httpBase ? { base: session.httpBase, ...session.media } : null);
+  const loader = createMediaLoader(access);
+  const chatLog = createChatLog({ label: t('Messages in #{channel}', { channel }), max: MAX_SHOWN, loader });
   const empty = h('div', { class: 'chat-empty' }, h('span', { class: 'chat-empty-icon', html: icons.chat, 'aria-hidden': 'true' }), h('p', { class: 'hint' }, t('No messages here yet. Everyone on this server sees this channel.')));
   const input = h('input', { class: 'input', type: 'text', maxlength: MAX_LENGTH, placeholder: t('Message #{channel}', { channel }), 'aria-label': t('Message') });
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
-  const form = h('form', { class: 'chat-form' }, input, h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }));
+  const form = h('form', { class: 'chat-form' });
+  const attach = createAttach({ getAccess: access, dropTarget: form, input });
+  form.append(attach.button, attach.picker, input, h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }));
 
   /** @type {{ id: number, at: number, name: string, color?: object, text: string }[]} */
   let messages = [];
   let loadingOlder = false;
   let reachedStart = false;
-  const toChat = (m) => ({ sender: `name:${m.name}`, name: m.name, text: m.text, at: m.at, background: profileBackground(m.color ?? null, m.name) });
+  const toChat = (m) => ({
+    sender: `name:${m.name}`,
+    name: m.name,
+    text: m.text,
+    at: m.at,
+    background: profileBackground(m.color ?? null, m.name),
+    ...(m.media !== undefined ? { media: m.media, caption: typeof m.caption === 'string' ? m.caption : '' } : {}),
+  });
   const show = (options) => {
     empty.hidden = messages.length > 0;
     chatLog.replace(messages.map(toChat), options);
@@ -81,30 +94,47 @@ export function createTextChannel({ session, channel, onRead }) {
     status.textContent = t(SEND_ERRORS[e.detail.code] ?? 'The server did not accept your message (it may need updating).');
   };
   // Back after a drop (or the admin changed something): what was missed meanwhile.
-  const onConnected = () => loadNewest();
+  const onConnected = () => {
+    attach.refresh(); // a new token with every list
+    loadNewest();
+  };
   session.addEventListener('message', onMessage);
   session.addEventListener('channel-error', onError);
   session.addEventListener('connected', onConnected);
 
-  form.addEventListener('submit', (e) => {
+  let sending = false;
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text) return;
-    if (session.sendChannel(channel, text)) {
+    if (sending || (!text && !attach.pending)) return;
+    let upload = null;
+    if (attach.pending) {
+      sending = true;
+      status.textContent = t('Sending the file…');
+      upload = await attach.ready();
+      sending = false;
+      status.textContent = '';
+      if (!upload) return; // failed or removed: the reason is under the box, the text stays
+    }
+    const ref = upload ? { id: upload.id, ...(upload.poster ? { poster: upload.poster.id } : {}) } : null;
+    if (session.sendChannel(channel, text, ref)) {
       input.value = '';
       status.textContent = '';
+      if (upload) attach.sent();
     } else {
       status.textContent = t('Not connected right now. Your message is still in the box.');
     }
   });
 
-  const element = h('section', { class: 'text-channel', 'aria-label': `#${channel}` }, empty, chatLog.element, status, form);
+  const element = h('section', { class: 'text-channel', 'aria-label': `#${channel}` }, empty, chatLog.element, status, attach.element, form);
+  attach.refresh();
   loadNewest();
 
   return {
     element,
     focus: () => input.focus(),
     destroy() {
+      loader.clear();
       session.removeEventListener('message', onMessage);
       session.removeEventListener('channel-error', onError);
       session.removeEventListener('connected', onConnected);

@@ -29,7 +29,7 @@
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob:",
         "media-src": "'self' blob: mediastream:",
-        "connect-src": "'self' ipc: http://ipc.localhost ws: wss:",
+        "connect-src": "'self' ipc: http://ipc.localhost ws: wss: http: https:",
         "font-src": "'self' data:"
       },
       "dangerousDisableAssetCspModification": ["style-src"]

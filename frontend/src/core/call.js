@@ -239,7 +239,10 @@ export class Call extends EventTarget {
       this.#emit('participant-updated', { participant });
     });
     signaling.addEventListener('new-producer', (e) => this.#consume(e.detail));
-    signaling.addEventListener('chat', (e) => this.#emit('chat', { id: e.detail.id, name: e.detail.name, text: e.detail.text, mine: false }));
+    signaling.addEventListener('chat', (e) => {
+      const { id, name, text, media, caption } = e.detail;
+      this.#emit('chat', { id, name, text, mine: false, ...(media !== undefined ? { media, caption: typeof caption === 'string' ? caption : '' } : {}) });
+    });
     signaling.addEventListener('server-error', (e) => {
       // A server older than chat answers a bare 'bad-message' (no ref) to it.
       const { code, ref } = e.detail;
@@ -326,12 +329,24 @@ export class Call extends EventTarget {
     }
   }
 
-  /** Sends a chat message to the room; false when offline (reconnecting). Ours is echoed as a 'chat' event. */
-  sendChat(text, name) {
-    if (!this.#signaling?.sendChat(text)) return false;
+  /**
+   * Sends a chat message to the room; false when offline (reconnecting). Ours is echoed as a 'chat'
+   * event. With `upload` (a file this connection sent, as the server described it: core/attachments.js),
+   * `text` is its caption.
+   */
+  sendChat(text, name, upload = null) {
+    const ref = upload ? { id: upload.id, ...(upload.poster ? { poster: upload.poster.id } : {}) } : null;
+    if (!this.#signaling?.sendChat(text, ref)) return false;
     this.#lastChatAt = performance.now();
-    this.#emit('chat', { id: this.#signaling.id, name, text, mine: true });
+    this.#emit('chat', { id: this.#signaling.id, name, text, mine: true, ...(upload ? { media: upload, caption: text } : {}) });
     return true;
+  }
+
+  /** Files in the call's chat (T13): { base, token, maxImageBytes, maxVideoBytes }, or null. */
+  get mediaAccess() {
+    const media = this.#signaling?.media;
+    const base = this.#signaling?.httpBase;
+    return media && base ? { base, ...media } : null;
   }
 
   /** Native mic: switches to another microphone (null = the Windows default). */

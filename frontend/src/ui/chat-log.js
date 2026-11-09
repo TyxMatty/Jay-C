@@ -2,15 +2,18 @@
 // (ui/text-channel.js): one avatar, name and time on top of each run of messages from the same
 // person within GROUP_MS (like Discord). Text is always inserted as text, never as HTML.
 import { h } from './dom.js';
+import { mediaFigure } from './chat-media.js';
+import { validMedia } from '../core/attachments.js';
 
 /** Messages from the same person within this gap share one avatar and name. */
 const GROUP_MS = 5 * 60 * 1000;
 
 /**
  * @typedef {{ sender: string, name: string, initial?: string, text: string, at?: number, mine?: boolean,
- *   avatar?: string | null, background?: string }} ChatMessage
+ *   avatar?: string | null, background?: string, media?: object, caption?: string }} ChatMessage
  *   sender: who sent it (for grouping); initial: the letter when there's no picture (default: name's);
- *   at: when (ms, default now); background: their profile color, behind the initial.
+ *   at: when (ms, default now); background: their profile color, behind the initial; media: a file
+ *   as the server described it (checked again here), with `caption` instead of `text`.
  */
 
 /** The time a message shows: just the hour today, with the date before that. */
@@ -22,8 +25,11 @@ function timeLabel(at) {
     : date.toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-/** @param {{ label: string, max?: number }} options max: older messages are dropped past this. */
-export function createChatLog({ label, max = 200 }) {
+/**
+ * @param {{ label: string, max?: number, loader?: ReturnType<typeof import('../core/attachment-net.js').createMediaLoader> }} options
+ *   max: older messages are dropped past this; loader: fetches the files of messages (T13).
+ */
+export function createChatLog({ label, max = 200, loader = null }) {
   const log = h('ol', { class: 'chat-log', role: 'log', 'aria-live': 'polite', 'aria-label': label });
 
   /** @param {ChatMessage} message @param {Element | null} previous the message shown before it */
@@ -40,8 +46,15 @@ export function createChatLog({ label, max = 200 }) {
       'li',
       { class: `chat-message${message.mine ? ' mine' : ''}${continued ? ' continued' : ''}`, dataset: { sender: message.sender, at: String(at) } },
       face,
-      h('div', { class: 'chat-body' }, h('div', { class: 'chat-meta' }, h('strong', {}, message.name), h('time', { datetime: new Date(at).toISOString() }, timeLabel(at))), h('p', { class: 'chat-text' }, message.text)),
+      h('div', { class: 'chat-body' }, h('div', { class: 'chat-meta' }, h('strong', {}, message.name), h('time', { datetime: new Date(at).toISOString() }, timeLabel(at))), ...content(message)),
     );
+  };
+  /** A message's text, or its file and caption (a file that doesn't check out shows the text only). */
+  const content = (message) => {
+    const media = message.media !== undefined && loader ? validMedia(message.media) : null;
+    if (!media) return [h('p', { class: 'chat-text' }, message.text)];
+    const caption = typeof message.caption === 'string' ? message.caption : '';
+    return [mediaFigure(media, loader), caption ? h('p', { class: 'chat-text' }, caption) : null];
   };
   const atBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
 

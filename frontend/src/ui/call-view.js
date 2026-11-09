@@ -9,6 +9,7 @@ import { createControlBar } from './control-bar.js';
 import { createAudioMenu } from './audio-menu.js';
 import { attachZoom } from './tile-zoom.js';
 import { createChatPanel } from './chat-panel.js';
+import { createMediaLoader } from '../core/attachment-net.js';
 import { createMixer } from '../core/playback.js';
 import { cueAllowed } from '../core/sounds.js';
 import { createSpeakingDetector } from '../core/speaking.js';
@@ -646,13 +647,20 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
   const leaveButton = controlButton({ label: t('Leave call'), variant: 'danger', onClick: () => call.leave() });
   leaveButton.innerHTML = icons.phoneOff;
 
+  const mediaLoader = createMediaLoader(() => call.mediaAccess);
   const chat = createChatPanel({
-    send: (text) => call.sendChat(text, displayName),
+    send: (text, upload) => call.sendChat(text, displayName, upload),
+    getAccess: () => call.mediaAccess,
+    loader: mediaLoader,
     onIncoming: ({ name, text }) => {
       showToast(`${name || t('Guest')}: ${text.length > 80 ? `${text.slice(0, 80)}…` : text}`);
       cue('chat', { others: true });
     },
   });
+  // The file settings come with every (re)join: a new token each time.
+  chat.refreshFiles();
+  call.addEventListener('signaling-state', () => chat.refreshFiles());
+  call.addEventListener('ended', () => mediaLoader.clear());
   // Each message with the sender's picture and profile color, as on their tile.
   call.addEventListener('chat', (e) => {
     const { id, name, mine } = e.detail;

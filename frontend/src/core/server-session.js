@@ -3,6 +3,8 @@
 // changes (docs/ARQUITETURA.md §4). A server older than 0.5 answers `hello` with an error:
 // `supported` becomes false and the app falls back to joining by name only.
 
+import { mediaConfig, httpBase } from './attachments.js';
+
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 10000];
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -52,6 +54,8 @@ export class ServerSession extends EventTarget {
   features = [];
   /** This connection gave the admin key: it sees the hidden rooms and may change them. */
   admin = false;
+  /** Files in the channels (T13): this connection's token and the server's limits, or null. */
+  media = null;
   #adminKey = null;
   #pendingAdmin = null;
   #nextId = 1;
@@ -102,9 +106,18 @@ export class ServerSession extends EventTarget {
     });
   }
 
-  /** Sends a message to text channel `channel`; false when not connected (nothing sent). */
-  sendChannel(channel, text) {
-    return this.#send({ type: 'channel-send', channel, text });
+  /** The server's HTTP address (files go there), from its WebSocket one. */
+  get httpBase() {
+    return httpBase(this.#url);
+  }
+
+  /**
+   * Sends a message to text channel `channel`, with a file this connection uploaded (`media`:
+   * { id, poster? }) and `text` as its caption. False when not connected (nothing sent).
+   */
+  sendChannel(channel, text, media = null) {
+    if (media && !this.media) return false;
+    return this.#send({ type: 'channel-send', channel, ...(text ? { text } : {}), ...(media ? { media } : {}) });
   }
 
   /** Up to 50 messages of `channel` older than id `before` (the newest without it), oldest first. */
@@ -199,6 +212,8 @@ export class ServerSession extends EventTarget {
         this.supported = true;
         this.#attempt = 0;
         this.features = Array.isArray(msg.features) ? msg.features : [];
+        // A new token with every list: after a drop, the old one died with the old connection.
+        this.media = this.features.includes('media') ? mediaConfig(msg.media) : null;
         this.admin = msg.admin === true;
         this.channels = Array.isArray(msg.channels) ? msg.channels : [];
         this.serverName = typeof msg.name === 'string' && msg.name ? msg.name : null;
@@ -210,6 +225,7 @@ export class ServerSession extends EventTarget {
     };
     ws.onclose = () => {
       if (this.#ws !== ws) return;
+      this.media = null;
       this.#failPending('unreachable');
       if (this.admin) {
         this.admin = false;

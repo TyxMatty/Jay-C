@@ -4,6 +4,8 @@
 import { h } from './dom.js';
 import { icons } from './icons.js';
 import { createChatLog } from './chat-log.js';
+import { createAttach } from './attach.js';
+import { kindLabel } from '../core/attachments.js';
 import { t } from '../core/i18n.js';
 
 const MAX_LENGTH = 500;
@@ -11,14 +13,16 @@ const MAX_LENGTH = 500;
 const MAX_SHOWN = 200;
 
 /**
- * @param {{ send: (text: string) => boolean, onIncoming?: (message: { name: string, text: string }) => void }} options
- *   send: false when offline (the text stays in the box); onIncoming: someone else's message arrived
- *   while the panel was closed (e.g. a toast).
+ * @param {{ send: (text: string, upload?: object | null) => boolean, onIncoming?: (message: { name: string, text: string }) => void,
+ *   getAccess?: () => object | null, loader?: object | null }} options
+ *   send: false when offline (the text stays in the box); with `upload` (a file sent up), the text is
+ *   its caption. onIncoming: someone else's message arrived while the panel was closed (e.g. a toast).
+ *   getAccess / loader: the call's files (T13): where they go, and how they're fetched.
  */
-export function createChatPanel({ send, onIncoming }) {
+export function createChatPanel({ send, onIncoming, getAccess = () => null, loader = null }) {
   const badge = h('span', { class: 'control-badge', hidden: true });
   const button = h('button', { type: 'button', class: 'control-btn', 'aria-expanded': 'false', html: icons.chat }, badge);
-  const chatLog = createChatLog({ label: t('Messages'), max: MAX_SHOWN });
+  const chatLog = createChatLog({ label: t('Messages'), max: MAX_SHOWN, loader });
   const empty = h(
     'div',
     { class: 'chat-empty' },
@@ -27,12 +31,9 @@ export function createChatPanel({ send, onIncoming }) {
   );
   const input = h('input', { class: 'input', type: 'text', maxlength: MAX_LENGTH, placeholder: t('Message everyone'), 'aria-label': t('Message') });
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
-  const form = h(
-    'form',
-    { class: 'chat-form' },
-    input,
-    h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }),
-  );
+  const form = h('form', { class: 'chat-form' });
+  const attach = createAttach({ getAccess, dropTarget: form, input });
+  form.append(attach.button, attach.picker, input, h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }));
   const close = h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Close chat'), html: icons.close });
   const panel = h(
     'aside',
@@ -41,6 +42,7 @@ export function createChatPanel({ send, onIncoming }) {
     empty,
     chatLog.element,
     status,
+    attach.element,
     form,
   );
 
@@ -59,6 +61,7 @@ export function createChatPanel({ send, onIncoming }) {
   const setOpen = (open) => {
     panel.hidden = !open;
     if (open) {
+      attach.refresh(); // the call's file settings are known once it's up
       unread = 0;
       input.focus();
       chatLog.scrollToEnd();
@@ -73,13 +76,24 @@ export function createChatPanel({ send, onIncoming }) {
     if (e.key === 'Escape') setOpen(false);
   });
 
-  form.addEventListener('submit', (e) => {
+  let sending = false;
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text) return;
-    if (send(text)) {
+    if (sending || (!text && !attach.pending)) return;
+    let upload = null;
+    if (attach.pending) {
+      sending = true;
+      status.textContent = t('Sending the file…');
+      upload = await attach.ready();
+      sending = false;
+      status.textContent = '';
+      if (!upload) return; // failed or removed: the reason is under the box, the text stays
+    }
+    if (send(text, upload)) {
       input.value = '';
       status.textContent = '';
+      if (upload) attach.sent();
     } else {
       status.textContent = t('Not connected right now. Your message is still in the box.');
     }
@@ -88,12 +102,15 @@ export function createChatPanel({ send, onIncoming }) {
   renderButton();
   return {
     button,
+    /** The call's file settings arrived or changed (joined, rejoined). */
+    refreshFiles: () => attach.refresh(),
     element: panel,
     /**
-     * @param {{ id?: string, name: string, text: string, mine: boolean, avatar?: string | null, background?: string }} message
-     *   avatar: the sender's picture (data URL); background: their profile color, behind the initial.
+     * @param {{ id?: string, name: string, text: string, mine: boolean, avatar?: string | null, background?: string, media?: object, caption?: string }} message
+     *   avatar: the sender's picture (data URL); background: their profile color, behind the initial;
+     *   media and caption: a file in the message (T13).
      */
-    add({ id, name, text, mine, avatar = null, background = '' }) {
+    add({ id, name, text, mine, avatar = null, background = '', media, caption }) {
       chatLog.append(
         {
           sender: mine ? 'me' : `peer:${id ?? name ?? ''}`,
@@ -103,6 +120,7 @@ export function createChatPanel({ send, onIncoming }) {
           mine,
           avatar,
           background,
+          ...(media !== undefined ? { media, caption } : {}),
         },
         { follow: mine },
       );
@@ -110,7 +128,7 @@ export function createChatPanel({ send, onIncoming }) {
       if (!mine && panel.hidden) {
         unread++;
         renderButton();
-        onIncoming?.({ name, text });
+        onIncoming?.({ name, text: media !== undefined ? caption || t(kindLabel(media?.kind)) : text });
       }
     },
   };

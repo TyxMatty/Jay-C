@@ -1,3 +1,5 @@
+import { mediaConfig, httpBase } from './attachments.js';
+
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 10000];
 const JOIN_TIMEOUT_MS = 8000;
 const REQUEST_TIMEOUT_MS = 10000;
@@ -49,6 +51,8 @@ export class SignalingClient extends EventTarget {
   id = null;
   /** Newer messages the server accepts (from `joined`); an old server refuses them. */
   features = [];
+  /** Files in the chat (T13): this connection's token and the server's limits, or null (core/attachments.js). */
+  media = null;
 
   constructor(url) {
     super();
@@ -105,10 +109,19 @@ export class SignalingClient extends EventTarget {
     this.#ws.send(JSON.stringify({ type: 'screen-preview', image }));
   }
 
-  /** Sends a chat message to the room. False when not connected (the caller keeps the text). */
-  sendChat(text) {
+  /** The server's HTTP address (files go there), from its WebSocket one. */
+  get httpBase() {
+    return httpBase(this.#url);
+  }
+
+  /**
+   * Sends a chat message to the room, with a file this connection uploaded (`media`: { id, poster? })
+   * and `text` as its caption. False when not connected (the caller keeps the text).
+   */
+  sendChat(text, media = null) {
     if (!this.id || this.#ws?.readyState !== WebSocket.OPEN) return false;
-    this.#ws.send(JSON.stringify({ type: 'chat', text }));
+    if (media && !this.media) return false;
+    this.#ws.send(JSON.stringify({ type: 'chat', ...(text ? { text } : {}), ...(media ? { media } : {}) }));
     return true;
   }
 
@@ -176,6 +189,8 @@ export class SignalingClient extends EventTarget {
       case 'joined':
         this.id = msg.id;
         this.features = Array.isArray(msg.features) ? msg.features : [];
+        // A new token on every (re)join: the old one died with the old connection.
+        this.media = this.features.includes('media') ? mediaConfig(msg.media) : null;
         this.#attempt = 0;
         this.#emit('state', { state: 'open' });
         if (this.#pendingJoin) {

@@ -397,18 +397,22 @@ Pedido do usuário (08/11/2026). Os GIFs entraram aqui quando a T12.A foi cancel
 
 Também: só quem está numa call ou no servidor sobe arquivos (uma conexão que saiu da call recebe 403); uploads sem mensagem ocupam no máximo 2 vídeos por IP; downloads com no máximo 4 ao mesmo tempo e um ritmo por conexão. Um poliglota (GIF que também é HTML) é aceito como GIF, mas só sai como `image/gif` com `sandbox` e `nosniff`. Não testado: um envio parado (o corte de 30 s) e o limite de 2 envios ao mesmo tempo por IP.
 
-#### [ ] T13.B: O app manda e mostra
+#### [x] T13.B: O app manda e mostra
 **Critérios:**
-- [ ] Botão de anexo, colar e arrastar, nos dois chats; o app recusa antes de subir o que o servidor recusaria (tipo e tamanho).
-- [ ] Progresso e cancelar durante o envio.
-- [ ] Imagem e GIF com o tamanho reservado (sem pular o chat), carregados só quando aparecem na tela; a imagem abre maior com um clique.
-- [ ] GIF e WebP animados tocam; com "Animações: Desligado", aparecem parados (o primeiro quadro, por canvas) e tocam com um clique.
-- [ ] Vídeo com capa: o app de quem manda tira um quadro do vídeo e sobe como JPEG junto. Os outros veem a capa com um botão de tocar; o vídeo só baixa ao clicar, e toca sem som até a pessoa ligar.
-- [ ] Sem `media` no servidor, o botão some.
+- [x] Botão de anexo, colar e arrastar, nos dois chats; o app recusa antes de subir o que o servidor recusaria (tipo e tamanho).
+- [x] Progresso e cancelar durante o envio.
+- [x] Imagem e GIF com o tamanho reservado (sem pular o chat), carregados só quando aparecem na tela; a imagem abre maior com um clique.
+- [x] GIF e WebP animados tocam; com "Animações: Desligado", aparecem parados (o primeiro quadro, por canvas) e tocam com um clique.
+- [x] Vídeo com capa: o app de quem manda tira um quadro do vídeo e sobe como JPEG junto. Os outros veem a capa com um botão de tocar; o vídeo só baixa ao clicar, e toca sem som até a pessoa ligar.
+- [x] Sem `media` no servidor, o botão some.
 
 **Verificação:** `npm test` (validação do que chega numa mensagem); manual no app com o bot; contraste nos 6 combos.
 
 **Arquivos:** `core/media.js` (novo), `ui/attach.js` (novo), `ui/chat-log.js`, `ui/chat-panel.js`, `ui/text-channel.js`, `core/signaling.js`, `core/server-session.js`, `tauri.conf.json` · **Tamanho:** M
+
+Também: antes de subir, o app tira de onde a foto ou o vídeo foi feito, sem recodificar: no JPEG saem EXIF (com o GPS), XMP, IPTC e comentários, e a orientação volta num EXIF só dela; no PNG e no WebP saem os blocos de texto e EXIF; no MP4, a localização do Android (`©xyz`, `loci`) e a do iPhone (`com.apple.quicktime.location.ISO6709`) viram zeros, no mesmo tamanho. O WebM não é limpo (não conferi se ele guarda localização). O app confere de novo o que a mensagem diz e os bytes que chegam (tipo e tamanho); um servidor que serve outra coisa não mostra nada.
+
+**Verificado (08/11/2026, no painel do navegador contra o servidor de teste):** imagem, vídeo gravado de um canvas (capa 640×360, toca sem som) e GIF animado nos canais; GIF parado com as animações desligadas, toca no primeiro clique e abre grande no segundo; na call (dois `SignalingClient`), quem está na sala vê, quem está noutra recebe 404, e uma mensagem que mente o tamanho é recusada pelo app. No build de release (`tauri.localhost`, com a CSP de verdade): os 4 arquivos carregam como `blob:`; uma imagem direto do servidor é bloqueada (`img-src`); contraste sem falhas no #papo com o erro de anexo à mostra (só o estilo padrão do perfil de teste, não os 6 combos). Ataques na página: mídia com SVG, `javascript:`, 99.999 px, tipo desconhecido, capa com o mesmo id do vídeo: só o texto, sem pedido nenhum; legenda e nome de arquivo com HTML ficam texto; um `.png` que é HTML é recusado antes de subir.
 
 #### [ ] T13.C: Android e documentação
 - [ ] No celular: anexar da galeria, ver imagem, GIF e vídeo, tocar o vídeo.
