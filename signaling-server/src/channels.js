@@ -22,10 +22,15 @@ function writeAtomic(file, data) {
  * DATA_DIR/history/<name>.json each channel's messages ({ nextId, messages: [{ id, at, name, color?, text }] }).
  */
 export class Channels {
-  /** @param {{ dataDir: string | null, log?: Function }} options null dataDir = memory only (tests). */
-  constructor({ dataDir, log = () => {} }) {
+  /**
+   * @param {{ dataDir: string | null, log?: Function, onDrop?: (messages: object[]) => void }} options
+   *   null dataDir = memory only (tests). onDrop: messages that left (out of the last 500, or their
+   *   channel deleted), so their files go too.
+   */
+  constructor({ dataDir, log = () => {}, onDrop = () => {} }) {
     this.dataDir = dataDir;
     this.log = log;
+    this.onDrop = onDrop;
     /** @type {Map<string, { name: string, nextId: number, messages: object[] }>} */
     this.channels = new Map();
     /** name -> pending save timer */
@@ -59,12 +64,17 @@ export class Channels {
     return this.channels.has(name);
   }
 
-  /** Adds a message (text already cleaned) and returns it as everyone gets it. */
-  post(name, { author, color = null, text }) {
+  /** The media of every message kept (what the media store keeps on a restart). */
+  *media() {
+    for (const channel of this.channels.values()) for (const m of channel.messages) if (m.media) yield m.media;
+  }
+
+  /** Adds a message (text and media already checked) and returns it as everyone gets it. */
+  post(name, { author, color = null, text, media = null, caption = null }) {
     const channel = this.channels.get(name);
-    const message = { id: channel.nextId++, at: Date.now(), name: author, ...(color ? { color } : {}), text };
+    const message = { id: channel.nextId++, at: Date.now(), name: author, ...(color ? { color } : {}), text, ...(media ? { media, caption: caption ?? '' } : {}) };
     channel.messages.push(message);
-    if (channel.messages.length > KEEP_MESSAGES) channel.messages.splice(0, channel.messages.length - KEEP_MESSAGES);
+    if (channel.messages.length > KEEP_MESSAGES) this.onDrop(channel.messages.splice(0, channel.messages.length - KEEP_MESSAGES));
     this.#scheduleSave(name);
     return message;
   }
@@ -101,14 +111,16 @@ export class Channels {
     }
     try {
       this.#saveList();
-      if (!this.dataDir) return null;
-      this.#flush(name); // nothing pending under the old name
-      if (kind === 'delete' || kind === 'edit') rmSync(this.#historyFile(name), { force: true });
-      if (kind === 'edit') this.#saveHistory(newName);
+      if (this.dataDir) {
+        this.#flush(name); // nothing pending under the old name
+        if (kind === 'delete' || kind === 'edit') rmSync(this.#historyFile(name), { force: true });
+        if (kind === 'edit') this.#saveHistory(newName);
+      }
     } catch {
       this.channels = before;
       return 'not-saved';
     }
+    if (kind === 'delete') this.onDrop(before.get(name).messages);
     return null;
   }
 

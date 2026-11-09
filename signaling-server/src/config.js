@@ -47,5 +47,13 @@ export function loadConfig() {
     adminKey: process.env.ADMIN_KEY || '',
     // Shown in the app's server column and sidebar (empty = its address).
     serverName: (process.env.SERVER_NAME || '').trim().slice(0, 32),
+
+    // ---- Images, GIFs and videos in the chats (Jay-C 0.5), kept in DATA_DIR/media ----
+    // MEDIA=off: no attach button, and files are refused.
+    media: (process.env.MEDIA || '').trim().toLowerCase() !== 'off',
+    maxImageBytes: int('MAX_IMAGE_MB', 8) * 1024 * 1024,
+    maxVideoBytes: int('MAX_VIDEO_MB', 50) * 1024 * 1024,
+    // All the files together; past it, new ones are refused until old messages leave.
+    mediaDiskBytes: int('MEDIA_DISK_MB', 2048) * 1024 * 1024,
   };
 }

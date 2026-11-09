@@ -37,6 +37,12 @@ services:
       # ADMIN_KEY: "a-long-secret"
       # The name the app shows for this server (empty = its address).
       # SERVER_NAME: "My server"
+      # Images, GIFs and videos in the chats, kept in ./data/media. "off" turns them off.
+      # MEDIA: "off"
+      # Size limits per file (MB), and for all the files together (past it, new ones are refused).
+      # MAX_IMAGE_MB: "8"
+      # MAX_VIDEO_MB: "50"
+      # MEDIA_DISK_MB: "2048"
     volumes:
       - ./data:/data
     read_only: true

@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
-import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { join as joinPath } from 'node:path';
+import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { RoomRegistry, describePeer } from './rooms.js';
@@ -8,6 +10,7 @@ import { Channels } from './channels.js';
 import { TokenBucket } from './rate-limit.js';
 import { loadConfig } from './config.js';
 import { Sfu, resolveAnnouncedAddress } from './sfu.js';
+import { MediaStore, MediaError, mediaIds, mediaFallbackText, MEDIA_ID } from './media.js';
 
 const MAX_NAME_LENGTH = 32;
 /** A 128 px WebP from the app is ~5-15 KB as a data URL; this leaves room without letting it grow. */
@@ -52,6 +55,18 @@ const REQUESTS = new Set([
 
 /** What this server accepts beyond the first protocol, in `joined` and `server-state`. */
 const SERVER_FEATURES = ['screen-preview', 'close-consumer', 'server-session'];
+
+/** HTTP status of each upload refusal (the body says the code too). */
+const UPLOAD_STATUS = { 'too-large': 413, 'bad-type': 415, 'too-big-image': 415, 'disk-full': 507, aborted: 400 };
+/** Security headers of every media response: never a page, never sniffed, never framed. */
+const MEDIA_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'content-security-policy': "default-src 'none'; sandbox",
+  'referrer-policy': 'no-referrer',
+  'cross-origin-resource-policy': 'cross-origin',
+  // Only a header token (no cookies), so any origin may ask; the token decides.
+  'access-control-allow-origin': '*',
+};
 
 function defaultLog(level, message, extra) {
   const line = `${new Date().toISOString()} [${level}] ${message}`;
@@ -105,14 +120,35 @@ function cleanImage(value, maxLength = MAX_AVATAR_LENGTH) {
 export function startServer(config, { log = defaultLog } = {}) {
   const registry = new RoomRegistry({ maxPeersPerRoom: config.maxPeersPerRoom });
   const directory = new Directory({ dataDir: config.dataDir ?? null, log });
-  const channels = new Channels({ dataDir: config.dataDir ?? null, log });
+  /** The chats' files (Jay-C 0.5, T13): only with a data folder, and unless MEDIA=off. */
+  let media = null;
+  const channels = new Channels({ dataDir: config.dataDir ?? null, log, onDrop: (messages) => media?.remove(messages.flatMap((m) => mediaIds(m.media))) });
+  if (config.media !== false && config.dataDir) {
+    media = new MediaStore({
+      dir: joinPath(config.dataDir, 'media'),
+      maxImageBytes: config.maxImageBytes ?? 8 * 1024 * 1024,
+      maxVideoBytes: config.maxVideoBytes ?? 50 * 1024 * 1024,
+      diskBytes: config.mediaDiskBytes ?? 2048 * 1024 * 1024,
+      keep: channels.media(),
+      log,
+    });
+  }
+  /** mediaToken -> the connection it was given to (it dies with it). */
+  const mediaTokens = new Map();
+  /** Uploads arriving now, per IP and in all. */
+  const uploadsByIp = new Map();
+  let uploadsNow = 0;
+  /** New uploads per IP: 20, then one every 5 s. */
+  const uploadAttempts = new Map();
   /** Connections that said `hello`: they get the room list and its changes (Jay-C 0.5). */
   const watchers = new Set();
   /** Wrong admin keys per IP: 5 tries, then one every 10 s. */
   const adminAttempts = new Map();
   /** Joins of rooms with a password per IP: 10, then one every 5 s (each check is a scrypt hash). */
   const passwordAttempts = new Map();
-  const features = [...SERVER_FEATURES, ...(config.adminKey ? ['server-admin'] : [])];
+  const features = [...SERVER_FEATURES, ...(config.adminKey ? ['server-admin'] : []), ...(media ? ['media'] : [])];
+  /** What a connection needs to send and see files: its token and the limits. */
+  const mediaFor = (peer) => (media ? { media: { token: peer.mediaToken, ...media.limits() } } : {});
   const sfuReady = Sfu.create(config, log);
 
   /** Someone in a room, as the room list shows them (no share preview: too big for a list). */
@@ -143,6 +179,7 @@ export function startServer(config, { log = defaultLog } = {}) {
     channels: channels.all(),
     ...(config.serverName ? { name: config.serverName } : {}),
     features,
+    ...mediaFor(peer),
     ...(peer.admin ? { admin: true } : {}),
   });
   /** The admin changed the rooms: everyone gets the list again. */
@@ -163,7 +200,94 @@ export function startServer(config, { log = defaultLog } = {}) {
   };
   const startedAt = Date.now();
 
+  /** The connection a request's `Authorization: Bearer <mediaToken>` belongs to, or null. */
+  const peerOf = (req) => {
+    const match = /^Bearer ([A-Za-z0-9_-]{32})$/.exec(req.headers.authorization ?? '');
+    return match ? (mediaTokens.get(match[1]) ?? null) : null;
+  };
+  /** Whether `peer` may see a file: the call's, those in it; a channel's, those on the server. */
+  const maySee = (peer, record) =>
+    record.scope === null ? record.owner === peer.id : record.scope.room ? peer.room === record.scope.room : Boolean(record.scope.channel) && watchers.has(peer);
+
+  function mediaRequest(req, res, path) {
+    const reply = (status, body = null, headers = {}) => {
+      res.writeHead(status, { ...MEDIA_HEADERS, ...(body ? { 'content-type': 'application/json' } : {}), ...headers });
+      res.end(body ? JSON.stringify(body) : undefined);
+    };
+    const origin = req.headers.origin;
+    if (origin && config.allowedOrigins.length > 0 && !config.allowedOrigins.includes(origin)) return reply(403);
+    if (req.method === 'OPTIONS') {
+      return reply(204, null, { 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'authorization, content-type', 'access-control-max-age': '600' });
+    }
+    if (!media) return reply(404);
+    const peer = peerOf(req);
+    if (path === '/media' && req.method === 'POST') {
+      if (!peer) return reply(401, { error: 'no-token' }, { connection: 'close' });
+      // Only someone in a call or on the server sends files (a bare connection has no chat).
+      if (!peer.room && !watchers.has(peer)) return reply(403, { error: 'not-in-chat' }, { connection: 'close' });
+      const ip = req.socket.remoteAddress;
+      // Unclaimed uploads hold disk until they expire: 2 big videos' worth per IP at most.
+      const pendingOfIp = [...mediaTokens.values()].filter((p) => p.ip === ip).reduce((sum, p) => sum + media.pendingBytes(p.id), 0);
+      if (pendingOfIp >= 2 * media.maxVideoBytes) return reply(429, { error: 'too-many-pending' }, { connection: 'close' });
+      if (!uploadAttempts.has(ip)) uploadAttempts.set(ip, new TokenBucket({ capacity: config.uploadsPerIpBurst ?? 20, perSecond: 0.2 }));
+      if (!peer.uploadBucket.take() || !uploadAttempts.get(ip).take()) return reply(429, { error: 'rate-limited' }, { connection: 'close' });
+      if ((uploadsByIp.get(ip) ?? 0) >= 2 || uploadsNow >= 16) return reply(429, { error: 'busy' }, { connection: 'close' });
+      const declared = req.headers['content-length'] === undefined ? null : Number(req.headers['content-length']);
+      if (declared !== null && !Number.isSafeInteger(declared)) return reply(400, { error: 'bad-request' }, { connection: 'close' });
+      uploadsByIp.set(ip, (uploadsByIp.get(ip) ?? 0) + 1);
+      uploadsNow += 1;
+      // A stalled upload holds a slot: 30 s without a byte ends it.
+      req.setTimeout(30_000, () => req.destroy());
+      const done = () => {
+        uploadsNow -= 1;
+        const left = (uploadsByIp.get(ip) ?? 1) - 1;
+        if (left > 0) uploadsByIp.set(ip, left);
+        else uploadsByIp.delete(ip);
+      };
+      media.receive(req, { owner: peer.id, declaredBytes: declared }).then(
+        (record) => {
+          done();
+          // The uploader went away meanwhile: nobody can claim it.
+          if (!mediaTokens.has(peer.mediaToken)) media.remove([record.id]);
+          reply(201, { id: record.id, kind: record.kind, mime: record.mime, size: record.size, ...(record.width ? { width: record.width, height: record.height } : {}) });
+        },
+        (error) => {
+          done();
+          const code = error instanceof MediaError ? error.code : 'internal';
+          if (code === 'internal') log('error', 'upload failed', { error: error?.message });
+          if (!res.destroyed) reply(UPLOAD_STATUS[code] ?? 500, { error: code }, { connection: 'close' });
+        },
+      );
+      return;
+    }
+    const id = path.slice('/media/'.length);
+    if ((req.method === 'GET' || req.method === 'HEAD') && path.startsWith('/media/') && MEDIA_ID.test(id)) {
+      const record = media.get(id);
+      // Unknown and not allowed look the same.
+      if (!peer || !record || !maySee(peer, record)) return reply(404);
+      // Downloads cost the host's upload: a few at a time, and a pace, per connection.
+      if (peer.downloads >= 4 || !peer.downloadBucket.take()) return reply(429, { error: 'rate-limited' });
+      peer.downloads += 1;
+      res.once('close', () => (peer.downloads -= 1));
+      res.writeHead(200, {
+        ...MEDIA_HEADERS,
+        'content-type': record.mime,
+        'content-length': record.size,
+        'content-disposition': 'inline',
+        'cache-control': 'private, no-store',
+      });
+      if (req.method === 'HEAD') return res.end();
+      const file = createReadStream(media.path(id));
+      file.on('error', () => res.destroy());
+      file.pipe(res);
+      return;
+    }
+    reply(404);
+  }
+
   const httpServer = createServer((req, res) => {
+    const path = (req.url ?? '').split('?')[0];
+    if (path === '/media' || path.startsWith('/media/')) return mediaRequest(req, res, path);
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', uptime: Math.round((Date.now() - startedAt) / 1000), ...registry.stats() }));
@@ -177,6 +301,8 @@ export function startServer(config, { log = defaultLog } = {}) {
     res.writeHead(404).end();
   });
 
+  // A 50 MB video on a slow link takes minutes; a stalled one is ended by its own 30 s timeout.
+  httpServer.requestTimeout = 30 * 60_000;
   const wss = new WebSocketServer({ noServer: true, maxPayload: config.maxMessageBytes });
 
   httpServer.on('upgrade', (req, socket, head) => {
@@ -194,6 +320,8 @@ export function startServer(config, { log = defaultLog } = {}) {
     const roomId = peer.room;
     if (!roomId) return;
     registry.leave(peer);
+    // The call emptied: its chat's files go (the chat has no history).
+    if (!registry.rooms.has(roomId)) media?.removeRoom(roomId);
     peer.micOn = false;
     peer.live = false;
     roomChanged(roomId);
@@ -223,11 +351,39 @@ export function startServer(config, { log = defaultLog } = {}) {
       admin: false,
       room: null,
       announcedAddress: null,
+      ip: req.socket.remoteAddress,
+      /** Sends and sees files over HTTP (T13); never logged. */
+      mediaToken: randomBytes(24).toString('base64url'),
+      /** Uploads from this connection: 6, then one every 5 s. */
+      uploadBucket: new TokenBucket({ capacity: 6, perSecond: 0.2 }),
+      /** Downloads now, and their pace: 120 (a channel's page of pictures), then 2 a second. */
+      downloads: 0,
+      downloadBucket: new TokenBucket({ capacity: 120, perSecond: 2 }),
       send(message) {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
       },
     };
     const fail = (code, ref) => peer.send({ type: 'error', code, ...(ref ? { ref } : {}) });
+    if (media) mediaTokens.set(peer.mediaToken, peer);
+
+    /**
+     * A chat message's parts: { text } or, with a file, { text, media, caption } (`text` is the
+     * caption, or "[Image]" for apps without files). The file must be this connection's upload.
+     */
+    const chatParts = (msg, scope) => {
+      if (msg.media === undefined) {
+        const text = cleanChat(msg.text);
+        return text === null ? null : { text };
+      }
+      if (!media) return null;
+      let caption = '';
+      if (msg.text !== undefined && msg.text !== '') {
+        caption = cleanChat(msg.text);
+        if (caption === null) return null;
+      }
+      const claimed = media.claim(msg.media, peer.id, scope);
+      return claimed ? { text: caption || mediaFallbackText(claimed), media: claimed, caption } : null;
+    };
 
     ws.isAlive = true;
     ws.on('pong', () => {
@@ -270,6 +426,7 @@ export function startServer(config, { log = defaultLog } = {}) {
         routerRtpCapabilities: room.rtpCapabilities,
         // Messages newer clients may send only when the server lists them (an old one refuses them).
         features,
+        ...mediaFor(peer),
       });
       roomChanged(msg.room);
       log('info', 'joined', { peer: peer.id, room: msg.room, size: result.others.length + 1 });
@@ -373,9 +530,9 @@ export function startServer(config, { log = defaultLog } = {}) {
         // Relayed to the others in the room; nothing is stored (late joiners don't see history).
         if (!peer.room) return fail('not-in-room', 'chat');
         if (!chatBucket.take()) return fail('rate-limited', 'chat');
-        const text = cleanChat(msg.text);
-        if (text === null) return fail('bad-message', 'chat');
-        for (const other of registry.othersInRoom(peer)) other.send({ type: 'chat', id: peer.id, name: peer.name, text });
+        const parts = chatParts(msg, { room: peer.room });
+        if (parts === null) return fail('bad-message', 'chat');
+        for (const other of registry.othersInRoom(peer)) other.send({ type: 'chat', id: peer.id, name: peer.name, ...parts });
       } else if (msg.type === 'hello') {
         hello(msg);
       } else if (msg.type === 'channel-send') {
@@ -383,9 +540,9 @@ export function startServer(config, { log = defaultLog } = {}) {
         if (!watchers.has(peer)) return fail('not-in-server', 'channel-send');
         if (!chatBucket.take()) return fail('rate-limited', 'channel-send');
         if (typeof msg.channel !== 'string' || !channels.has(msg.channel)) return fail('unknown-channel', 'channel-send');
-        const text = cleanChat(msg.text);
-        if (text === null) return fail('bad-message', 'channel-send');
-        const message = channels.post(msg.channel, { author: peer.name, color: peer.color, text });
+        const parts = chatParts(msg, { channel: true });
+        if (parts === null) return fail('bad-message', 'channel-send');
+        const message = channels.post(msg.channel, { author: peer.name, color: peer.color, ...parts });
         for (const watcher of watchers) watcher.send({ type: 'channel-message', channel: msg.channel, message });
       } else if (msg.type === 'channel-history' && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
         // A page of a channel's messages, older than `before` (the newest without it).
@@ -409,6 +566,8 @@ export function startServer(config, { log = defaultLog } = {}) {
 
     ws.on('close', () => {
       watchers.delete(peer);
+      mediaTokens.delete(peer.mediaToken);
+      media?.sweep(peer.id);
       leaveRoom(peer).catch(() => {});
       log('info', 'disconnected', { peer: peer.id });
     });
@@ -425,6 +584,7 @@ export function startServer(config, { log = defaultLog } = {}) {
       ws.isAlive = false;
       ws.ping();
     }
+    media?.sweep(); // uploads no message claimed in time
   }, config.heartbeatMs);
   heartbeat.unref();
 
@@ -449,7 +609,7 @@ export function startServer(config, { log = defaultLog } = {}) {
     (await sfuReady.catch(() => null))?.close();
   }
 
-  return { ready, close, registry, wss, sfu: sfuReady, channels };
+  return { ready, close, registry, wss, sfu: sfuReady, channels, media: () => media };
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

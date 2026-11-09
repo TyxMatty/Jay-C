@@ -382,18 +382,20 @@ Pedido do usuário (08/11/2026). Os GIFs entraram aqui quando a T12.A foi cancel
 - **O servidor confere tudo:** o tipo pelos primeiros bytes (PNG, JPEG, GIF, WebP; MP4 e WebM), o tamanho enquanto recebe, as dimensões da imagem (lidas do cabeçalho; um lado acima de 8192 px ou mais de 40 MP é recusado, contra bombas de descompressão). Ele devolve `Content-Type` fixo pelo tipo conferido, `nosniff`, `Content-Disposition: inline` e uma CSP `default-src 'none'; sandbox`, para que um arquivo poliglota nunca rode como página.
 - **A mensagem leva só o id;** o servidor preenche o resto (tipo, tamanho, dimensões, capa) do próprio registro. Um id só serve para quem o subiu, uma vez, e só por uns minutos; arquivo sem mensagem é apagado.
 
-#### [ ] T13.A: O servidor guarda e entrega os arquivos
+#### [x] T13.A: O servidor guarda e entrega os arquivos
 **Critérios:**
-- [ ] `POST /media` (com `mediaToken`) e `GET /media/<id>`; CORS para o app; respostas com os cabeçalhos de segurança acima.
-- [ ] Tipo pelo conteúdo; limites `MAX_IMAGE_MB` (8) e `MAX_VIDEO_MB` (50), recusados enquanto chegam (sem ler tudo antes); `MEDIA_DISK_MB` (padrão 2048) para o total no disco; envio desligado com `MEDIA=off`.
-- [ ] Limite de envios por conexão e por IP, e de envios ao mesmo tempo.
-- [ ] `chat` e `channel-send` aceitam `media: {id, poster?}`; quem recebe ganha `{id, kind, mime, size, width, height, poster?}` e um `text` para apps antigos ("Imagem", "GIF", "Vídeo").
-- [ ] Apagados do disco: o arquivo de uma mensagem que saiu das 500 do canal, de um canal apagado, de uma call que esvaziou, e o que subiu sem virar mensagem.
-- [ ] `features` com `media` e os limites, para o app saber se mostra o botão.
+- [x] `POST /media` (com `mediaToken`) e `GET /media/<id>`; CORS para o app; respostas com os cabeçalhos de segurança acima.
+- [x] Tipo pelo conteúdo; limites `MAX_IMAGE_MB` (8) e `MAX_VIDEO_MB` (50), recusados enquanto chegam (sem ler tudo antes); `MEDIA_DISK_MB` (padrão 2048) para o total no disco; envio desligado com `MEDIA=off`.
+- [x] Limite de envios por conexão e por IP, e de envios ao mesmo tempo.
+- [x] `chat` e `channel-send` aceitam `media: {id, poster?}`; quem recebe ganha `{id, kind, mime, size, width, height, poster?}` e um `text` para apps antigos ("Imagem", "GIF", "Vídeo").
+- [x] Apagados do disco: o arquivo de uma mensagem que saiu das 500 do canal, de um canal apagado, de uma call que esvaziou, e o que subiu sem virar mensagem.
+- [x] `features` com `media` e os limites, para o app saber se mostra o botão.
 
-**Verificação:** `npm test` com ataques: tipo trocado (HTML, SVG, um "GIF" que é HTML, poliglota), id com `../` e outros formatos, token de outra conexão ou de outra sala, arquivo maior que o limite (o servidor corta no meio), corpo sem fim, imagem 100.000×100.000 px, disco cheio, envio sem mensagem, mensagem com o id de outro, reuso do id; e a limpeza.
+**Verificação (feita, `signaling-server/test/media.test.js`):** `npm test` com ataques: tipo trocado (HTML, SVG, um "GIF" que é HTML, poliglota), id com `../` e outros formatos, token de outra conexão ou de outra sala, arquivo maior que o limite (o servidor corta no meio), corpo sem fim, imagem 100.000×100.000 px, disco cheio, envio sem mensagem, mensagem com o id de outro, reuso do id; e a limpeza.
 
 **Arquivos:** `signaling-server/src/media.js` (novo), `server.js`, `channels.js`, `config.js`, `docker-compose.yml`, testes · **Tamanho:** M
+
+Também: só quem está numa call ou no servidor sobe arquivos (uma conexão que saiu da call recebe 403); uploads sem mensagem ocupam no máximo 2 vídeos por IP; downloads com no máximo 4 ao mesmo tempo e um ritmo por conexão. Um poliglota (GIF que também é HTML) é aceito como GIF, mas só sai como `image/gif` com `sandbox` e `nosniff`. Não testado: um envio parado (o corte de 30 s) e o limite de 2 envios ao mesmo tempo por IP.
 
 #### [ ] T13.B: O app manda e mostra
 **Critérios:**
