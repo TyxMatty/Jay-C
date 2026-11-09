@@ -315,7 +315,7 @@ Tocar ou segurar um botão no celular pinta o retângulo azul do Android (`-webk
 
 **Arquivos:** `styles/app.css` · **Tamanho:** S
 
-#### [ ] T12.F: Fechar o PiP não fecha o app (Android): testada num aparelho, falta o APK fora do modo dev
+#### [x] T12.F: Fechar o PiP não fecha o app (Android)
 **Medido antes (08/11/2026, Samsung pelo cabo, app de dev):**
 - **Fechar o PiP pelo X não matou o processo** (mesmo pid). A activity ficou escondida (`setForceHidden`), a call seguiu conectada, e abrir pelo ícone voltou à mesma call, sem recarregar.
 - **O mic foi calado em ~15 s** (50 → 13,75 → 4,5 pacotes/s).
@@ -336,9 +336,9 @@ Tocar ou segurar um botão no celular pinta o retângulo azul do Android (`-webk
 - [x] Permissão de notificação negada: o serviço roda, a notificação não aparece, e o mic chega ao bot com o app em segundo plano.
 - [x] App morto no meio da call (`run-as … kill -9`): nenhuma notificação fantasma, o bot vê o celular sair, e ao abrir o app não há call nem serviço.
 - [x] Voltar durante a call (sem gaveta aberta): o app vai para o PiP, com o mesmo processo, o serviço e o mic chegando ao bot.
-- [ ] Um APK instalado, fora do modo dev: fechar o PiP não fecha o app.
+- [x] Um APK instalado, fora do modo dev (`tauri android build --debug --apk`, com as telas embutidas e o Vite parado): fechar o PiP pelo X mantém o processo e o serviço, a gravação segue `not silenced` depois de 28 s, e abrir pelo ícone volta à mesma call sem recarregar, com zoom 1.
 
-**Achado no teste:** com o app em segundo plano (PiP fechado, ou só o PiP), o mic chega a 27–46 pacotes/s, contra 50 firmes em primeiro plano. Não cai a zero, mas o som pode chegar picotado para quem ouve. Ver em "Bugs para corrigir depois".
+**Como medir o mic (aprendido no teste):** o mic usa Opus com DTX (`opusDtx: true`, `core/call.js`): em silêncio, saem ~4,7 pacotes/s, e com som, até 50. Então contar pacotes no bot não separa "quarto em silêncio" de "mic calado pelo Android". A medida que vale é o estado da gravação no `dumpsys audio` (`src:VOICE_COMMUNICATION not silenced`). Os 30–50 pacotes/s com o app em segundo plano mostram som de verdade chegando; a variação (27–46) acompanha o som do ambiente e não prova perda.
 
 **Corrigido no teste (relatado pelo usuário):** fechar o PiP pelo X e reabrir deixava a página com zoom de 1,185 e barras de rolagem. Ao fechar, o app sai do modo PiP com a janela ainda do tamanho da mini-janela (~211 px); a barra do topo ocupa 250 px, e a WebView do Android diminui o zoom para caber, e não volta ao reabrir. Agora o conteúdo do app fica sempre cortado na largura da janela (`overflow-x: clip` nos filhos do `body`). Medido: 3 de 3 rodadas com zoom 1 e a página com 384 px; as gavetas seguem certas.
 Visto pelo usuário em 08/11/2026 (Samsung SM-S711B, Android 16): fechar a mini-janela da live fecha o app inteiro. Deveria mandar o app para segundo plano, com a call seguindo (o som continua, e o app volta na mesma tela). No logcat, ao fechar: `stopped(true)` na activity e `pipModeChanged active=false`. No modo dev, a página perdeu a conexão com o Vite e recarregou ao voltar, e a call caiu: separar o que é do PiP e o que é só do Vite (testar também num APK que não seja dev).
@@ -441,7 +441,7 @@ Também: antes de subir, o app tira de onde a foto ou o vídeo foi feito, sem re
 
 ## Bugs para corrigir depois
 
-- [ ] **Android: mic em segundo plano chega com menos pacotes** (visto em 09/11/2026, Samsung SM-S711B): 27–46 pacotes/s com o app em segundo plano ou em PiP, contra 50 em primeiro plano, medido num bot. Não ouvido de fato (o bot não toca o som): falta saber se fica picotado e se é a captura que perde quadros ou a WebView atrasando o envio.
+- [ ] **Android: conferir de ouvido o mic em segundo plano** (09/11/2026, Samsung SM-S711B): com o app em segundo plano, o bot recebeu 27–46 pacotes/s, contra 50 em primeiro plano. Com o DTX do Opus, isso pode ser só o som do ambiente variando (em silêncio são ~4,7/s), e a gravação seguiu `not silenced`. Falta ouvir alguém falando com o app em segundo plano para descartar picotes.
 
 - [x] **Live nativa não abre num notebook com duas placas (NVIDIA + Intel).** Corrigido em 08/11/2026: o codificador da NVIDIA não inicia nem com um device na NVIDIA; o app tenta os codificadores na ordem e usa o primeiro que inicia e aceita o device (aqui, o Intel Quick Sync, com a troca de tipo de saída aceita). Ver `docs/spikes/10-live-nativa.md`. Relato original: Visto em 08/11/2026 no notebook do usuário (RTX 3050 Laptop + Intel UHD, i5-13420H): `native live: H.264 encoder: Falha catastrófica (0x8000FFFF)`, e o app cai no seletor do sistema. Hipótese, não medida: o `create_device` (`native_live/mod.rs`) cria o D3D11 no adaptador padrão, e o `encoder.rs` pega o primeiro codificador H.264 de hardware da lista (`found[0]`) sem conferir se ele é do mesmo adaptador. Com dois codificadores, o `MFT_MESSAGE_SET_D3D_MANAGER` recebe um device de outra placa. Correção provável: escolher o codificador cujo `MFT_ENUM_ADAPTER_LUID` é o do adaptador do device, ou criar o device no adaptador do codificador. Antes, medir os LUIDs. A live nativa só tinha sido testada num PC com a NVIDIA sozinha.
 
