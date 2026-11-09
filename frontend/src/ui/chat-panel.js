@@ -5,6 +5,8 @@ import { h } from './dom.js';
 import { icons } from './icons.js';
 import { createChatLog } from './chat-log.js';
 import { createAttach } from './attach.js';
+import { attachMentionPicker } from './mention-picker.js';
+import { mentionsMe } from '../core/mentions.js';
 import { kindLabel } from '../core/attachments.js';
 import { t } from '../core/i18n.js';
 
@@ -14,15 +16,17 @@ const MAX_SHOWN = 200;
 
 /**
  * @param {{ send: (text: string, upload?: object | null) => boolean, onIncoming?: (message: { name: string, text: string }) => void,
- *   getAccess?: () => object | null, loader?: object | null }} options
+ *   getAccess?: () => object | null, loader?: object | null, mentionNames?: () => string[], me?: () => string,
+ *   onMention?: (message: { name: string, text: string, onScreen: boolean }) => void }} options
  *   send: false when offline (the text stays in the box); with `upload` (a file sent up), the text is
  *   its caption. onIncoming: someone else's message arrived while the panel was closed (e.g. a toast).
  *   getAccess / loader: the call's files (T13): where they go, and how they're fetched.
+ *   mentionNames / me / onMention (T14.B): who can be mentioned, our own name, and someone mentioning us.
  */
-export function createChatPanel({ send, onIncoming, getAccess = () => null, loader = null }) {
+export function createChatPanel({ send, onIncoming, getAccess = () => null, loader = null, mentionNames = () => [], me = () => '', onMention }) {
   const badge = h('span', { class: 'control-badge', hidden: true });
   const button = h('button', { type: 'button', class: 'control-btn', 'aria-expanded': 'false', html: icons.chat }, badge);
-  const chatLog = createChatLog({ label: t('Messages'), max: MAX_SHOWN, loader });
+  const chatLog = createChatLog({ label: t('Messages'), max: MAX_SHOWN, loader, mentions: () => ({ names: mentionNames(), me: me() }) });
   const empty = h(
     'div',
     { class: 'chat-empty' },
@@ -34,6 +38,7 @@ export function createChatPanel({ send, onIncoming, getAccess = () => null, load
   const form = h('form', { class: 'chat-form' });
   const panel = h('aside', { class: 'chat-panel', hidden: true, 'aria-label': t('Chat') });
   const attach = createAttach({ getAccess, dropTarget: form, dropZone: panel, input });
+  attachMentionPicker({ input, anchor: form, names: mentionNames, me });
   form.append(attach.button, attach.picker, input, h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }));
   const close = h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Close chat'), html: icons.close });
   panel.append(
@@ -124,11 +129,14 @@ export function createChatPanel({ send, onIncoming, getAccess = () => null, load
         { follow: mine },
       );
       empty.hidden = true;
+      const said = media !== undefined ? caption || t(kindLabel(media?.kind)) : text;
+      const mentioned = !mine && mentionsMe(media !== undefined ? caption : text, mentionNames(), me());
       if (!mine && panel.hidden) {
         unread++;
         renderButton();
-        onIncoming?.({ name, text: media !== undefined ? caption || t(kindLabel(media?.kind)) : text });
+        onIncoming?.({ name, text: said, mentioned });
       }
+      if (mentioned) onMention?.({ name, text: said, onScreen: panel.offsetParent !== null });
     },
   };
 }

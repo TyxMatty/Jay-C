@@ -9,3 +9,6 @@ export function mergeMessages(a, b) {
 
 /** Whether `channel` ({ name, lastId }) has messages after the last one seen (`read`: { [name]: id }). */
 export const isUnread = (channel, read = {}) => channel.lastId > (read[channel.name] ?? 0);
+
+/** Someone mentioned us there after the last message read (T14.B; `mentions`: channel -> message id). */
+export const isMentioned = (channel, read = {}, mentions = {}) => (mentions[channel.name] ?? 0) > (read[channel.name] ?? 0);

@@ -820,3 +820,36 @@ describe('profile pictures in text channels (T14.A)', () => {
     admin.close();
   });
 });
+
+describe('who has the server open (T14.B, the @ list)', () => {
+  let server;
+  let port;
+  before(async () => {
+    server = startServer({ ...baseConfig }, { log: () => {} });
+    port = await server.ready;
+  });
+  after(() => server.close());
+
+  test('the names come with the list and again whenever they change', async () => {
+    const open = async (name) => {
+      const client = connect(port);
+      await client.open();
+      client.send({ type: 'hello', name });
+      return { client, state: await client.next('server-state') };
+    };
+    const ana = await open('Ana');
+    assert.deepEqual(ana.state.online, ['Ana']);
+    assert.deepEqual((await ana.client.next('online')).names, ['Ana'], 'her own arrival');
+    const bia = await open('Bia');
+    assert.deepEqual(bia.state.online, ['Ana', 'Bia']);
+    assert.deepEqual((await ana.client.next('online')).names, ['Ana', 'Bia']);
+    const twin = await open('Bia');
+    assert.deepEqual(twin.state.online, ['Ana', 'Bia'], 'a name twice is listed once');
+    bia.client.send({ type: 'hello', name: 'Beatriz' });
+    assert.deepEqual((await ana.client.next('online')).names, ['Ana', 'Beatriz', 'Bia']);
+    twin.client.close();
+    assert.deepEqual((await ana.client.next('online')).names, ['Ana', 'Beatriz']);
+    ana.client.close();
+    bia.client.close();
+  });
+});

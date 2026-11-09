@@ -20,6 +20,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_system_audio::init())
         .plugin(tauri_plugin_pip::init())
+        // Mentions (T14.B): a Windows notification when the app is in the background.
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             #[cfg(windows)]
             taskbar_icon::set_taskbar_icon,

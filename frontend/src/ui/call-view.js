@@ -17,6 +17,7 @@ import { profileBackground } from '../core/profile-color.js';
 import { watchNativeLive } from '../core/native-live.js';
 import { settings } from '../store/settings.js';
 import { t } from '../core/i18n.js';
+import { alertMention } from '../core/mention-alert.js';
 
 const CONNECTION_LABELS = {
   new: 'Connecting…',
@@ -652,10 +653,14 @@ export function createCallView(call, { displayName, onLeft, openSettings }) {
     send: (text, upload) => call.sendChat(text, displayName, upload),
     getAccess: () => call.mediaAccess,
     loader: mediaLoader,
-    onIncoming: ({ name, text }) => {
+    onIncoming: ({ name, text, mentioned }) => {
       showToast(`${name || t('Guest')}: ${text.length > 80 ? `${text.slice(0, 80)}…` : text}`);
-      cue('chat', { others: true });
+      if (!mentioned) cue('chat', { others: true }); // a mention has its own sound
     },
+    // Mentions in the call's chat (T14.B): who is in the call, and our own name.
+    mentionNames: () => [...call.participants.values()].map((p) => p.name).filter(Boolean),
+    me: () => displayName,
+    onMention: ({ name, text, onScreen }) => alertMention({ where: call.room, from: name || t('Guest'), text, onScreen }),
   });
   // The file settings come with every (re)join: a new token each time.
   chat.refreshFiles();

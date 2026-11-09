@@ -24,6 +24,8 @@ import { findServer, nameServer } from '../core/servers.js';
 import { addRecentRoom } from '../core/recent-rooms.js';
 import { startDiscordPresence } from '../core/discord-presence.js';
 import { t } from '../core/i18n.js';
+import { alertMention } from '../core/mention-alert.js';
+import { kindLabel } from '../core/attachments.js';
 
 const STATUS_LABELS = {
   unset: () => t('No server'),
@@ -256,6 +258,15 @@ export function mountApp(root) {
       const current = new ServerSession(url, sessionProfile());
       session = current;
       session.addEventListener('change', onSessionChange);
+      // Someone mentioned us in a channel (T14.B): a sound and, with the window away, a notification.
+      session.addEventListener('mention', (e) => {
+        const { channel, message } = e.detail;
+        // Kept like the read marks: the @ stays in the list after the app closes, until the channel is read.
+        const all = settings.get().channelMentions ?? {};
+        if (pane.what !== `channel:${channel}`) settings.update({ channelMentions: { ...all, [url]: { ...all[url], [channel]: message.id } } });
+        const text = message.text || message.caption || t(kindLabel(message.media?.kind));
+        alertMention({ where: `#${channel}`, from: message.name, text, onScreen: pane.what === `channel:${channel}` });
+      });
       serverSettings = createServerSettingsModal({ session, url });
       document.body.append(serverSettings.element);
       // The key given before on this computer: unlocked by itself (a key the server no longer takes is forgotten).

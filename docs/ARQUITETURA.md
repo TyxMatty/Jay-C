@@ -162,6 +162,7 @@ Servidor → cliente:
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = ninguém assiste) | a cada 2 s, para quem transmite a tela: a menor banda entre quem assiste, como o mediasoup estima para cada um. A live nativa (uma camada só) fica abaixo dela |
 | `producer-closed` | `peerId`, `producerId` | só para quem consome |
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma; `name` é o `SERVER_NAME`, se houver; `media` como no `joined` |
+| `online` | `names` | (0.5.1, T14.B) quem está com o servidor aberto (fez `hello`), cada nome uma vez; também vem em `server-state` (`online`). Sai só quando a lista muda. O app usa para a lista do @ |
 | `room-update` | `room` (como em `server-state`) | (0.5) alguém entrou, saiu ou trocou a foto ou a cor numa sala fixa visível |
 | `channel-message` | `channel`, `message: {id, at, name, color?, avatar?, text, media?, caption?}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms). (0.5.1) `avatar`: o id da foto de quem mandou (um hash; a foto vem pelo pedido `avatars`), que fica com a mensagem mesmo se a pessoa trocar de foto |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) alguém mutou, desmutou, abriu ou fechou uma live (mensagem pequena, sem as fotos) |

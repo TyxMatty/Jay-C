@@ -578,6 +578,21 @@ html {
   background: var(--accent);
 }
 
+/* Someone mentioned you in this channel (T14.B): an @ instead of the dot. */
+.channel-mention {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--danger-fill);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
 .text-channel {
   flex: 1;
   display: flex;
@@ -3495,6 +3510,24 @@ body > :not(.activity-pip-video) {
   background: color-mix(in srgb, var(--surface-2) 60%, transparent);
 }
 
+/* A message that mentions whoever reads it (T14.B): tinted, with a bar on the left. */
+.chat-message.mentions-me {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* "@Name" in a message; "@you" stronger. */
+.chat-mention {
+  font-weight: 600;
+  color: var(--accent-text, var(--accent));
+}
+
+.chat-mention.me {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
 /* The sender's color as a ring, the initial in the theme's text color: readable for any color
    (white on a light one wasn't). */
 .chat-avatar {
@@ -3561,8 +3594,39 @@ body > :not(.activity-pip-video) {
 }
 
 .chat-form {
+  position: relative;
   display: flex;
   gap: 8px;
+}
+
+/* The @ list over the message box (ui/mention-picker.js). */
+.mention-list {
+  position: absolute;
+  right: 48px;
+  bottom: calc(100% + 6px);
+  left: 48px;
+  z-index: 5;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+}
+
+.mention-option {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-option[aria-selected='true'],
+.mention-option:hover {
+  background: var(--accent-soft);
 }
 
 .btn.chat-send {

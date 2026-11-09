@@ -164,6 +164,7 @@ Server → client:
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = nobody watching) | every 2 s, to whoever shares a screen: the smallest bandwidth among the viewers, as mediasoup estimates it towards each. The native live (a single layer) stays under it |
 | `producer-closed` | `peerId`, `producerId` | only for consumers |
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) answer to `hello`: the visible fixed rooms and who is in each; `name` is `SERVER_NAME`, when set; `media` as in `joined` |
+| `online` | `names` | (0.5.1, T14.B) who has the server open (sent `hello`), each name once; also in `server-state` (`online`). Sent only when the list changes. The app uses it for the @ list |
 | `room-update` | `room` (as in `server-state`) | (0.5) someone joined, left or changed their picture or color in a visible fixed room |
 | `channel-message` | `channel`, `message: {id, at, name, color?, avatar?, text, media?, caption?}` | (0.5) a new message in a text channel (`id` grows per channel; `at` in ms). (0.5.1) `avatar`: the id of the sender's picture (a hash; the picture comes from the `avatars` request), which stays with the message even if the person changes pictures |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) someone muted, unmuted, started or stopped a live (a small message, without the pictures) |

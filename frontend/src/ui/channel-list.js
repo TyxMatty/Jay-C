@@ -7,7 +7,7 @@ import { icons } from './icons.js';
 import { settings } from '../store/settings.js';
 import { serverStatus } from '../core/server-status.js';
 import { profileBackground } from '../core/profile-color.js';
-import { isUnread } from '../core/text-channels.js';
+import { isUnread, isMentioned } from '../core/text-channels.js';
 import { t } from '../core/i18n.js';
 
 /** Someone in a call (this list and ui/members-panel.js). */
@@ -117,6 +117,7 @@ export function createChannelList({ session, url, title, getVoice, onHome, onRoo
     channelsList.replaceChildren(
       ...channels.map((channel) => {
         const unread = `channel:${channel.name}` !== selected && isUnread(channel, read);
+        const mentioned = unread && isMentioned(channel, read, settings.get().channelMentions?.[url]);
         return h(
           'li',
           { class: 'server-room' },
@@ -127,12 +128,16 @@ export function createChannelList({ session, url, title, getVoice, onHome, onRoo
               class: 'server-room-btn',
               dataset: { key: `channel:${channel.name}` },
               'aria-current': String(`channel:${channel.name}` === selected),
-              'aria-label': unread ? t('Open #{channel} (new messages)', { channel: channel.name }) : t('Open #{channel}', { channel: channel.name }),
+              'aria-label': mentioned
+                ? t('Open #{channel} (you were mentioned)', { channel: channel.name })
+                : unread
+                  ? t('Open #{channel} (new messages)', { channel: channel.name })
+                  : t('Open #{channel}', { channel: channel.name }),
               onClick: () => onChannel(channel.name),
             },
             h('span', { class: 'server-room-icon server-channel-hash', 'aria-hidden': 'true' }, '#'),
             h('span', { class: `server-room-name${unread ? ' unread' : ''}` }, channel.name),
-            unread ? h('span', { class: 'channel-unread', 'aria-hidden': 'true' }) : null,
+            mentioned ? h('span', { class: 'channel-mention', 'aria-hidden': 'true' }, '@') : unread ? h('span', { class: 'channel-unread', 'aria-hidden': 'true' }) : null,
           ),
         );
       }),
@@ -146,7 +151,7 @@ export function createChannelList({ session, url, title, getVoice, onHome, onRoo
     if (focused) [...element.querySelectorAll('[data-key]')].find((b) => b.dataset.key === focused)?.focus();
   };
   session?.addEventListener('change', renderKeepingFocus);
-  const unsubscribe = settings.subscribe((next, prev) => next.channelsRead !== prev.channelsRead && renderKeepingFocus());
+  const unsubscribe = settings.subscribe((next, prev) => (next.channelsRead !== prev.channelsRead || next.channelMentions !== prev.channelMentions) && renderKeepingFocus());
   const unsubscribeStatus = serverStatus.subscribe(() => renderKeepingFocus());
 
   return {

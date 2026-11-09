@@ -18,6 +18,7 @@ const CUES = {
   leave: [783.99, 659.25, 523.25],
   stream: [523.25, 783.99, 1046.5], // C5 G5 C6: brighter, something to watch
   chat: [987.77], // B5, a single blip
+  mention: [783.99, 1174.66, 1567.98], // G5 D6 G6: someone called you by name (T14.B)
 };
 
 /** Seconds between notes, and how long each rings. */

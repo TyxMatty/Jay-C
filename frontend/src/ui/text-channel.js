@@ -2,6 +2,7 @@
 // top, new ones live, and a box to write. Everyone on the server sees it; the server keeps the
 // last 500 messages. Shown in the main area when picked in the channel list (ui/app-shell.js).
 import { h } from './dom.js';
+import { attachMentionPicker } from './mention-picker.js';
 import { icons } from './icons.js';
 import { createChatLog } from './chat-log.js';
 import { createAttach } from './attach.js';
@@ -26,13 +27,16 @@ const SEND_ERRORS = {
 export function createTextChannel({ session, channel, onRead }) {
   const access = () => (session.media && session.httpBase ? { base: session.httpBase, ...session.media } : null);
   const loader = createMediaLoader(access);
-  const chatLog = createChatLog({ label: t('Messages in #{channel}', { channel }), max: MAX_SHOWN, loader });
+  // Who can be mentioned here (T14.B): who has the server open, who is in its calls, who wrote here.
+  const mentionNames = () => [...session.knownNames(), ...messages.map((m) => m.name)];
+  const chatLog = createChatLog({ label: t('Messages in #{channel}', { channel }), max: MAX_SHOWN, loader, mentions: () => ({ names: mentionNames(), me: session.name }) });
   const empty = h('div', { class: 'chat-empty' }, h('span', { class: 'chat-empty-icon', html: icons.chat, 'aria-hidden': 'true' }), h('p', { class: 'hint' }, t('No messages here yet. Everyone on this server sees this channel.')));
   const input = h('input', { class: 'input', type: 'text', maxlength: MAX_LENGTH, placeholder: t('Message #{channel}', { channel }), 'aria-label': t('Message') });
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
   const form = h('form', { class: 'chat-form' });
   const element = h('section', { class: 'text-channel', 'aria-label': `#${channel}` });
   const attach = createAttach({ getAccess: access, dropTarget: form, dropZone: element, input });
+  attachMentionPicker({ input, anchor: form, names: mentionNames, me: () => session.name });
   form.append(attach.button, attach.picker, input, h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }));
 
   /** @type {{ id: number, at: number, name: string, color?: object, text: string }[]} */

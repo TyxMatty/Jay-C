@@ -5,10 +5,25 @@ import { h } from './dom.js';
 import { mediaFigure } from './chat-media.js';
 import { validMedia } from '../core/attachments.js';
 import { splitLinks } from '../core/links.js';
+import { markMentions } from '../core/mentions.js';
 
-/** A message's text with its web links clickable (they open in the browser: src-tauri/src/pip_window.rs). */
-const chatText = (text) =>
-  h('p', { class: 'chat-text' }, ...splitLinks(text).map((part) => (part.url ? h('a', { href: part.url, target: '_blank', rel: 'noopener noreferrer' }, part.url) : part.text)));
+/**
+ * A message's text: web links clickable (they open in the browser: src-tauri/src/pip_window.rs) and
+ * mentions marked (T14.B), with `me` (a mention of whoever reads it) set apart.
+ * @param {{ names: string[], me: string } | null} mentions
+ */
+const chatText = (text, mentions) => {
+  const parts = mentions ? markMentions(splitLinks(text), mentions.names, mentions.me) : splitLinks(text);
+  return h(
+    'p',
+    { class: 'chat-text' },
+    ...parts.map((part) => {
+      if (part.url) return h('a', { href: part.url, target: '_blank', rel: 'noopener noreferrer' }, part.url);
+      if (part.mention) return h('span', { class: `chat-mention${part.me ? ' me' : ''}` }, part.mention);
+      return part.text;
+    }),
+  );
+};
 
 /** Messages from the same person within this gap share one avatar and name. */
 const GROUP_MS = 5 * 60 * 1000;
@@ -31,10 +46,12 @@ function timeLabel(at) {
 }
 
 /**
- * @param {{ label: string, max?: number, loader?: ReturnType<typeof import('../core/attachment-net.js').createMediaLoader> }} options
- *   max: older messages are dropped past this; loader: fetches the files of messages (T13).
+ * @param {{ label: string, max?: number, loader?: ReturnType<typeof import('../core/attachment-net.js').createMediaLoader>,
+ *   mentions?: () => { names: string[], me: string } }} options
+ *   max: older messages are dropped past this; loader: fetches the files of messages (T13);
+ *   mentions: the names that can be mentioned here and whoever reads it (T14.B).
  */
-export function createChatLog({ label, max = 200, loader = null }) {
+export function createChatLog({ label, max = 200, loader = null, mentions = null }) {
   const log = h('ol', { class: 'chat-log', role: 'log', 'aria-live': 'polite', 'aria-label': label });
 
   /** @param {ChatMessage} message @param {Element | null} previous the message shown before it */
@@ -47,19 +64,23 @@ export function createChatLog({ label, max = 200, loader = null }) {
       message.avatar ? h('img', { src: message.avatar, alt: '' }) : ((message.initial ?? message.name).trim()[0] ?? '?').toUpperCase(),
     );
     if (message.background) face.style.setProperty('--tile-bg', message.background);
+    const body = h('div', { class: 'chat-body' }, h('div', { class: 'chat-meta' }, h('strong', {}, message.name), h('time', { datetime: new Date(at).toISOString() }, timeLabel(at))), ...content(message));
+    // A message that mentions whoever reads it stands out (never our own).
+    const forMe = !message.mine && Boolean(body.querySelector('.chat-mention.me'));
     return h(
       'li',
-      { class: `chat-message${message.mine ? ' mine' : ''}${continued ? ' continued' : ''}`, dataset: { sender: message.sender, at: String(at) } },
+      { class: `chat-message${message.mine ? ' mine' : ''}${continued ? ' continued' : ''}${forMe ? ' mentions-me' : ''}`, dataset: { sender: message.sender, at: String(at) } },
       face,
-      h('div', { class: 'chat-body' }, h('div', { class: 'chat-meta' }, h('strong', {}, message.name), h('time', { datetime: new Date(at).toISOString() }, timeLabel(at))), ...content(message)),
+      body,
     );
   };
   /** A message's text, or its file and caption (a file that doesn't check out shows the text only). */
   const content = (message) => {
     const media = message.media !== undefined && loader ? validMedia(message.media) : null;
-    if (!media) return [chatText(message.text)];
+    const marks = mentions?.() ?? null;
+    if (!media) return [chatText(message.text, marks)];
     const caption = typeof message.caption === 'string' ? message.caption : '';
-    return [mediaFigure(media, loader), caption ? chatText(caption) : null];
+    return [mediaFigure(media, loader), caption ? chatText(caption, marks) : null];
   };
   const atBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
 

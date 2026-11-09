@@ -4,6 +4,7 @@
 // `supported` becomes false and the app falls back to joining by name only.
 
 import { mediaConfig, httpBase } from './attachments.js';
+import { mentionsMe } from './mentions.js';
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 10000];
 const REQUEST_TIMEOUT_MS = 10000;
@@ -11,6 +12,8 @@ const REQUEST_TIMEOUT_MS = 10000;
 const AVATAR_ID = /^[A-Za-z0-9_-]{22}$/;
 const AVATAR_URL = /^data:image\/(?:webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
 const MAX_AVATAR_LENGTH = 32_000;
+/** The names the server says are online: strings of up to 32 characters, at most 500. */
+const cleanNames = (names) => (Array.isArray(names) ? names.filter((n) => typeof n === 'string' && n.length > 0 && n.length <= 32).slice(0, 500) : []);
 
 /** A refused request or admin key: `code` is the server's error code. */
 export class ServerSessionError extends Error {
@@ -60,6 +63,8 @@ export class ServerSession extends EventTarget {
   admin = false;
   /** Files in the channels (T13): this connection's token and the server's limits, or null. */
   media = null;
+  /** Who has this server open (T14.B, the @ list): names, from the server. */
+  online = [];
   #adminKey = null;
   /** id -> data URL (null: asked, or the server has none). */
   #avatars = new Map();
@@ -129,6 +134,11 @@ export class ServerSession extends EventTarget {
   sendChannel(channel, text, media = null) {
     if (media && !this.media) return false;
     return this.#send({ type: 'channel-send', channel, ...(text ? { text } : {}), ...(media ? { media } : {}) });
+  }
+
+  /** Everyone the server shows (T14.B): who has it open and who is in its calls, each name once. */
+  knownNames() {
+    return [...new Set([...this.online, ...this.rooms.flatMap((r) => r.peers?.map((p) => p.name) ?? [])])].filter((n) => typeof n === 'string' && n);
   }
 
   /** The profile picture of a channel message, by its id (T14.A): a data URL, or null (not here yet, or none). */
@@ -243,6 +253,15 @@ export class ServerSession extends EventTarget {
       if (msg.type === 'channel-message') {
         this.channels = this.channels.map((c) => (c.name === msg.channel ? { ...c, lastId: Math.max(c.lastId, msg.message.id) } : c));
         this.dispatchEvent(new CustomEvent('message', { detail: { channel: msg.channel, message: msg.message } }));
+        const { message } = msg;
+        const words = [message.text, message.caption].filter((x) => typeof x === 'string').join(' ');
+        if (message.name !== this.name && mentionsMe(words, this.knownNames(), this.name)) {
+          this.dispatchEvent(new CustomEvent('mention', { detail: { channel: msg.channel, message } }));
+        }
+        return this.#changed();
+      }
+      if (msg.type === 'online') {
+        this.online = cleanNames(msg.names);
         return this.#changed();
       }
       if (msg.type === 'error' && msg.ref === 'channel-send') {
@@ -259,6 +278,7 @@ export class ServerSession extends EventTarget {
         this.admin = msg.admin === true;
         this.channels = Array.isArray(msg.channels) ? msg.channels : [];
         this.serverName = typeof msg.name === 'string' && msg.name ? msg.name : null;
+        this.online = cleanNames(msg.online);
         // Every list from the server (the first, after a drop, after an admin change): what's open can catch up.
         this.dispatchEvent(new Event('connected'));
       }

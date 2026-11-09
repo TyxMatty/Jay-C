@@ -193,11 +193,23 @@ export function startServer(config, { log = defaultLog } = {}) {
     if (!room) return;
     for (const watcher of watchers) if (!room.hidden || watcher.admin) watcher.send(message);
   };
+  /** Who has the server open (T14.B, the @ list in the app): each name once, sorted. */
+  const onlineNames = () => [...new Set([...watchers].map((w) => w.name))].sort((a, b) => a.localeCompare(b));
+  let lastOnline = '[]';
+  /** Someone opened or closed the server, or changed name: everyone gets the names again (only when they changed). */
+  const onlineChanged = () => {
+    const names = onlineNames();
+    const key = JSON.stringify(names);
+    if (key === lastOnline) return;
+    lastOnline = key;
+    for (const watcher of watchers) watcher.send({ type: 'online', names });
+  };
   /** The whole list as `peer` may see it (an admin also sees the hidden rooms, to manage them). */
   const stateFor = (peer) => ({
     type: 'server-state',
     rooms: (peer.admin ? directory.all() : directory.listed()).map((room) => describeRoom(room.name)),
     channels: channels.all(),
+    online: onlineNames(),
     ...(config.serverName ? { name: config.serverName } : {}),
     features,
     ...mediaFor(peer),
@@ -486,6 +498,7 @@ export function startServer(config, { log = defaultLog } = {}) {
       peer.color = color;
       watchers.add(peer);
       peer.send(stateFor(peer));
+      onlineChanged();
     }
 
     /** The host's key: this connection may then change the fixed rooms. Never logged. */
@@ -620,7 +633,7 @@ export function startServer(config, { log = defaultLog } = {}) {
     });
 
     ws.on('close', () => {
-      watchers.delete(peer);
+      if (watchers.delete(peer)) onlineChanged();
       mediaTokens.delete(peer.mediaToken);
       media?.sweep(peer.id);
       leaveRoom(peer).catch(() => {});

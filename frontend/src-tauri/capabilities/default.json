@@ -9,6 +9,7 @@
     "core:window:allow-set-content-protected",
     "core:window:allow-set-icon",
     "system-audio:default",
-    "pip:default"
+    "pip:default",
+    "notification:default"
   ]
 }

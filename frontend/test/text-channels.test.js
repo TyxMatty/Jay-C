@@ -15,3 +15,11 @@ test('a channel is unread past the last message seen in it', () => {
   assert.equal(isUnread({ name: 'geral', lastId: 3 }, { geral: 3 }), false);
   assert.equal(isUnread({ name: 'geral', lastId: 4 }, { geral: 3 }), true);
 });
+
+test('the @ shows while a mention is newer than what was read', async () => {
+  const { isMentioned } = await import('../src/core/text-channels.js');
+  assert.equal(isMentioned({ name: 'papo' }, { papo: 4 }, { papo: 7 }), true);
+  assert.equal(isMentioned({ name: 'papo' }, { papo: 7 }, { papo: 7 }), false, 'read up to it');
+  assert.equal(isMentioned({ name: 'papo' }, {}, {}), false);
+  assert.equal(isMentioned({ name: 'papo' }, undefined, undefined), false);
+});

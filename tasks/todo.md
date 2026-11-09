@@ -475,12 +475,18 @@ Hoje a mensagem de canal guarda só nome e cor, e a lista mostra a inicial (o ch
 **Medido (09/11/2026):** testes do servidor: a mesma foto, o mesmo id e um arquivo só; a mensagem nunca leva a foto; pedidos com ids desconhecidos, com `../` (um `.txt` fora da pasta não vaza: sem a checagem do id, o teste falha), mais de 100 ids e sem `hello`; foto nova só nas mensagens novas; depois de reiniciar, as fotos voltam da pasta; apagar o canal apaga as fotos (sem a poda, o teste falha). Teste do app com um servidor falso: só imagens válidas e pequenas ficam, e nada é pedido duas vezes. No app de dev, com bots de verdade: a foto aparece no #papo para mensagens antigas e para uma pessoa nova que escreve com o canal aberto.
 **Verificação:** testes do servidor (guardar, deduplicar, apagar quando sai a última mensagem, limite de tamanho); no app, a foto aparece no canal, e um app 0.5.0 segue funcionando.
 
-#### [ ] T14.B: Mencionar pessoas (@nome)
+#### [x] T14.B: Mencionar pessoas (@nome)
 Decidido pelo usuário: ao digitar @ aparecem todos os conectados ao servidor (nas calls ou só nos canais) e quem já escreveu no canal; quem é mencionado recebe:
-- [ ] a mensagem destacada (fundo e barra de lado);
-- [ ] um @ no canal da lista até abrir o canal;
-- [ ] um som curto, mesmo com o app em segundo plano;
-- [ ] uma notificação do Windows quando o app está minimizado ou atrás de outras janelas.
+- [x] a mensagem destacada (fundo e barra de lado);
+- [x] um @ no canal da lista até abrir o canal;
+- [x] um som curto, mesmo com o app em segundo plano;
+- [x] uma notificação do Windows quando o app está minimizado ou atrás de outras janelas.
+
+**Como ficou:** a regra em `core/mentions.js` (o nome conhecido mais comprido ganha: "@Ana Clara" não chama a Ana se a Ana Clara é conhecida; um nome não pode continuar com letra; o @ de um e-mail não conta). O servidor manda quem está com ele aberto (`online`, também no `server-state`); a lista do @ junta esses nomes, quem está nas calls e quem escreveu no canal (no chat da call: quem está na call). A caixa ganhou a lista (`ui/mention-picker.js`, combobox: ↑ ↓, Enter ou Tab, Esc). O @ do canal fica salvo no settings (`channelMentions`, como as marcas de lido) e some quando o canal é lido. O som (`mention`, três notas) toca num AudioContext próprio, na saída escolhida, e segue "Sons de alerta"; a notificação usa o `tauri-plugin-notification` (só no Windows). Nada acontece se a pessoa já está lendo aquele chat com a janela na frente; com a janela atrás, som e notificação; na frente mas noutro lugar, só o som. No chat da call, uma menção troca o som de chat pelo de menção.
+
+**Medido (09/11/2026, app de dev com um bot "Bia" no servidor de teste):** "@b" digitado de verdade oferece "@Bia" (aria-selected, activedescendant), Enter insere e o bot recebe "oi @Bia olha isso"; a lista some ao apagar o @. Bia menciona Sam com Sam em "Chamada direta": o #papo ganha o @ ("Abrir #papo (mencionaram você)") e o som toca (3 notas), sem notificação (janela na frente); simulando a janela atrás (`document.hasFocus` falso na página), a notificação sai com "Bia mencionou você em #papo" e o texto (permissão concedida). O @ sobrevive a recarregar o app e some ao abrir o canal; lá, as 4 mensagens com @Sam ficam destacadas. Contraste sem falhas no canal com os destaques e com a lista aberta (no estilo do perfil de teste). Testes: a regra (nomes com espaço, maiúsculas, acento, nome que continua, e-mail), a lista do @, o servidor (`online` na entrada, ao renomear e ao sair, nome repetido uma vez) e o @ salvo.
+
+**Não medido:** a notificação aparecendo de fato na tela (pergunte ao usuário), o som de ouvido, as menções no chat da call com outra pessoa de verdade (a regra e o código são os mesmos do canal), e o Android (lá não há notificação de menção). Menções feitas com o app fechado não viram @ (o app só vê as que chegam ao vivo).
 Vale nos canais e no chat da call. **Verificação:** a regra de quem foi mencionado (nomes com espaço, maiúsculas, nome que é parte de outro) em teste; no app, com um bot, os quatro efeitos.
 
 ## Bugs para corrigir depois
