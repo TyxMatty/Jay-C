@@ -248,6 +248,23 @@ async function helloServer(port, name, adminKey) {
   return { client, state, token: state.media?.token };
 }
 
+test('a media folder the server cannot create turns the files off instead of stopping the server', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'jayc-media-blocked-'));
+  writeFileSync(join(dataDir, 'media'), 'not a folder');
+  const logs = [];
+  const server = startServer({ ...baseConfig, dataDir }, { log: (...args) => logs.push(args) });
+  try {
+    const port = await server.ready;
+    const { client, joined } = await joinRoom(port, 'sala', 'Ana');
+    assert.equal(joined.features.includes('media'), false);
+    assert.ok(logs.some(([level, message]) => level === 'error' && /media folder/.test(message)));
+    await client.close();
+  } finally {
+    await server.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 describe('files through the server', () => {
   let server;
   let off;

@@ -124,14 +124,20 @@ export function startServer(config, { log = defaultLog } = {}) {
   let media = null;
   const channels = new Channels({ dataDir: config.dataDir ?? null, log, onDrop: (messages) => media?.remove(messages.flatMap((m) => mediaIds(m.media))) });
   if (config.media !== false && config.dataDir) {
-    media = new MediaStore({
-      dir: joinPath(config.dataDir, 'media'),
-      maxImageBytes: config.maxImageBytes ?? 8 * 1024 * 1024,
-      maxVideoBytes: config.maxVideoBytes ?? 50 * 1024 * 1024,
-      diskBytes: config.mediaDiskBytes ?? 2048 * 1024 * 1024,
-      keep: channels.media(),
-      log,
-    });
+    try {
+      media = new MediaStore({
+        dir: joinPath(config.dataDir, 'media'),
+        maxImageBytes: config.maxImageBytes ?? 8 * 1024 * 1024,
+        maxVideoBytes: config.maxVideoBytes ?? 50 * 1024 * 1024,
+        diskBytes: config.mediaDiskBytes ?? 2048 * 1024 * 1024,
+        keep: channels.media(),
+        log,
+      });
+    } catch (error) {
+      // A data folder the server can't write (Docker without the ./data volume, or not owned by
+      // uid 1000 on Linux) turns the files off instead of keeping the server from starting.
+      log('error', 'media folder not writable, files in the chats are off', { error: error?.message });
+    }
   }
   /** mediaToken -> the connection it was given to (it dies with it). */
   const mediaTokens = new Map();
