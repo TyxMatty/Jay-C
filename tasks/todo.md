@@ -453,6 +453,32 @@ Também: antes de subir, o app tira de onde a foto ou o vídeo foi feito, sem re
   - **App 0.4.3 instalado** (perfil de teste, sem mexer no do usuário) **no servidor 0.5**, sala `geral` pelo nome: entra, vê a câmera do bot 0.5 (1280×720), e o texto vai e volta no chat. A mensagem de GIF do bot aparece só com a legenda, sem erro na página. Um cliente 0.5 vê o app 0.4.3 na lista de `geral`.
   - **App 0.5** (a interface no navegador, com câmera e mic falsos) **no servidor 0.4.3** (o código da tag, na porta 3002): a lista mostra só "Chamada direta" e "Este servidor é anterior ao Jay-C 0.5: entre nas salas pelo nome."; pelo nome entra na sala, com outro cliente 0.5 dentro; os dois se veem (mic e câmera), o chat vai e volta, e o botão de anexo fica escondido.
 
+## Depois da 0.5.0 (pedidos do usuário, 09/11/2026)
+
+#### [x] Guia: chave de admin, salas e canais de texto (5a919a6)
+Seções novas na aba Hospedar (en e pt) e o campo que grava a chave digitada como `ADMIN_KEY` no Windows e como a chave de admin deste PC. Medido no app de dev; o ADMIN_KEY de teste foi apagado do registro.
+
+#### [x] Arrastar e colar arquivos (5a919a6)
+O arrastar nativo do Tauri estava ligado e não entregava o drop para a página (`dragDropEnabled: false`); a área de soltar e colar virou o chat todo. Falta o usuário confirmar um arraste real do Explorer.
+
+#### [x] Links clicáveis (3fc7bdb)
+http(s) nas mensagens viram links; no Windows abrem no navegador padrão. Falta: o clique real (confirmar com o usuário) e o Android.
+
+#### [ ] T14.A: Foto de perfil nas mensagens dos canais
+Hoje a mensagem de canal guarda só nome e cor, e a lista mostra a inicial (o chat da call pega a foto de quem está na sala).
+- [ ] O servidor guarda cada foto uma vez (por hash, em `DATA_DIR`), e a mensagem leva só a referência; a foto sai quando nenhuma mensagem a usa.
+- [ ] O app busca as fotos que não conhece (um pedido só por página de mensagens) e guarda na memória.
+- [ ] Mensagens antigas (sem referência) seguem com a inicial; trocar a foto vale para as mensagens novas.
+**Verificação:** testes do servidor (guardar, deduplicar, apagar quando sai a última mensagem, limite de tamanho); no app, a foto aparece no canal, e um app 0.5.0 segue funcionando.
+
+#### [ ] T14.B: Mencionar pessoas (@nome)
+Decidido pelo usuário: ao digitar @ aparecem todos os conectados ao servidor (nas calls ou só nos canais) e quem já escreveu no canal; quem é mencionado recebe:
+- [ ] a mensagem destacada (fundo e barra de lado);
+- [ ] um @ no canal da lista até abrir o canal;
+- [ ] um som curto, mesmo com o app em segundo plano;
+- [ ] uma notificação do Windows quando o app está minimizado ou atrás de outras janelas.
+Vale nos canais e no chat da call. **Verificação:** a regra de quem foi mencionado (nomes com espaço, maiúsculas, nome que é parte de outro) em teste; no app, com um bot, os quatro efeitos.
+
 ## Bugs para corrigir depois
 
 - [ ] **Android: conferir de ouvido o mic em segundo plano** (09/11/2026, Samsung SM-S711B): com o app em segundo plano, o bot recebeu 27–46 pacotes/s, contra 50 em primeiro plano. Com o DTX do Opus, isso pode ser só o som do ambiente variando (em silêncio são ~4,7/s), e a gravação seguiu `not silenced`. Falta ouvir alguém falando com o app em segundo plano para descartar picotes.
