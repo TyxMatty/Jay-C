@@ -106,7 +106,7 @@ Abra a pasta do clone no Claude, no app desktop (aba Code) ou na CLI. O `CLAUDE.
 **Jay-C 0.5 em andamento (09/11/2026).** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoint 3 (falta a revisão do usuário), T12.B a T12.G (a T12.F sem teste num aparelho), T13.A (o servidor guarda e entrega imagens, GIFs e vídeos) e T13.B (o app manda e mostra, tirando a localização antes de subir). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
 
 **Próximo:**
-1. **T13.C, Android:** no celular pelo cabo, anexar da galeria (pelo seletor de verdade) e ver imagem, GIF e vídeo, tocar o vídeo. Na última tentativa, o app abriu e mostrou o espaço dos 4 arquivos do #papo, pediu os 4 ao servidor, e o cabo caiu antes de confirmar que as imagens apareceram. A documentação da T13 (ARQUITETURA seção 4 e o guia do servidor, seção 7) já está feita.
+1. **T13.C, Android: feita (09/11/2026).** No celular pelo cabo, o usuário anexou pelo seletor de verdade e o app mostrou imagem, GIF animado e vídeo tocando (medidas em `tasks/todo.md`). Ao trocar de PC, o APK de debug não instala por cima do outro (a chave de debug de cada PC é diferente: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); desinstalar o `io.github.tyxmatty.jayc.debug` apaga só os dados do perfil de teste.
 2. **T13.D:** GIFs recentes no botão de anexo.
 3. Os testes da T12.F num aparelho (lista em `tasks/todo.md`), o Checkpoint 4 e a release 0.5.0.
 
