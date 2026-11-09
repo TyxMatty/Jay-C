@@ -103,11 +103,12 @@ Abra a pasta do clone no Claude, no app desktop (aba Code) ou na CLI. O `CLAUDE.
 
 ## 5. Estado atual
 
-**Jay-C 0.5 em andamento (09/11/2026).** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoint 3 (falta a revisão do usuário), T12.B a T12.G (a T12.F sem teste num aparelho), T13.A (o servidor guarda e entrega imagens, GIFs e vídeos), T13.B (o app manda e mostra, tirando a localização antes de subir) T13.C (no celular, e os docs) e T13.D (GIFs recentes no clipe; o servidor copia o GIF escolhido). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
+**Jay-C 0.5 em andamento (09/11/2026).** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoint 3 (falta a revisão do usuário), T12.B a T12.G, T13.A (o servidor guarda e entrega imagens, GIFs e vídeos), T13.B (o app manda e mostra, tirando a localização antes de subir) T13.C (no celular, e os docs) e T13.D (GIFs recentes no clipe; o servidor copia o GIF escolhido). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
 
 **Próximo:**
 1. **T12.F: feita** (09/11/2026, no celular, também com um APK fora do modo dev; lista em `tasks/todo.md`). Falta só ouvir de fato o mic com o app em segundo plano (com o DTX, contar pacotes não basta).
-2. O Checkpoint 4 e a release 0.5.0.
+2. **Checkpoint 4:** testado no celular em 09/11/2026 (tudo passou; lista em `tasks/todo.md`). Falta a revisão do usuário.
+3. A release 0.5.0.
 
 **Trocar de PC com o celular:** o APK de debug não instala por cima do outro PC (a chave de debug de cada PC é diferente: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); desinstalar o `io.github.tyxmatty.jayc.debug` apaga só os dados do perfil de teste.
 

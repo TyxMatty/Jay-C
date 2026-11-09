@@ -431,8 +431,18 @@ Também: antes de subir, o app tira de onde a foto ou o vídeo foi feito, sem re
 **Medido (09/11/2026, Samsung SM-S711B pelo cabo, toques reais):** o painel abre e fecha pelo clipe (3 de 3); o GIF real aparece em miniatura e um id falso fica apagado; um toque no GIF manda (o servidor fez a cópia `TAcTV…`, o #papo ganhou a mensagem, a lista passou a ter a cópia no topo) sem subir o teclado (altura visível 832 de 832); o id falso mostra "Esse GIF não está mais no servidor. Ele saiu da sua lista.", não manda nada e sai da lista. Contraste sem falhas nos 6 visuais com o painel aberto. Testes: cópia para quem vê, recusas (sem token, quem está noutra call, imagem, id inventado ou com barras) e a cópia sobrevive ao original sumir (servidor); a lista (24, a troca pela cópia, só entradas bem-formadas). Tirar a checagem de acesso da rota faz o teste do servidor falhar.
 
 ## Checkpoint 4
-- [ ] No celular: zoom numa câmera, deslizar abre e fecha as gavetas, botões sem seleção nem realce azul e com retorno de toque, o PiP e o Voltar mandam para segundo plano com a call seguindo.
-- [ ] Imagem, GIF e vídeo nos dois chats; o GIF fica parado com as animações desligadas; tipo ou tamanho errado é recusado.
+- [x] No celular: zoom numa câmera, deslizar abre e fecha as gavetas, botões sem seleção nem realce azul e com retorno de toque, o PiP e o Voltar mandam para segundo plano com a call seguindo.
+- [x] Imagem, GIF e vídeo nos dois chats; o GIF fica parado com as animações desligadas; tipo ou tamanho errado é recusado.
+
+**Medido (09/11/2026, Samsung SM-S711B, Android 16, o APK fora do modo dev, pelo cabo; um bot sem janela na sala, com câmera de canvas 1280×720 e live).** Toques e arrastes pelo `adb shell input` (o dedo do sistema); a pinça, com dois dedos pelo CDP (o `adb` não faz dois dedos).
+- **Zoom:** um toque no card da câmera a destaca; a pinça vai a 4× ("4.0×"); um dedo arrasta 80 px sem abrir gaveta; o toque duplo volta a 1× e mantém o destaque; um toque a 1× tira o destaque. O vídeo seguiu tocando o tempo todo.
+- **Gavetas:** para a direita abre os canais e para a esquerda fecha; para a esquerda abre os membros e para a direita fecha; com a gaveta aberta, a área principal fica `inert`. Curto (40 px), na diagonal e lento (1,2 s): nada.
+- **Botões:** um toque longo no botão "Canais" não seleciona texto; `-webkit-tap-highlight-color` transparente e `user-select: none`. O retorno de toque foi medido com o dedo na T12.E.
+- **Voltar sem gaveta:** o app vai para o PiP, com o mesmo processo e o serviço; a gravação segue `not silenced` e o mic chega ao bot a 40 pacotes/s. Ao abrir pelo ícone, a mesma call, com zoom 1 e a página com 384 px. O PiP fechado pelo X foi medido com esse mesmo APK na T12.F.
+- **Chat da call:** foto JPEG, PNG, GIF e vídeo pelo campo de arquivo do próprio chat (o mesmo evento que o seletor da galeria dispara; o seletor de verdade foi testado no #papo na T13.C) e "Enviar" tocado de verdade. No celular: imagens carregadas (1200×800), GIF animando, vídeo com capa que toca sem som e com controles (80 quadros, nenhum perdido). O bot recebeu as 3 mensagens e baixou os arquivos com os mesmos bytes e tamanhos (PNG 16.676, GIF 130.413, MP4 176.605).
+- **Animações desligadas (pelas Configurações):** o GIF novo aparece como `canvas` com "Tocar o GIF", e capturas seguidas dele são iguais; um toque e ele anima (capturas diferentes, com a área de controle igual). Restaurado para Ligado.
+- **Recusas antes de subir:** `.txt` ("Só dá pra mandar imagens PNG, JPEG, GIF e WebP e vídeos MP4 e WebM."); uma imagem de 8 MB + 1 byte e um vídeo de 50 MB + 1 byte ("…maior do que este servidor aceita (8 MB)" e "(50 MB)"), sem progresso de envio.
+- **No meio do teste:** fechar a call com um toque meu num lugar errado (o teclado abre e a página desliza; ver o CLAUDE.md local) e o celular em uso por outro app. Nenhum defeito do app.
 - [ ] Revisão com o usuário.
 
 ## Release 0.5.0
