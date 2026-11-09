@@ -3756,6 +3756,76 @@ html[data-activity-pip] body > :not(.activity-pip-video) {
   display: none;
 }
 
+/* The GIFs sent on this server (T13.D), over the message box. */
+.attach-recent {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.attach-recent[hidden] {
+  display: none;
+}
+
+.attach-recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.attach-recent-head h3 {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.attach-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 6px;
+  max-height: 188px;
+  overflow-y: auto;
+}
+
+.attach-recent-gif {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.attach-recent-gif:hover {
+  border-color: var(--accent);
+}
+
+.attach-recent-gif img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attach-recent-gif.missing {
+  opacity: 0.6;
+}
+
+.attach-recent-file {
+  justify-self: start;
+}
+
 .attach-tray {
   display: flex;
   align-items: center;

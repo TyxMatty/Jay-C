@@ -3,14 +3,19 @@
 // the server's limits) and cleaned (where a photo or video was taken comes out: core/attachments.js).
 // A video also gets a cover: a frame of it, as a JPEG, so the others see something before playing.
 // Sending the message waits for the upload; the box's text becomes the caption.
+// The GIFs sent on this server (T13.D) wait behind the button: picking one asks the server for a copy.
 import { h } from './dom.js';
 import { icons } from './icons.js';
 import { uploadProblem, sniffBytes, cleanForUpload, decodable } from '../core/attachments.js';
-import { upload, UploadError } from '../core/attachment-net.js';
+import { upload, copyMedia, createMediaLoader, UploadError } from '../core/attachment-net.js';
+import { recentGifs, addRecentGif, removeRecentGif } from '../core/recent-gifs.js';
+import { settings } from '../store/settings.js';
 import { t } from '../core/i18n.js';
 
 const ACCEPT = 'image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm';
 const POSTER_WIDTH = 640;
+/** Ids of each attach's recent panel (a call's chat and a channel can both be on the page). */
+let panels = 0;
 
 const PROBLEMS = {
   'bad-type': 'Only PNG, JPEG, GIF and WebP images and MP4 and WebM videos can be sent.',
@@ -24,6 +29,7 @@ const PROBLEMS = {
   'no-token': 'Join the call or the server again to send files.',
   unreadable: "Couldn't read this file.",
   network: "Couldn't reach the server. The file wasn't sent.",
+  gone: 'This GIF is no longer on the server. It was taken off your list.',
 };
 
 const megabytes = (bytes) => `${Math.round(bytes / (1024 * 1024))} MB`;
@@ -64,7 +70,7 @@ function videoPoster(bytes, mime) {
  * @param {{ getAccess: () => ({ base: string, token: string, maxImageBytes: number, maxVideoBytes: number } | null),
  *   dropTarget: HTMLElement, input: HTMLInputElement, onChange?: () => void }} options
  *   getAccess: the server's file settings now (null: no files here, the button hides); dropTarget:
- *   where files can be dropped; input: the message box (pasting a picture there attaches it).
+ *   the message form (files dropped on it attach; a recent GIF picked submits it); input: the message box (pasting a picture there attaches it).
  */
 export function createAttach({ getAccess, dropTarget, input, onChange }) {
   const picker = h('input', { type: 'file', accept: ACCEPT, hidden: true, tabindex: '-1' });
@@ -74,7 +80,26 @@ export function createAttach({ getAccess, dropTarget, input, onChange }) {
   const cancel = h('button', { type: 'button', class: 'icon-btn attach-cancel', 'aria-label': t('Remove the file'), title: t('Remove the file'), html: icons.close });
   const status = h('p', { class: 'hint attach-status', 'aria-live': 'polite' });
   const tray = h('div', { class: 'attach-tray', hidden: true }, h('span', { class: 'attach-icon', 'aria-hidden': 'true', html: icons.paperclip }), name, bar, cancel);
-  const element = h('div', { class: 'attach' }, tray, status);
+  // The GIFs sent here before: a grid over the message box, and the usual file picker.
+  const panelId = `attach-recent-${++panels}`;
+  const recentGrid = h('div', { class: 'attach-recent-grid' });
+  const chooseFile = h('button', { type: 'button', class: 'btn btn-secondary attach-recent-file' }, t('Choose a file'));
+  const closeRecent = h('button', { type: 'button', class: 'icon-btn icon-btn-small', 'aria-label': t('Close'), title: t('Close'), html: icons.close });
+  const recent = h(
+    'div',
+    { class: 'attach-recent', id: panelId, role: 'group', 'aria-labelledby': `${panelId}-title`, hidden: true },
+    h('div', { class: 'attach-recent-head' }, h('h3', { id: `${panelId}-title` }, t('Recent GIFs')), closeRecent),
+    recentGrid,
+    chooseFile,
+  );
+  const element = h('div', { class: 'attach' }, recent, tray, status);
+  const thumbs = createMediaLoader(() => getAccess());
+  const recentKey = () => getAccess()?.base ?? null;
+  const recentList = () => recentGifs(settings.get().recentGifs, recentKey());
+  const saveRecent = (list) => {
+    const key = recentKey();
+    if (key) settings.update({ recentGifs: { ...settings.get().recentGifs, [key]: list } });
+  };
 
   /** @type {{ controller: AbortController, done: Promise<object | null>, result: object | null } | null} */
   let current = null;
@@ -159,7 +184,85 @@ export function createAttach({ getAccess, dropTarget, input, onChange }) {
     );
   };
 
-  button.addEventListener('click', () => picker.click());
+  const hideRecent = ({ focus = true } = {}) => {
+    if (recent.hidden) return;
+    recent.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    if (focus) button.focus();
+  };
+  const showRecent = () => {
+    const list = recentList();
+    recentGrid.replaceChildren(
+      ...list.map((gif, i) => {
+        const pick = h('button', { type: 'button', class: 'attach-recent-gif', 'aria-label': t('Send recent GIF {n}', { n: i + 1 }) }, h('span', { class: 'attach-recent-wait', 'aria-hidden': 'true' }, 'GIF'));
+        thumbs.image(gif).then(
+          (url) => pick.replaceChildren(h('img', { src: url, alt: '', width: gif.width ?? 80, height: gif.height ?? 80, decoding: 'async' })),
+          () => pick.classList.add('missing'),
+        );
+        pick.addEventListener('click', (e) => {
+          hideRecent({ focus: false });
+          takeRecent(gif);
+          // A GIF goes at once (what's typed is its caption). Focusing the box on a phone would
+          // raise the keyboard for nothing.
+          dropTarget.requestSubmit?.();
+          if (e.pointerType === 'touch') button.focus();
+          else input.focus();
+        });
+        return pick;
+      }),
+    );
+    recent.hidden = false;
+    button.setAttribute('aria-expanded', 'true');
+    recentGrid.querySelector('button')?.focus();
+  };
+  // A recent GIF: the server copies it into a new upload, which the next message takes.
+  const takeRecent = (gif) => {
+    const access = getAccess();
+    if (!access) return;
+    reset();
+    status.textContent = '';
+    const controller = new AbortController();
+    const job = { controller, result: null, done: null, from: gif.id };
+    current = job;
+    name.textContent = 'GIF';
+    tray.hidden = false;
+    onChange?.();
+    job.done = copyMedia({ base: access.base, token: access.token, id: gif.id, signal: controller.signal }).then(
+      (media) => {
+        if (current !== job) return null;
+        job.result = media;
+        bar.value = 1;
+        return media;
+      },
+      (error) => {
+        if (current !== job) return null;
+        const code = error instanceof UploadError ? error.code : 'network';
+        if (code === 'aborted') return null;
+        if (code === 'gone') saveRecent(removeRecentGif(recentList(), gif.id));
+        fail(code);
+        return null;
+      },
+    );
+  };
+
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-controls', panelId);
+  button.addEventListener('click', () => {
+    if (!recent.hidden) return hideRecent();
+    if (recentList().length) showRecent();
+    else picker.click();
+  });
+  chooseFile.addEventListener('click', () => {
+    hideRecent({ focus: false });
+    picker.click();
+  });
+  closeRecent.addEventListener('click', () => hideRecent());
+  recent.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    hideRecent();
+  });
   picker.addEventListener('change', () => {
     take(picker.files?.[0]);
     picker.value = '';
@@ -206,6 +309,8 @@ export function createAttach({ getAccess, dropTarget, input, onChange }) {
     },
     /** The message went: the box is free for the next file. */
     sent() {
+      // A GIF that went out joins this server's list (sent again: its copy takes the old one's place).
+      if (current?.result?.kind === 'gif') saveRecent(addRecentGif(recentList(), current.result, current.from ?? null));
       current = null;
       tray.hidden = true;
       bar.value = 0;
@@ -216,7 +321,10 @@ export function createAttach({ getAccess, dropTarget, input, onChange }) {
     refresh() {
       const on = Boolean(getAccess());
       button.hidden = !on;
-      if (!on) reset();
+      if (!on) {
+        reset();
+        hideRecent({ focus: false });
+      }
     },
     status,
   };

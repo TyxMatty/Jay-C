@@ -260,6 +260,27 @@ export function startServer(config, { log = defaultLog } = {}) {
       );
       return;
     }
+    // A GIF sent again (T13.D): a copy of one this connection can see now, as its own new upload.
+    const copyOf = /^\/media\/([A-Za-z0-9_-]{22})\/copy$/.exec(path)?.[1];
+    if (copyOf && req.method === 'POST') {
+      if (!peer) return reply(401, { error: 'no-token' });
+      if (!peer.room && !watchers.has(peer)) return reply(403, { error: 'not-in-chat' });
+      const source = media.get(copyOf);
+      // Unknown, gone, not allowed or not a GIF look the same.
+      if (!source || !maySee(peer, source) || source.kind !== 'gif') return reply(404);
+      const ip = req.socket.remoteAddress;
+      const pendingOfIp = [...mediaTokens.values()].filter((p) => p.ip === ip).reduce((sum, p) => sum + media.pendingBytes(p.id), 0);
+      if (pendingOfIp >= 2 * media.maxVideoBytes) return reply(429, { error: 'too-many-pending' });
+      if (!uploadAttempts.has(ip)) uploadAttempts.set(ip, new TokenBucket({ capacity: config.uploadsPerIpBurst ?? 20, perSecond: 0.2 }));
+      if (!peer.uploadBucket.take() || !uploadAttempts.get(ip).take()) return reply(429, { error: 'rate-limited' });
+      try {
+        const record = media.copy(source, peer.id);
+        return reply(201, { id: record.id, kind: record.kind, mime: record.mime, size: record.size, ...(record.width ? { width: record.width, height: record.height } : {}) });
+      } catch (error) {
+        const code = error instanceof MediaError ? error.code : 'internal';
+        return code === 'gone' ? reply(404) : reply(UPLOAD_STATUS[code] ?? 500, { error: code });
+      }
+    }
     const id = path.slice('/media/'.length);
     if ((req.method === 'GET' || req.method === 'HEAD') && path.startsWith('/media/') && MEDIA_ID.test(id)) {
       const record = media.get(id);

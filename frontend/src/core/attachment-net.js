@@ -50,6 +50,29 @@ export function upload({ base, token, bytes, mime, onProgress, signal }) {
 }
 
 /**
+ * A GIF sent again (T13.D): the server copies one this connection can see into a new upload of it.
+ * Resolves like `upload`; rejects with UploadError('gone') when the server no longer has it (or
+ * this connection can't see it now).
+ */
+export async function copyMedia({ base, token, id, signal }) {
+  if (!MEDIA_ID.test(id)) throw new UploadError('gone');
+  let response;
+  try {
+    response = await fetch(`${base}/media/${id}/copy`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store', signal });
+  } catch (error) {
+    throw new UploadError(error?.name === 'AbortError' ? 'aborted' : 'network');
+  }
+  const body = await response.json().catch(() => null);
+  if (response.status === 201) {
+    const media = validUpload(body);
+    if (media) return media;
+    throw new UploadError('bad-answer');
+  }
+  if (response.status === 404) throw new UploadError('gone');
+  throw new UploadError(typeof body?.error === 'string' && /^[a-z-]{1,32}$/.test(body.error) ? body.error : `http-${response.status}`);
+}
+
+/**
  * The files of one server, as blob: URLs: fetched with the token, a few at a time, once each.
  * @param {() => ({ base: string, token: string } | null)} getAccess the server and this connection's token now
  */

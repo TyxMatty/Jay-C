@@ -3,7 +3,7 @@
 // sender says, and an image's size from its header (no decoding here: a "bomb" is refused by its
 // declared size, before any app decodes it). A file belongs to whoever uploaded it until a message
 // claims it, once; then it lives as long as that message (a channel's last 500, or the call).
-import { createWriteStream, mkdirSync, readdirSync, rmSync, statSync, renameSync } from 'node:fs';
+import { createWriteStream, copyFileSync, mkdirSync, readdirSync, rmSync, statSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -247,6 +247,27 @@ export class MediaStore {
       body.on('aborted', onAborted);
       body.on('close', onClose);
     });
+  }
+
+  /**
+   * A GIF sent again (T13.D, the app's recent GIFs): a copy of `source` as a new upload of `owner`,
+   * claimed by its next message like any other. Each message keeps its own file, so deleting one
+   * never takes another's away. The caller checks that `owner` may see `source`.
+   */
+  copy(source, owner) {
+    if (source.kind !== 'gif') throw new MediaError('bad-type');
+    if (this.used + source.size > this.diskBytes) throw new MediaError('disk-full');
+    const id = randomBytes(16).toString('base64url');
+    try {
+      copyFileSync(this.path(source.id), join(this.dir, id));
+    } catch {
+      rmSync(join(this.dir, id), { force: true });
+      throw new MediaError('gone');
+    }
+    const record = { id, kind: source.kind, mime: source.mime, size: source.size, width: source.width, height: source.height, owner, scope: null, at: this.now() };
+    this.records.set(id, record);
+    this.used += record.size;
+    return record;
   }
 
   /**

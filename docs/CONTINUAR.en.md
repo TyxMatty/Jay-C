@@ -105,11 +105,10 @@ Open the clone's folder in Claude, in the desktop app (Code tab) or the CLI. `CL
 
 ## 5. Current state
 
-**Jay-C 0.5 in progress (11/09/2026).** Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoint 3 (the user's review is missing), T12.B to T12.G (T12.F not tested on a device), T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) and T13.C (on a phone, and the docs). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
+**Jay-C 0.5 in progress (11/09/2026).** Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoint 3 (the user's review is missing), T12.B to T12.G (T12.F not tested on a device), T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) T13.C (on a phone, and the docs) and T13.D (recent GIFs behind the clip; the server copies the picked GIF). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
 
 **Next:**
-1. **T13.D:** recent GIFs in the attach button.
-2. The T12.F tests on a device (list in `tasks/todo.md`), Checkpoint 4 and the 0.5.0 release.
+1. The T12.F tests on a device (list in `tasks/todo.md`), Checkpoint 4 and the 0.5.0 release.
 
 **Changing PCs with the phone:** the debug APK doesn't install over the other PC's (each PC's debug key differs: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); uninstalling `io.github.tyxmatty.jayc.debug` only erases the test profile's data.
 

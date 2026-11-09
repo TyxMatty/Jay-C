@@ -463,6 +463,47 @@ describe('files through the server', () => {
     await caller.client.close();
   });
 
+  test('a GIF sent again is a copy for whoever can see it; nothing else copies', async () => {
+    const copy = (token, id) => fetch(`${base()}/media/${id}/copy`, { method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {} });
+    const host = await helloServer(port, 'Host', 'chave-do-host');
+    const guest = await helloServer(port, 'Visita');
+    assert.equal((await host.client.request('channel-create', { name: 'gifs' })).ok, true);
+    const up = await (await upload(host.token, gif(40, 30))).json();
+    host.client.send({ type: 'channel-send', channel: 'gifs', media: { id: up.id } });
+    await guest.client.waitFor((m) => m.type === 'channel-message' && m.message.media?.id === up.id, 'first GIF');
+
+    // The guest sends it again: a new file, the guest's own upload, claimed by the next message.
+    const res = await copy(guest.token, up.id);
+    assert.equal(res.status, 201);
+    const again = await res.json();
+    assert.notEqual(again.id, up.id);
+    assert.deepEqual({ kind: again.kind, mime: again.mime, size: again.size, width: again.width }, { kind: 'gif', mime: 'image/gif', size: up.size, width: 40 });
+    guest.client.send({ type: 'channel-send', channel: 'gifs', media: { id: again.id } });
+    const sent = await host.client.waitFor((m) => m.type === 'channel-message' && m.message.media?.id === again.id, 'GIF sent again');
+    assert.equal(sent.message.name, 'Visita');
+    // Each message has its own file: the first one going away leaves the copy.
+    server.media().remove([up.id]);
+    assert.equal((await download(host.token, again.id)).status, 200);
+    assert.equal((await copy(guest.token, up.id)).status, 404, 'a GIF that left the server is gone');
+
+    // Refused: no token, someone who can't see it (in a call, not on the server), a picture, an id that isn't one.
+    assert.equal((await copy(null, again.id)).status, 401);
+    const caller = await joinRoom(port, 'outra-chamada', 'Eva');
+    assert.equal((await copy(caller.token, again.id)).status, 404);
+    const pic = await (await upload(host.token, png(8, 8))).json();
+    host.client.send({ type: 'channel-send', channel: 'gifs', media: { id: pic.id } });
+    await guest.client.waitFor((m) => m.type === 'channel-message' && m.message.media?.id === pic.id, 'picture');
+    assert.equal((await copy(guest.token, pic.id)).status, 404, 'only GIFs are sent again');
+    assert.equal((await copy(guest.token, 'A'.repeat(22))).status, 404);
+    assert.equal((await fetch(`${base()}/media/..%2F..%2Fx/copy`, { method: 'POST', headers: { authorization: `Bearer ${guest.token}` } })).status, 404);
+
+    assert.equal((await host.client.request('channel-delete', { name: 'gifs' })).ok, true);
+    assert.equal(files().includes(again.id), false);
+    await host.client.close();
+    await guest.client.close();
+    await caller.client.close();
+  });
+
   test('the disk limit holds, and a token never reaches the log', async () => {
     const ana = await joinRoom(port, 'disco', 'Ana');
     const bia = await joinRoom(port, 'disco', 'Bia');

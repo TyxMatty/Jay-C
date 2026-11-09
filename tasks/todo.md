@@ -418,9 +418,13 @@ Também: antes de subir, o app tira de onde a foto ou o vídeo foi feito, sem re
 - [x] No celular: anexar da galeria, ver imagem, GIF e vídeo, tocar o vídeo. **Medido em 09/11/2026** (Samsung SM-S711B, Android 16, WebView 156, app de dev pelo cabo, com arquivos de teste gerados no PC e postos em `Download/JayC-teste`): o usuário anexou pelo seletor de verdade no #papo; o servidor guardou os arquivos com os mesmos bytes no início (JPEG, PNG, `GIF89a`, MP4 `ftyp`), e o vídeo com a capa em JPEG. No celular, as duas imagens carregaram (1200×800, mostradas a 281×187), o GIF anima na tela (o quadrado em posições diferentes em capturas de tela seguidas; o arquivo tem 12 quadros) e o vídeo toca sem som com os controles (52 quadros em 2 s, nenhum perdido). Não testado no celular: a limpeza de localização (os arquivos de teste não tinham EXIF nem GPS).
 - [x] Guia do servidor (as variáveis e o espaço em disco), `ARQUITETURA.md` (protocolo e HTTP), nas duas línguas.
 
-#### [ ] T13.D: GIFs recentes
-- [ ] O botão de anexo lista os últimos GIFs que a pessoa mandou neste servidor (guardados no app, até 24).
-- [ ] Mandar de novo reaproveita o arquivo no servidor enquanto ele existir (o servidor confere que a pessoa pode usá-lo); se ele sumiu, o app avisa e tira da lista.
+#### [x] T13.D: GIFs recentes
+- [x] O botão de anexo lista os últimos GIFs que a pessoa mandou neste servidor (guardados no app, até 24).
+- [x] Mandar de novo reaproveita o arquivo no servidor enquanto ele existir (o servidor confere que a pessoa pode usá-lo); se ele sumiu, o app avisa e tira da lista.
+
+**Como ficou:** o app guarda, por servidor (`recentGifs` no settings, `core/recent-gifs.js`), só o que o servidor disse de cada GIF (id, tipo, tamanho), nunca os bytes. Com a lista cheia, o clipe abre "GIFs recentes" sobre a caixa de mensagem (miniaturas e "Escolher um arquivo"); vazia, abre o seletor como antes. Escolher um GIF manda na hora (o que estiver escrito vira a legenda). O servidor não reaproveita o id: `POST /media/<id>/copy` faz uma cópia, que vira um envio novo da pessoa, e a cópia toma o lugar do original na lista. Assim cada mensagem tem o próprio arquivo e nada precisa contar referências (uma mensagem que sai das 500 só apaga o dela). No celular, o foco volta ao clipe (focar a caixa abriria o teclado).
+
+**Medido (09/11/2026, Samsung SM-S711B pelo cabo, toques reais):** o painel abre e fecha pelo clipe (3 de 3); o GIF real aparece em miniatura e um id falso fica apagado; um toque no GIF manda (o servidor fez a cópia `TAcTV…`, o #papo ganhou a mensagem, a lista passou a ter a cópia no topo) sem subir o teclado (altura visível 832 de 832); o id falso mostra "Esse GIF não está mais no servidor. Ele saiu da sua lista.", não manda nada e sai da lista. Contraste sem falhas nos 6 visuais com o painel aberto. Testes: cópia para quem vê, recusas (sem token, quem está noutra call, imagem, id inventado ou com barras) e a cópia sobrevive ao original sumir (servidor); a lista (24, a troca pela cópia, só entradas bem-formadas). Tirar a checagem de acesso da rota faz o teste do servidor falhar.
 
 ## Checkpoint 4
 - [ ] No celular: zoom numa câmera, deslizar abre e fecha as gavetas, botões sem seleção nem realce azul e com retorno de toque, o PiP e o Voltar mandam para segundo plano com a call seguindo.

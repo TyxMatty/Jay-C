@@ -36,6 +36,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   adminKeys: {},
   /** The last message seen in each text channel, by server URL then channel: { [url]: { [name]: id } }. */
   channelsRead: {},
+  /** The GIFs sent on each server, newest first (core/recent-gifs.js): { [http base]: [{ id, mime, size, ... }] }. */
+  recentGifs: {},
   /** The mic and deafen as the last call was left (core/call-audio.js): the next one starts so. */
   callAudio: { muted: false, deafened: false },
   /** Interface language: 'system' (the OS language), 'en' or 'pt-BR' (core/i18n.js). */
