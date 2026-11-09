@@ -1,4 +1,6 @@
 #[cfg(windows)]
+mod admin_key;
+#[cfg(windows)]
 mod app_chrome;
 #[cfg(windows)]
 mod discord;
@@ -52,7 +54,9 @@ pub fn run() {
             #[cfg(windows)]
             update::update_latest,
             #[cfg(windows)]
-            update::update_install
+            update::update_install,
+            #[cfg(windows)]
+            admin_key::set_admin_key_env
         ])
         .on_window_event(|window, event| {
             #[cfg(windows)]

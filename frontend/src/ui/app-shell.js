@@ -297,6 +297,13 @@ export function mountApp(root) {
     showPane(what);
   };
   settings.subscribe((next, prev) => next.serverAddress !== prev.serverAddress && openServer());
+  // A key registered in the setup guide for the server on screen: now, or once it restarts with it.
+  settings.subscribe((next, prev) => {
+    const key = next.adminKeys?.[sessionUrl];
+    if (!session || !key || key === prev.adminKeys?.[sessionUrl]) return;
+    const current = session;
+    current.login(key).catch(() => current === session && current.rememberKey(key));
+  });
   // The list's connection stays open: a new name, picture or color reaches it once typing stops.
   let profileTimer = null;
   settings.subscribe((next, prev) => {

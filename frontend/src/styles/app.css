@@ -629,6 +629,31 @@ html {
   gap: 12px;
 }
 
+/* The admin key field inside the server setup guide (ui/admin-key-field.js). */
+.admin-key-field {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+}
+
+.admin-key-field p {
+  margin: 0;
+}
+
+.admin-key-field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-key-field-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
 .server-room-form-actions {
   display: flex;
   justify-content: flex-end;
@@ -3866,9 +3891,11 @@ body > :not(.activity-pip-video) {
   accent-color: var(--accent);
 }
 
-.chat-form.drop-here {
+.chat-form.drop-here,
+.text-channel.drop-here,
+.chat-panel.drop-here {
   outline: 2px dashed var(--accent);
-  outline-offset: 4px;
+  outline-offset: -6px;
   border-radius: var(--radius-control);
 }
 

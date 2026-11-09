@@ -73,18 +73,56 @@ Nesse PC, abra **Configurações › Servidor** no Jay-C, coloque `localhost:300
 
 Depois, mande duas coisas pros amigos: o endereço do servidor do passo 4 (como `192.168.1.50:3000`) e o nome da sala. Eles seguem a aba **Conectar**.
 
-## 6. Salas que todo mundo vê (opcional)
+## 6. A chave de admin (opcional)
 
-O Jay-C 0.5 em diante mostra as salas do servidor ao lado dele, com quem está em cada uma. Pra gerenciar pelo app, ligue o servidor com uma **chave de admin** (um segredo comprido que só você sabe):
+O Jay-C 0.5 em diante mostra as salas e os canais de texto do servidor ao lado dele. Quem tem a **chave de admin** do servidor gerencia tudo pelo app. Sem chave, o servidor funciona como antes, e ninguém muda as salas nem os canais.
 
-- **Node.js:** no PowerShell, `$env:ADMIN_KEY="um-segredo-comprido"; npm run server`.
-- **Docker:** no `docker-compose.yml`, tire o `#` antes de `ADMIN_KEY`, coloque o seu segredo e rode `docker compose up -d` de novo. No Linux, deixe o servidor gravar as salas uma vez: `mkdir -p data && sudo chown 1000:1000 data`.
+**No servidor,** escolha um segredo comprido que só você sabe (como uma senha, com pelo menos 20 caracteres) e ligue o servidor com ele:
+
+- **Node.js:** no PowerShell, `$env:ADMIN_KEY="um-segredo-comprido"; npm run server`. Use o mesmo comando toda vez que ligar: sem a chave, ninguém gerencia o servidor.
+- **Docker:** no `docker-compose.yml`, tire o `#` antes de `ADMIN_KEY`, coloque o seu segredo e rode `docker compose up -d` de novo. No Linux, deixe o servidor gravar os dados uma vez: `mkdir -p data && sudo chown 1000:1000 data`.
 
 Pra aparecer um nome no lugar do endereço, defina também `SERVER_NAME` (ex.: `$env:SERVER_NAME="Jogatina"`, ou no `docker-compose.yml`).
 
-Depois, clique na engrenagem ao lado do nome do servidor, em cima dos canais, e digite a chave uma vez. Dá pra criar canais de texto (o servidor guarda as últimas 500 mensagens de cada um) e salas, pôr senha numa (ela mostra um cadeado) e esconder uma sala com senha (só acha quem digitar o nome). O servidor guarda tudo na pasta `data` dele. Uma sala com qualquer outro nome funciona como antes, mas fica fora da lista.
+[[admin-key-field]]
 
-## 7. Fotos, GIFs e vídeos nos chats
+**No app,** cadastre a chave uma vez em cada computador que vai gerenciar o servidor:
+
+1. Clique no servidor na coluna da esquerda. Uma **engrenagem** aparece ao lado do nome dele, em cima dos canais (só em servidores ligados com chave).
+2. Clique na engrenagem, digite a chave em **Chave de admin** e aperte **Desbloquear**.
+3. O Jay-C lembra a chave deste servidor e desbloqueia sozinho nas próximas vezes.
+
+- **Chave errada:** "Essa não é a chave de admin deste servidor." Depois de 5 tentativas erradas, o servidor espera 10 s entre uma e outra.
+- **Trocar a chave:** ligue o servidor de novo com a nova. Os computadores com a antiga pedem a chave outra vez.
+- **Outro admin:** passe a chave pra ele, por uma conversa privada.
+- **Num computador compartilhado:** **Esquecer a chave**, no pé das configurações do servidor, tira ela deste computador.
+
+O servidor nunca grava a chave no log nem nos arquivos dele.
+
+## 7. Salas que todo mundo vê
+
+Com a chave cadastrada, abra a engrenagem. Em **Salas de call**:
+
+- **Nova sala:** um nome (letras, números, `-` e `_`) e **Salvar**. Ela aparece na lista pra todo mundo, na hora.
+- **Senha** (opcional): a sala mostra um cadeado, e quem entra digita a senha.
+- **Invisível** (só com senha): a sala fica fora da lista. Quem quer entrar digita o nome dela em **Chamada direta**.
+- **Editar** uma sala muda o nome ou a senha; **Apagar** pergunta de novo antes de apagar. Uma sala com gente dentro não pode mudar de nome.
+
+Uma sala com qualquer outro nome, pela **Chamada direta**, funciona como antes, mas fica fora da lista.
+
+## 8. Canais de texto
+
+Canais de texto são chats que ficam no servidor, pra todo mundo dele, também fora das calls. O servidor guarda as últimas 500 mensagens de cada um.
+
+Com a chave cadastrada, abra a engrenagem. Em **Canais de texto**:
+
+1. **Novo canal:** digite o **Nome do canal** (letras, números, `-` e `_`, ex.: `geral` ou `planos-da-jogatina`) e aperte **Salvar**. Ele aparece em **Canais de texto** pra todo mundo do servidor, na hora.
+2. **Renomear:** digite o nome novo e **Salvar**. As mensagens ficam.
+3. **Apagar:** aperte duas vezes (na segunda ele pergunta "Apagar com as mensagens?"). As mensagens e os arquivos do canal são apagados do servidor, sem volta.
+
+Aperte **Pronto** pra fechar. Todo mundo lê e escreve nos canais; um ponto marca os que têm mensagem nova. O servidor guarda tudo na pasta `data` dele (`channels.json` e `history`).
+
+## 9. Fotos, GIFs e vídeos nos chats
 
 O Jay-C 0.5 em diante manda imagens (PNG, JPEG, WebP), GIFs e vídeos (MP4, WebM) no chat da call e nos canais de texto. Vem ligado, e os arquivos ficam no seu servidor: nenhum serviço de fora vê quem manda ou assiste.
 

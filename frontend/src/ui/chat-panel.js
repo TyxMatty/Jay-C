@@ -32,12 +32,11 @@ export function createChatPanel({ send, onIncoming, getAccess = () => null, load
   const input = h('input', { class: 'input', type: 'text', maxlength: MAX_LENGTH, placeholder: t('Message everyone'), 'aria-label': t('Message') });
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
   const form = h('form', { class: 'chat-form' });
-  const attach = createAttach({ getAccess, dropTarget: form, input });
+  const panel = h('aside', { class: 'chat-panel', hidden: true, 'aria-label': t('Chat') });
+  const attach = createAttach({ getAccess, dropTarget: form, dropZone: panel, input });
   form.append(attach.button, attach.picker, input, h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }));
   const close = h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Close chat'), html: icons.close });
-  const panel = h(
-    'aside',
-    { class: 'chat-panel', hidden: true, 'aria-label': t('Chat') },
+  panel.append(
     h('header', { class: 'chat-header' }, h('h2', {}, t('Chat')), close),
     empty,
     chatLog.element,

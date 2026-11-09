@@ -31,7 +31,8 @@ export function createTextChannel({ session, channel, onRead }) {
   const input = h('input', { class: 'input', type: 'text', maxlength: MAX_LENGTH, placeholder: t('Message #{channel}', { channel }), 'aria-label': t('Message') });
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
   const form = h('form', { class: 'chat-form' });
-  const attach = createAttach({ getAccess: access, dropTarget: form, input });
+  const element = h('section', { class: 'text-channel', 'aria-label': `#${channel}` });
+  const attach = createAttach({ getAccess: access, dropTarget: form, dropZone: element, input });
   form.append(attach.button, attach.picker, input, h('button', { type: 'submit', class: 'btn chat-send', 'aria-label': t('Send'), title: t('Send'), html: icons.send }));
 
   /** @type {{ id: number, at: number, name: string, color?: object, text: string }[]} */
@@ -126,7 +127,7 @@ export function createTextChannel({ session, channel, onRead }) {
     }
   });
 
-  const element = h('section', { class: 'text-channel', 'aria-label': `#${channel}` }, empty, chatLog.element, status, attach.element, form);
+  element.append(empty, chatLog.element, status, attach.element, form);
   attach.refresh();
   loadNewest();
 

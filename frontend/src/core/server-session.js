@@ -106,6 +106,11 @@ export class ServerSession extends EventTarget {
     });
   }
 
+  /** A key to give from the next connection on (a server about to restart with it). */
+  rememberKey(key) {
+    this.#adminKey = key;
+  }
+
   /** The server's HTTP address (files go there), from its WebSocket one. */
   get httpBase() {
     return httpBase(this.#url);

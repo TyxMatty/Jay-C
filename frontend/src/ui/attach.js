@@ -68,11 +68,12 @@ function videoPoster(bytes, mime) {
 
 /**
  * @param {{ getAccess: () => ({ base: string, token: string, maxImageBytes: number, maxVideoBytes: number } | null),
- *   dropTarget: HTMLElement, input: HTMLInputElement, onChange?: () => void }} options
+ *   dropTarget: HTMLElement, dropZone?: HTMLElement, input: HTMLInputElement, onChange?: () => void }} options
  *   getAccess: the server's file settings now (null: no files here, the button hides); dropTarget:
- *   the message form (files dropped on it attach; a recent GIF picked submits it); input: the message box (pasting a picture there attaches it).
+ *   the message form (a recent GIF picked submits it); dropZone: where a file dropped or pasted
+ *   attaches (the whole chat; the form when absent); input: the message box.
  */
-export function createAttach({ getAccess, dropTarget, input, onChange }) {
+export function createAttach({ getAccess, dropTarget, dropZone = dropTarget, input, onChange }) {
   const picker = h('input', { type: 'file', accept: ACCEPT, hidden: true, tabindex: '-1' });
   const button = h('button', { type: 'button', class: 'btn btn-secondary chat-attach', 'aria-label': t('Attach a file'), title: t('Attach a file'), hidden: true, html: icons.paperclip });
   const name = h('span', { class: 'attach-name' });
@@ -273,22 +274,22 @@ export function createAttach({ getAccess, dropTarget, input, onChange }) {
     input.focus();
   });
   // A picture in the clipboard (a screenshot, a copied image) attaches when pasted in the box.
-  input.addEventListener('paste', (e) => {
+  dropZone.addEventListener('paste', (e) => {
     const file = [...(e.clipboardData?.files ?? [])][0];
     if (!file || !getAccess()) return;
     e.preventDefault();
     take(file);
   });
-  dropTarget.addEventListener('dragover', (e) => {
+  dropZone.addEventListener('dragover', (e) => {
     if (!getAccess() || ![...(e.dataTransfer?.types ?? [])].includes('Files')) return;
     e.preventDefault();
-    dropTarget.classList.add('drop-here');
+    dropZone.classList.add('drop-here');
   });
-  dropTarget.addEventListener('dragleave', (e) => {
-    if (!dropTarget.contains(e.relatedTarget)) dropTarget.classList.remove('drop-here');
+  dropZone.addEventListener('dragleave', (e) => {
+    if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drop-here');
   });
-  dropTarget.addEventListener('drop', (e) => {
-    dropTarget.classList.remove('drop-here');
+  dropZone.addEventListener('drop', (e) => {
+    dropZone.classList.remove('drop-here');
     const file = [...(e.dataTransfer?.files ?? [])][0];
     if (!file || !getAccess()) return;
     e.preventDefault();

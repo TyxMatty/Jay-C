@@ -54,7 +54,7 @@ export function createServerSettingsModal({ session, url }) {
         }
       },
     },
-    h('p', {}, t("Rooms on this server are managed with its admin key (ADMIN_KEY on the server). Ask whoever hosts it.")),
+    h('p', {}, t("Rooms and text channels on this server are managed with its admin key (ADMIN_KEY on the server). Ask whoever hosts it.")),
     h('div', { class: 'field' }, h('label', { for: 'server-admin-key' }, t('Admin key')), keyInput),
     h('button', { type: 'submit', class: 'btn' }, t('Unlock')),
   );

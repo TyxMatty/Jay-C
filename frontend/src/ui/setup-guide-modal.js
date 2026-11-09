@@ -2,6 +2,7 @@ import { h } from './dom.js';
 import { icons } from './icons.js';
 import { renderMarkdown } from './markdown.js';
 import { createTabs } from './tabs.js';
+import { createAdminKeyField, adminKeyFieldSupported } from './admin-key-field.js';
 import { t, language } from '../core/i18n.js';
 import connectGuide from '../content/setup-guide-connect.md?raw';
 import hostGuide from '../content/setup-guide-host.md?raw';
@@ -20,6 +21,12 @@ export function createSetupGuideModal() {
   const items = TABS.map(({ key, label, guide }) => ({ key, label: t(label), panel: h('div', { class: 'markdown' }, renderMarkdown(guide[language()] ?? guide.en)) }));
   const tabs = createTabs({ idPrefix: 'guide', label: t('Your role'), className: 'guide-tabs', items, onSelect: () => (body.scrollTop = 0) });
   body.append(tabs.list, ...items.map((item) => item.panel));
+  // `[[admin-key-field]]` in a guide: the admin key field (Windows app), or nothing.
+  for (const marker of body.querySelectorAll('p')) {
+    if (marker.textContent.trim() !== '[[admin-key-field]]') continue;
+    if (adminKeyFieldSupported()) marker.replaceWith(createAdminKeyField());
+    else marker.remove();
+  }
 
   const dialog = h(
     'dialog',
