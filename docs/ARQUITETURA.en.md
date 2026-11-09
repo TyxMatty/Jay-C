@@ -123,12 +123,12 @@ Client → server:
 |---|---|---|
 | `join` | `room`, `name`, `avatar?`, `color?`, `password?` | joins the room (creates it if it doesn't exist). (0.5) A fixed room with a password needs `password`; otherwise `error` `wrong-password` with `ref: "join"`. 10 tries per IP, then one every 5 s (`rate-limited`). The app sends the password again on reconnect |
 | `profile` | `avatar` (data URL or `null`), `color` (`{from, to?, angle?}` or `null`) | changes the profile picture or color during the call; the others get `peer-updated`. The color only accepts `#rrggbb` and an integer angle 0–360 |
-| `chat` | `text` (1–500 characters) | message to the room; the others get `chat`. Nothing is stored on the server |
+| `chat` | `text` (1–500 characters) and/or `media: {id, poster?}` | message to the room; the others get `chat`. Nothing is stored on the server. (0.5) With `media`, a file this connection uploaded (see "Files in the chats"), and `text` becomes the caption |
 | `screen-preview` | `image` (JPEG data URL, up to 48,000 characters, or `null` when stopping) | a picture of your own stream, every 6 s; the others get `screen-preview`, and whoever joins later gets the last one in `joined`. At most 1 every 2 s (burst of 3). Only sent when `joined` lists `screen-preview` in `features` |
 | `leave` | — | leaves the room |
 | `hello` | `name`, `avatar?`, `color?` | (0.5) the connection follows the server's room list without joining a call. Answer: `server-state`. The app opens a connection just for this, apart from the call |
 | `admin` | `key` | (0.5) the server's key (`ADMIN_KEY`). Answer: `{type: "admin", ok: true}` and a `server-state` with `admin: true` that also has the hidden rooms (`hidden: true`); or `error` `not-admin` / `rate-limited` with `ref: "admin"` |
-| `channel-send` | `channel`, `text` (1–500 characters) | (0.5) a message in a text channel; only after `hello`. Everyone in the server session (the sender too) gets `channel-message`. Same limit as the call chat. Errors with `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
+| `channel-send` | `channel`, `text` (1–500 characters) and/or `media: {id, poster?}` | (0.5) a message in a text channel; only after `hello`. Everyone in the server session (the sender too) gets `channel-message`. Same limit as the call chat. Errors with `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
 | `channel-history` | `id`, `data`: `{channel, before?}` | (0.5) up to 50 messages older than id `before` (the newest without it), oldest first. Answer: `{messages}` |
 | `channel-create` / `channel-edit` / `channel-delete` | `id`, `data`: `{name, newName?}` | (0.5, admin only) like the room ones; errors `channel-exists`, `unknown-channel` |
 | `room-create` / `room-edit` / `room-delete` | `id`, `data`: `{name, newName?, password?, hidden?}` (`password: null` removes it) | (0.5, admin only) changes the fixed rooms and saves `rooms.json`; everyone gets a new `server-state`. Answered like SFU requests; errors `not-admin`, `bad-request` (includes hidden without a password), `room-exists`, `room-in-use` (renaming a room with people in it), `unknown-room`, `not-saved` |
@@ -153,18 +153,18 @@ Server → client:
 
 | type | fields | |
 |---|---|---|
-| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features` | who is already in the room, what each one publishes and the router's capabilities. `features`: the newer messages and requests the server accepts (today, `screen-preview`, `close-consumer` and `server-session`); an old server doesn't send the field |
+| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features`, `media?` | who is already in the room, what each one publishes and the router's capabilities. `features`: the newer messages and requests the server accepts (today, `screen-preview`, `close-consumer`, `server-session` and, with files on, `media`); an old server doesn't send the field. `media`: `{token, maxImageBytes, maxVideoBytes}`, this connection's token for files |
 | `peer-joined` / `peer-left` | `id`, `name`, `avatar?`, `color?` (only in `peer-joined`) | |
 | `peer-updated` | `id`, `avatar`, `color` | someone changed or removed (`null`) their profile picture or color |
-| `chat` | `id`, `name`, `text` | a message from someone in the room (line breaks kept; control characters removed) |
+| `chat` | `id`, `name`, `text`, `media?`, `caption?` | a message from someone in the room (line breaks kept; control characters removed). With a file: `media: {id, kind, mime, size, width?, height?, poster?}`, filled in by the server, and `caption` (maybe empty); `text` is the caption or `[Image]`, `[GIF]`, `[Video]`, for apps without files |
 | `screen-preview` | `id`, `image` | a picture of someone's stream (`null` = stopped). The "Watch stream" card on their tile shows it |
 | `new-producer` | `peerId`, `producerId`, `kind`, `source`, `paused` | someone started publishing a track |
 | `producer-state` | `peerId`, `producerId`, `paused` | only for consumers: muted or turned the camera off, or back on |
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = nobody watching) | every 2 s, to whoever shares a screen: the smallest bandwidth among the viewers, as mediasoup estimates it towards each. The native live (a single layer) stays under it |
 | `producer-closed` | `peerId`, `producerId` | only for consumers |
-| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?` | (0.5) answer to `hello`: the visible fixed rooms and who is in each; `name` is `SERVER_NAME`, when set |
+| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) answer to `hello`: the visible fixed rooms and who is in each; `name` is `SERVER_NAME`, when set; `media` as in `joined` |
 | `room-update` | `room` (as in `server-state`) | (0.5) someone joined, left or changed their picture or color in a visible fixed room |
-| `channel-message` | `channel`, `message: {id, at, name, color?, text}` | (0.5) a new message in a text channel (`id` grows per channel; `at` in ms) |
+| `channel-message` | `channel`, `message: {id, at, name, color?, text, media?, caption?}` | (0.5) a new message in a text channel (`id` grows per channel; `at` in ms) |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) someone muted, unmuted, started or stopped a live (a small message, without the pictures) |
 | `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`; 0.5: `wrong-password`, `not-admin`), optional `ref` | |
 
@@ -189,6 +189,9 @@ Configuration through environment variables:
 | `MEDIASOUP_LOG_LEVEL` | warn | mediasoup log level |
 | `DATA_DIR` | `./data` | (0.5) folder with `rooms.json` (the fixed rooms), `channels.json` (the text channels) and `history/<channel>.json` (each one's last 500 messages, written ~0.3 s after they arrive). In Docker, `/data`, mounted from `./data` next to the compose file (on Linux, writable by uid 1000) |
 | `SERVER_NAME` | empty = its address | (0.5) the server's name in the app's server column and channel list (up to 32 characters) |
+| `MEDIA` | on | (0.5) `off` turns files in the chats off: no `media` in `features`, and the `/media` routes answer 404 |
+| `MAX_IMAGE_MB` / `MAX_VIDEO_MB` | 8 / 50 | (0.5) the largest image (and GIF) and video |
+| `MEDIA_DISK_MB` | 2048 | (0.5) all files together, in `DATA_DIR/media`; past it, a new upload gets 507 until old messages leave |
 | `ADMIN_KEY` | empty = nobody manages | (0.5) whoever sends this key (`admin`) creates, edits and deletes the fixed rooms from the app. Compared in constant time, never logged; 5 tries per IP, then one every 10 s |
 
 **Fixed rooms (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "general" }, { "name": "private", "hidden": true }] }`. Only these show in the list, in the file's order; `hidden` keeps one out of it (joined by name). A room opened by a name that isn't there (DC, or a 0.4 app) is temporary and never shows. An unreadable file is ignored (the server starts with no fixed rooms and says so in the log).
@@ -199,6 +202,15 @@ Protections:
 - Peer IDs generated by the server, with `crypto.randomUUID()`.
 - Profile picture (`avatar`): only `data:image/(webp|jpeg|png);base64,…` up to 32,000 characters. SVG is left out because it can carry script, and so are remote URLs, because they would track who sees them. An invalid picture rejects the `join` or `profile` with `bad-message`. The field is only sent when it exists.
 - A `GET /health` endpoint for Docker's `HEALTHCHECK`.
+
+**Files in the chats (0.5, T13).** Images (PNG, JPEG, WebP), GIFs (GIF and animated WebP) and videos (MP4, WebM) go over HTTP, on the signaling port, not over the WebSocket. Code in `signaling-server/src/media.js`; attack tests in `signaling-server/test/media.test.js` and `frontend/test/attachments.test.js`.
+- `POST /media`, with `Authorization: Bearer <token>` (the `media.token` from `joined` or `server-state`, one per connection, which dies with it) and the file as the body. Answer 201 `{id, kind, mime, size, width?, height?}`. Refusals, with `{error}`: 401 `no-token`, 403 `not-in-chat` (no call and no `hello`), 413 `too-large`, 415 `bad-type` or `too-big-image`, 429 `rate-limited`/`busy`/`too-many-pending`, 507 `disk-full`.
+- `GET /media/<id>`, with the same header: the file, with the checked type's `Content-Type`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox` and `Content-Disposition: inline`. Only someone in the file's call (call chat files) or in the server session (channel files) sees it; any other case, an id that doesn't exist included, is 404. `OPTIONS` answers CORS (`Access-Control-Allow-Origin: *`: there are no cookies, the token decides).
+- The type comes from the first bytes, never from what the app says; an image's size, from its header (over 8192 px on a side or 40 MP is refused, against decompression bombs). The limits cut an upload while it arrives.
+- The id (16 random bytes, base64url) is only valid in a message from the connection that uploaded it, once, within 10 minutes; the server fills in the rest (`kind`, `mime`, sizes, `poster`) from its own record. A video's `poster` is an image from the same connection.
+- Deleted: with the message that left the channel's 500, with a deleted channel, when the call empties, and what was uploaded without becoming a message. On a restart, only the files of channel messages stay.
+- Limits: 6 uploads in a row per connection (then one every 5 s), 20 per IP, 2 at once per IP and 16 in all, and uploads without a message up to 2 videos per IP. Downloads: 4 at once per connection, 120 in a row and then 2/s. An upload stalled for 30 s is cut.
+- In the app (`core/attachments.js`, `core/attachment-net.js`): the file leaves without where it was taken (JPEG without EXIF/XMP/IPTC, orientation kept; PNG and WebP without text and EXIF; MP4 with its location zeroed; WebM isn't cleaned), and what arrives is checked against the message (type and size) before becoming a `blob:`. The app's CSP only gained `http: https:` in `connect-src`; images and videos still come only from `blob:`.
 
 ## 5. Main flows
 

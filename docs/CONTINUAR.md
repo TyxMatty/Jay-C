@@ -103,12 +103,13 @@ Abra a pasta do clone no Claude, no app desktop (aba Code) ou na CLI. O `CLAUDE.
 
 ## 5. Estado atual
 
-**Jay-C 0.5 em andamento (09/11/2026).** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoint 3 (falta a revisão do usuário), T12.B a T12.G (a T12.F sem teste num aparelho), T13.A (o servidor guarda e entrega imagens, GIFs e vídeos) e T13.B (o app manda e mostra, tirando a localização antes de subir). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
+**Jay-C 0.5 em andamento (09/11/2026).** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoint 3 (falta a revisão do usuário), T12.B a T12.G (a T12.F sem teste num aparelho), T13.A (o servidor guarda e entrega imagens, GIFs e vídeos), T13.B (o app manda e mostra, tirando a localização antes de subir) e T13.C (no celular, e os docs). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
 
 **Próximo:**
-1. **T13.C, Android: feita (09/11/2026).** No celular pelo cabo, o usuário anexou pelo seletor de verdade e o app mostrou imagem, GIF animado e vídeo tocando (medidas em `tasks/todo.md`). Ao trocar de PC, o APK de debug não instala por cima do outro (a chave de debug de cada PC é diferente: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); desinstalar o `io.github.tyxmatty.jayc.debug` apaga só os dados do perfil de teste.
-2. **T13.D:** GIFs recentes no botão de anexo.
-3. Os testes da T12.F num aparelho (lista em `tasks/todo.md`), o Checkpoint 4 e a release 0.5.0.
+1. **T13.D:** GIFs recentes no botão de anexo.
+2. Os testes da T12.F num aparelho (lista em `tasks/todo.md`), o Checkpoint 4 e a release 0.5.0.
+
+**Trocar de PC com o celular:** o APK de debug não instala por cima do outro PC (a chave de debug de cada PC é diferente: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); desinstalar o `io.github.tyxmatty.jayc.debug` apaga só os dados do perfil de teste.
 
 **Build do Android neste notebook:** a pasta `C:\Users\mateu\.cargo-target\jay-c` tem uma regra "Todos: negar apagar subpastas e arquivos" (não foi posta nesta sessão; marcada como herdada, mas a pasta de cima não a tem). Toda pasta nova embaixo dela herda a regra, e o Gradle falha com `AccessDeniedException` quando precisa apagar algo numa pasta antiga. Contorno usado: `gradlew --stop` e apagar a pasta de saída citada no erro (ex.: `android-app-build\intermediates\merged_native_libs`). Tirar a regra é uma mudança de permissão no PC do usuário: só com o OK dele.
 

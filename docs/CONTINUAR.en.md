@@ -105,6 +105,16 @@ Open the clone's folder in Claude, in the desktop app (Code tab) or the CLI. `CL
 
 ## 5. Current state
 
+**Jay-C 0.5 in progress (11/09/2026).** Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoint 3 (the user's review is missing), T12.B to T12.G (T12.F not tested on a device), T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) and T13.C (on a phone, and the docs). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
+
+**Next:**
+1. **T13.D:** recent GIFs in the attach button.
+2. The T12.F tests on a device (list in `tasks/todo.md`), Checkpoint 4 and the 0.5.0 release.
+
+**Changing PCs with the phone:** the debug APK doesn't install over the other PC's (each PC's debug key differs: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); uninstalling `io.github.tyxmatty.jayc.debug` only erases the test profile's data.
+
+**Android build on the notebook:** the folder `C:\Users\mateu\.cargo-target\jay-c` has a rule "Everyone: deny delete subfolders and files" (not set in that session; marked as inherited, but the folder above doesn't have it). Every new folder below it inherits the rule, and Gradle fails with `AccessDeniedException` when it needs to delete something in an old folder. Workaround used: `gradlew --stop` and delete the output folder named in the error (e.g. `android-app-build\intermediates\merged_native_libs`). Removing the rule is a permission change on the user's PC: only with their OK.
+
 **Milestones 0 to 13 done, plus 14.A (Windows installer)** (details in [ARQUITETURA.en.md](ARQUITETURA.en.md), section 10).
 
 | Milestone | What it delivers |
@@ -166,6 +176,9 @@ iOS (milestone 15, code only) was left for after launch.
   - PiP with the call on screen and hidden: the window is pinned (`mode=pinned`), the live plays inside it (118 frames in 4 s) and the app comes back to the same screen;
   - the PiP video filled only 84% of the floating window: the hidden top bar was wider than it (~211 px) and the WebView zoomed out. In PiP the hidden content now has `overflow: clip` (measured: a 211×119 video in a 211 px window);
   - Android bugs found, for later: closing the PiP closes the whole app, and leaving with back brought the process down (list in `tasks/todo.md`).
+
+- **Native live on a notebook with two GPUs (NVIDIA + Intel):** it didn't open (`0x8000FFFF`). NVIDIA's encoder doesn't start in the process, even with a device on the NVIDIA GPU. Now the app tries the encoders in order and uses the first that starts and accepts the capture's device; on this notebook, Intel Quick Sync, which asks for an output type change before the first frame (accepted). Measured: 1080p, 0 losses and 0 freezes for viewers. Details and what's left to measure in `docs/spikes/10-live-nativa.md`, "Notebook com duas placas".
+- **0.5 Checkpoint 3:** the full flow on the desktop and on a phone (Samsung, over the cable), contrast with no failures; results in `tasks/todo.md`.
 
 **Installer 0.4.3 (08/11/2026):** 0.4.2 with what's below, built by the installer workflow on GitHub (tag `v0.4.3`). The server didn't change. Anyone on 0.4.2 gets the update notice in the app.
 
