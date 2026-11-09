@@ -21,7 +21,7 @@ Na 0.5, cada servidor vira um "servidor" no estilo Discord. Referência visual: 
 - **DC (direct call):** entrar direto numa sala pelo nome, sem abrir o servidor. Funciona como uma sala invisível do servidor e mantém o caminho de hoje.
 
 **Também entram:**
-- GIFs do Tenor em todos os chats (call e canais).
+- GIFs em todos os chats (call e canais), como arquivos no servidor (T13).
 - O estado de mute e deafen fica salvo entre calls.
 - O deafen silencia só as vozes da call, não as lives.
 
@@ -59,10 +59,7 @@ Na 0.5, cada servidor vira um "servidor" no estilo Discord. Referência visual: 
    - A senha nunca vai para logs nem para os outros.
 4. **Persistência:** um arquivo JSON no servidor (`DATA_DIR`, padrão `./data`, com um volume no `docker-compose`) com as salas fixas, os canais de texto e o histórico deles. Sem banco de dados.
 5. **Deafen só da call:** o `playback.js` ganha um barramento separado para o som das lives (`screen-audio`), que o deafen não toca.
-6. **GIFs:**
-   - A busca e a imagem passam pelo servidor (`TENOR_API_KEY` no servidor; sem a chave, o botão de GIF some).
-   - A mensagem leva só o id do GIF, validado.
-   - O servidor guarda um cache pequeno das imagens.
+6. **GIFs:** arquivos enviados ao servidor, como as imagens (T13). A busca num serviço de fora foi cancelada (T12.A, 08/11/2026): ver a decisão 4.
 7. **Gerenciar o servidor:** `ADMIN_KEY` no servidor; o app manda a chave numa mensagem `admin` da sessão de servidor, e só então os pedidos de criar, editar e apagar valem. A chave nunca vai para logs.
 
 ## Grafo de dependências
@@ -75,7 +72,8 @@ T3 sessão de servidor + lista de salas ──┬── T4 senha e invisível �
                                          │                          └── T8 DC (sala invisível)
                                          ├── T6 canais de texto (servidor) ── T7 canal de texto na UI
                                          └── T9 shell estilo Discord ── T10 call encaixada ── T11 membros + celular
-T12 GIFs: depende só do chat da call (já existe); estende para os canais depois de T7
+T12 zoom e celular: depende de T10/T11
+T13 imagens, vídeos e GIFs: depende de T7
 ```
 
 ## Fases e tarefas
@@ -118,23 +116,22 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 - contraste (`contrast-audit.js`) nos 6 combos de estilo;
 - nenhuma regressão na live.
 
-### Fase 4: GIFs, imagens e vídeos
+### Fase 4: zoom, celular, imagens, vídeos e GIFs
 - **T12** GIFs, zoom na câmera e o celular, em partes (pedido do usuário em 08/11/2026, B a G):
-  - A: GIFs do Tenor nos chats (M);
+  - A: GIFs de um serviço de busca (cancelada em 08/11/2026; os GIFs vão para a T13);
   - B: focar a câmera de alguém (como focar uma live) e, em foco, dar zoom só para si (M);
   - C: deslizar abre as gavetas no celular, como no Discord: para a direita, a da esquerda; para a esquerda, a de membros (S);
   - D: botões sem seleção de texto no celular (S);
   - E: retorno de toque, sem o realce azul do Android (S);
   - F: fechar o PiP do Android não fecha o app (M);
   - G: o Voltar do Android manda o app para segundo plano (S).
-- **T13** Imagens e vídeos nos chats (M; pedido do usuário em 08/11/2026)
+- **T13** Imagens, vídeos e GIFs nos chats (M; pedido do usuário em 08/11/2026; os GIFs entraram em 08/11/2026)
 
 **Checkpoint:**
-- buscar, mandar e ver um GIF no chat da call e num canal de texto; sem chave, o botão some;
-- mandar uma imagem e um vídeo nos dois chats, ver e tocar; um arquivo grande demais ou de outro tipo é recusado.
+- mandar uma imagem, um GIF e um vídeo nos dois chats, ver e tocar; um arquivo grande demais ou de outro tipo é recusado.
 
 ### Release 0.5.0
-- Documentação (ARQUITETURA seção 4 e 10, CONTINUAR, guia de configuração do servidor com `DATA_DIR` e `TENOR_API_KEY`), versão, tag e notas.
+- Documentação (ARQUITETURA seção 4 e 10, CONTINUAR, guia de configuração do servidor com `DATA_DIR` e `MAX_UPLOAD_MB`), versão, tag e notas.
 - Teste do instalador numa máquina ou conta de teste.
 
 ## Riscos e mitigação
@@ -142,8 +139,7 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 | Risco | Impacto | Mitigação |
 |---|---|---|
 | A shell nova (T9–T11) mexe em tudo que o usuário vê, inclusive no Android | Alto | Fazer cedo dentro da fase 3; manter `call-view.js` intacto (só muda onde ele é montado); medir contraste e testar no emulador em cada tarefa |
-| A API do Tenor (chave, cotas, se ainda aceita chaves novas) | Médio | Verificar antes de T12 (não verifiquei); sem chave, o recurso some e nada quebra |
-| GIFs pelo servidor gastam a banda de quem hospeda | Baixo | Cache pequeno no servidor e a versão menor do Tenor (a de pré-visualização) no chat |
+| Arquivos (imagens, GIFs, vídeos) gastam o disco e a banda de quem hospeda | Médio | Limites de tamanho (`MAX_UPLOAD_MB`), apagar junto com a mensagem, o mesmo limite de envio do chat |
 | Salas invisíveis só por nome: um nome curto é fácil de adivinhar | Baixo | Invisível exige senha (como no pedido); limite de tentativas por IP |
 | Persistência em JSON corromper numa queda | Médio | Gravar num arquivo temporário e renomear; testar com o servidor sendo morto no meio |
 | App 0.4 com servidor 0.5 e o contrário | Médio | `features`; teste com o instalador 0.4.3 (numa conta de teste) contra o servidor novo |
@@ -154,7 +150,7 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 1. **Quem gerencia:** só quem hospeda. O servidor tem uma `ADMIN_KEY` (variável de ambiente); o app guarda a chave por servidor, depois de digitada uma vez. Só com ela dá para criar, editar e apagar salas e canais e pôr senha. Sem `ADMIN_KEY`, ninguém gerencia (o servidor só tem DC).
 2. **Salas fixas:** as salas de call existem mesmo vazias e ficam guardadas no servidor. Uma sala aberta pelo nome (DC, ou um app 0.4) é temporária e invisível.
 3. **Histórico:** as últimas 500 mensagens de cada canal de texto ficam no disco do servidor. O chat da call continua sem histórico.
-4. **GIFs pelo servidor:** o servidor busca no Tenor (com a `TENOR_API_KEY` dele) e repassa a imagem. O Tenor não vê o IP de quem assiste, e a CSP do app não precisa abrir domínio nenhum.
+4. **GIFs pelo servidor:** nenhum serviço de fora pode ver o IP de quem assiste. Decidido de novo em 08/11/2026: nenhum serviço de busca aceita que o servidor busque e repasse as imagens (o Tenor fechou em 30/06/2026; o GIPHY proíbe; o KLIPY só com aprovação por escrito), e uma chave dentro do app se lê no tráfego. Por isso, sem busca: o GIF é um arquivo enviado ao servidor, como uma imagem (T13). O trabalho com o KLIPY está no ramo local `t12a-klipy-gifs`.
 
 ## Perguntas ainda abertas (não bloqueiam a fase 0 nem a 1)
 
@@ -162,7 +158,7 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 6. **Senha também para canais de texto,** ou só para salas de call? Proposta: só salas de call.
 7. **Invisível só com senha** (como entendi do pedido), ou pode haver sala fixa invisível sem senha? Proposta: só com senha.
 8. **Imagens e vídeos (T13), decidido pelo usuário em 08/11/2026** (fica como T13, depois da T12):
-   - **Onde ficam os arquivos:** no servidor (`DATA_DIR/media/`), enviados pelo app; nada de links externos, pelo mesmo motivo dos GIFs (a CSP e o IP de quem vê).
+   - **Onde ficam os arquivos:** no servidor (`DATA_DIR/media/`), enviados pelo app; nada de links externos (a CSP e o IP de quem vê).
    - **Limites:** imagem até 8 MB e vídeo até 50 MB. O host pode mudar pelo servidor (`MAX_UPLOAD_MB`).
    - **Quanto tempo ficam:** como as mensagens. Nos canais, enquanto a mensagem estiver nas últimas 500. No chat da call, até a call esvaziar, porque o chat da call não tem histórico.
    - **Tipos (proposta, não perguntada):** PNG, JPEG, WebP e GIF; vídeo MP4 (H.264) e WebM, que o WebView2 e a WebView do Android tocam.

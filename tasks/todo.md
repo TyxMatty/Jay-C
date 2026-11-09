@@ -192,25 +192,13 @@ Painel de membros do servidor (online por sala) à direita; no Android (tela est
 - [x] **Live:** a live do bot (navegador) toca para o app e para o celular. A live nativa não abria neste notebook; corrigida (ver "Bugs"). Depois: 1080p, 0 perdas e 0 congelamentos para quem assiste. A CPU não é comparável com a da NVIDIA (build debug, outra placa).
 - [ ] Revisão com o usuário.
 
-## Fase 4: GIFs, imagens e vídeos
+## Fase 4: zoom, celular, imagens, vídeos e GIFs
 
 ### [ ] T12: GIFs, zoom na câmera e o celular
-Em partes, cada uma com commit e pergunta antes da próxima. A ordem sugerida começa pelo que o usuário viu quebrado no celular (D–G) e deixa os GIFs (A), que dependem da chave do Tenor, para o fim. As partes B a G foram pedidas pelo usuário em 08/11/2026.
+Em partes, cada uma com commit e pergunta antes da próxima. A ordem sugerida começa pelo que o usuário viu quebrado no celular (D–G) e deixa os GIFs (A) para o fim. A parte A foi cancelada: os GIFs entram na T13, como arquivos. As partes B a G foram pedidas pelo usuário em 08/11/2026.
 
-#### [ ] T12.A: GIFs do Tenor nos chats
-Um botão de GIF no campo do chat (call e canais) abre a busca do Tenor e manda o GIF escolhido. A busca e as imagens passam pelo servidor (decisão do usuário): o Tenor não vê o IP de quem assiste. Antes de começar: conferir se a API do Tenor ainda aceita chaves novas.
-
-**Critérios:**
-- [ ] Sem `TENOR_API_KEY` no servidor, o botão some (`features`).
-- [ ] A mensagem leva só o id do GIF; o servidor e o app validam o formato. Nenhuma URL arbitrária vira imagem.
-- [ ] O app só carrega GIFs do próprio servidor (sem abrir domínio novo na CSP de `img-src`, além do endereço do servidor); o servidor guarda um cache pequeno.
-- [ ] O GIF respeita "Animações: Desligado" (mostra parado).
-
-**Verificação:**
-- [ ] `npm test`: validação do id, servidor sem chave.
-- [ ] Manual com uma chave de teste.
-
-**Depende de:** chat da call (já existe); para os canais, T7 · **Arquivos:** `signaling-server/src/gifs.js` (novo), `server.js`, `ui/gif-picker.js` (novo), `ui/chat-panel.js`, `ui/markdown.js`, `tauri.conf.json` · **Tamanho:** M
+#### [-] T12.A: GIFs de um serviço de busca (cancelada em 08/11/2026; os GIFs vão para a T13)
+Cancelada pelo usuário. Nenhum serviço de busca de GIFs aceita que o servidor busque e repasse as imagens: o Tenor fechou (30/06/2026); o GIPHY proíbe ("Do not proxy requests to GIPHY"); o KLIPY só com aprovação por escrito. Com o app chamando o serviço direto, ele vê o IP de todos na sala a cada GIF mostrado, e quem está numa call com quem (o mesmo arquivo pedido por vários IPs ao mesmo tempo). Uma chave dentro do app também se lê no tráfego. O trabalho feito (busca do KLIPY pelo app, validação no servidor, testes de ataque) está no ramo local `t12a-klipy-gifs`, não publicado, caso o KLIPY aprove um dia.
 
 #### [x] T12.B: Focar a câmera de alguém e dar zoom
 **Feito (08/11/2026):**
@@ -384,8 +372,8 @@ O Voltar na tela inicial do app (sem gaveta aberta) fecha o app inteiro. Deveria
 
 **Arquivos:** `gen/android` (`MainActivity`) ou um plugin, `ui/app-shell.js` (o histórico das gavetas) · **Tamanho:** S
 
-### [ ] T13: Imagens e vídeos nos chats
-Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. O arquivo vai para o servidor, e o app só carrega mídia do próprio servidor. As decisões (onde ficam, limites, quanto tempo) estão no `plan.md`, item 8, respondidas pelo usuário em 08/11/2026.
+### [ ] T13: Imagens, vídeos e GIFs nos chats
+Pedido do usuário (08/11/2026). Os GIFs entraram aqui quando a T12.A foi cancelada (08/11/2026): um GIF é um arquivo como uma imagem, enviado ao servidor, e nenhum serviço de fora vê quem assiste. Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. O arquivo vai para o servidor, e o app só carrega mídia do próprio servidor. As decisões (onde ficam, limites, quanto tempo) estão no `plan.md`, item 8, respondidas pelo usuário em 08/11/2026.
 
 **Critérios:**
 - [ ] Tipos aceitos conferidos pelo conteúdo (os primeiros bytes), não só pela extensão. O tamanho máximo vem do servidor (`features`), e um arquivo grande demais é recusado antes de subir.
@@ -393,21 +381,22 @@ Pedido do usuário (08/11/2026). Um botão de anexo (e colar ou arrastar) no cam
 - [ ] Imagem com tamanho reservado (sem pular o chat ao carregar); vídeo sem tocar sozinho e sem som até clicar.
 - [ ] Arquivos de mensagens que saíram do histórico (ou de uma call que esvaziou) são apagados do disco.
 - [ ] Sem espaço no servidor ou com envio desligado pelo host, o botão some ou avisa.
+- [ ] **GIFs:** GIF e WebP animados são aceitos como imagem (conferidos pelo conteúdo) e tocam no chat. Com "Animações: Desligado", aparecem parados (o primeiro quadro) e tocam com um clique.
+- [ ] **GIFs (proposta, não perguntada):** "GIFs recentes" no botão de anexo, com os últimos GIFs que a pessoa mandou neste servidor, para mandar de novo sem subir o arquivo outra vez (o servidor reaproveita o arquivo pelo hash enquanto ele existir).
 
 **Verificação:**
-- [ ] `npm test`: tipo pelo conteúdo, limite, id inválido, limpeza.
-- [ ] Manual: imagem e vídeo nos dois chats, no desktop e no Android; contraste da barra de envio.
+- [ ] `npm test`: tipo pelo conteúdo (inclusive um GIF que é outra coisa por dentro), limite, id inválido, limpeza.
+- [ ] Manual: imagem, GIF e vídeo nos dois chats, no desktop e no Android; contraste da barra de envio.
 
-**Depende de:** T7 (e T12, se reaproveitar o caminho de mídia pelo servidor) · **Arquivos:** `signaling-server/src/media.js` (novo), `server.js`, `channels.js`, `ui/chat-log.js`, `ui/chat-panel.js`, `tauri.conf.json` (CSP de `img-src`/`media-src`), testes · **Tamanho:** M
+**Depende de:** T7 · **Arquivos:** `signaling-server/src/media.js` (novo), `server.js`, `channels.js`, `ui/chat-log.js`, `ui/chat-panel.js`, `tauri.conf.json` (CSP de `img-src`/`media-src`), testes · **Tamanho:** M
 
 ## Checkpoint 4
-- [ ] GIF na call e num canal; sem chave, o botão some.
 - [ ] No celular: zoom numa câmera, deslizar abre e fecha as gavetas, botões sem seleção nem realce azul e com retorno de toque, o PiP e o Voltar mandam para segundo plano com a call seguindo.
-- [ ] Imagem e vídeo nos dois chats; tipo ou tamanho errado é recusado.
+- [ ] Imagem, GIF e vídeo nos dois chats; o GIF fica parado com as animações desligadas; tipo ou tamanho errado é recusado.
 - [ ] Revisão com o usuário.
 
 ## Release 0.5.0
-- [ ] Docs (ARQUITETURA 4 e 10, CONTINUAR, guia do servidor com `DATA_DIR` e `TENOR_API_KEY`), versão, tag, notas.
+- [ ] Docs (ARQUITETURA 4 e 10, CONTINUAR, guia do servidor com `DATA_DIR` e `MAX_UPLOAD_MB`), versão, tag, notas.
 - [ ] Instalador testado numa máquina ou conta de teste; app 0.4.3 contra o servidor 0.5 e o contrário.
 
 ## Bugs para corrigir depois
