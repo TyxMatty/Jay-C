@@ -32,10 +32,15 @@ pub fn pip_close<R: Runtime>(app: AppHandle<R>) {
     }
 }
 
-/// The main window's `on_new_window`: only the PiP (about:blank) opens; anything else is refused.
+/// The main window's `on_new_window`: only the PiP (about:blank) opens here. A web link from a chat
+/// (`<a target="_blank">`) goes to the default browser; anything else is refused.
 pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeatures) -> NewWindowResponse<R> {
     if url.as_str() != "about:blank" {
-        log::warn!("refused a new window for {url}");
+        if matches!(url.scheme(), "http" | "https") {
+            open_in_browser(&url);
+        } else {
+            log::warn!("refused a new window for {url}");
+        }
         return NewWindowResponse::Deny;
     }
     let label = format!("pip-{}", NEXT.fetch_add(1, Ordering::Relaxed));
@@ -53,5 +58,18 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, url: Url, features: NewWindowFeature
             log::warn!("pip window: {error}");
             NewWindowResponse::Deny
         }
+    }
+}
+
+/// Opens a web address in the user's default browser (only http and https reach here).
+fn open_in_browser(url: &Url) {
+    use windows::core::{w, HSTRING};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let target = HSTRING::from(url.as_str());
+    let result = unsafe { ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL) };
+    // ShellExecute reports success with a value above 32.
+    if result.0 as usize <= 32 {
+        log::warn!("couldn't open {url} in the browser");
     }
 }

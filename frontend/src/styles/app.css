@@ -3532,6 +3532,13 @@ body > :not(.activity-pip-video) {
   overflow-wrap: anywhere;
 }
 
+/* A web link in a message (core/links.js): the address itself, in the readable accent color. */
+.chat-text a {
+  color: var(--accent-text, var(--accent));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .chat-meta {
   display: flex;
   gap: 8px;

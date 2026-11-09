@@ -4,6 +4,11 @@
 import { h } from './dom.js';
 import { mediaFigure } from './chat-media.js';
 import { validMedia } from '../core/attachments.js';
+import { splitLinks } from '../core/links.js';
+
+/** A message's text with its web links clickable (they open in the browser: src-tauri/src/pip_window.rs). */
+const chatText = (text) =>
+  h('p', { class: 'chat-text' }, ...splitLinks(text).map((part) => (part.url ? h('a', { href: part.url, target: '_blank', rel: 'noopener noreferrer' }, part.url) : part.text)));
 
 /** Messages from the same person within this gap share one avatar and name. */
 const GROUP_MS = 5 * 60 * 1000;
@@ -52,9 +57,9 @@ export function createChatLog({ label, max = 200, loader = null }) {
   /** A message's text, or its file and caption (a file that doesn't check out shows the text only). */
   const content = (message) => {
     const media = message.media !== undefined && loader ? validMedia(message.media) : null;
-    if (!media) return [h('p', { class: 'chat-text' }, message.text)];
+    if (!media) return [chatText(message.text)];
     const caption = typeof message.caption === 'string' ? message.caption : '';
-    return [mediaFigure(media, loader), caption ? h('p', { class: 'chat-text' }, caption) : null];
+    return [mediaFigure(media, loader), caption ? chatText(caption) : null];
   };
   const atBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
 
