@@ -373,22 +373,48 @@ O Voltar na tela inicial do app (sem gaveta aberta) fecha o app inteiro. Deveria
 **Arquivos:** `gen/android` (`MainActivity`) ou um plugin, `ui/app-shell.js` (o histórico das gavetas) · **Tamanho:** S
 
 ### [ ] T13: Imagens, vídeos e GIFs nos chats
-Pedido do usuário (08/11/2026). Os GIFs entraram aqui quando a T12.A foi cancelada (08/11/2026): um GIF é um arquivo como uma imagem, enviado ao servidor, e nenhum serviço de fora vê quem assiste. Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. O arquivo vai para o servidor, e o app só carrega mídia do próprio servidor. As decisões (onde ficam, limites, quanto tempo) estão no `plan.md`, item 8, respondidas pelo usuário em 08/11/2026.
+Pedido do usuário (08/11/2026). Os GIFs entraram aqui quando a T12.A foi cancelada (08/11/2026): um GIF é um arquivo como uma imagem, enviado ao servidor, e nenhum serviço de fora vê quem assiste. Um botão de anexo (e colar ou arrastar) no campo do chat (call e canais) manda uma imagem, um GIF ou um vídeo, que aparece na mensagem: a imagem abre maior com um clique, e o vídeo toca ali mesmo. As decisões (onde ficam, limites, quanto tempo) estão no `plan.md`, item 8. Em partes, cada uma com commit e pergunta antes da próxima; as partes D e a capa do vídeo foram aprovadas pelo usuário em 08/11/2026.
 
+**Como funciona (proposta deste plano):**
+- **Envio e download por HTTP no próprio servidor** (a porta do `ws`), não pelo WebSocket: 50 MB pela sinalização atrasariam as outras mensagens. `POST /media` sobe o arquivo; `GET /media/<id>` o devolve.
+- **Só quem está na call ou no servidor vê os arquivos.** Cada conexão recebe um `mediaToken` aleatório (no `joined` e no `server-state`), que vai no cabeçalho `Authorization`. O servidor confere se aquela conexão pode ver aquele arquivo: o da call, quem está na sala; o de um canal, quem fez `hello`. O token morre com a conexão e nunca vai para logs.
+- **O app busca o arquivo com `fetch` e mostra um `blob:`** (a CSP já aceita `blob:` em `img-src` e `media-src`). A CSP só ganha `http: https:` em `connect-src`, como já tem `ws: wss:`; nenhuma imagem vem de URL de fora.
+- **O servidor confere tudo:** o tipo pelos primeiros bytes (PNG, JPEG, GIF, WebP; MP4 e WebM), o tamanho enquanto recebe, as dimensões da imagem (lidas do cabeçalho; um lado acima de 8192 px ou mais de 40 MP é recusado, contra bombas de descompressão). Ele devolve `Content-Type` fixo pelo tipo conferido, `nosniff`, `Content-Disposition: inline` e uma CSP `default-src 'none'; sandbox`, para que um arquivo poliglota nunca rode como página.
+- **A mensagem leva só o id;** o servidor preenche o resto (tipo, tamanho, dimensões, capa) do próprio registro. Um id só serve para quem o subiu, uma vez, e só por uns minutos; arquivo sem mensagem é apagado.
+
+#### [ ] T13.A: O servidor guarda e entrega os arquivos
 **Critérios:**
-- [ ] Tipos aceitos conferidos pelo conteúdo (os primeiros bytes), não só pela extensão. O tamanho máximo vem do servidor (`features`), e um arquivo grande demais é recusado antes de subir.
-- [ ] A mensagem leva só o id do arquivo no servidor, validado; nenhuma URL arbitrária vira imagem ou vídeo.
-- [ ] Imagem com tamanho reservado (sem pular o chat ao carregar); vídeo sem tocar sozinho e sem som até clicar.
-- [ ] Arquivos de mensagens que saíram do histórico (ou de uma call que esvaziou) são apagados do disco.
-- [ ] Sem espaço no servidor ou com envio desligado pelo host, o botão some ou avisa.
-- [ ] **GIFs:** GIF e WebP animados são aceitos como imagem (conferidos pelo conteúdo) e tocam no chat. Com "Animações: Desligado", aparecem parados (o primeiro quadro) e tocam com um clique.
-- [ ] **GIFs (proposta, não perguntada):** "GIFs recentes" no botão de anexo, com os últimos GIFs que a pessoa mandou neste servidor, para mandar de novo sem subir o arquivo outra vez (o servidor reaproveita o arquivo pelo hash enquanto ele existir).
+- [ ] `POST /media` (com `mediaToken`) e `GET /media/<id>`; CORS para o app; respostas com os cabeçalhos de segurança acima.
+- [ ] Tipo pelo conteúdo; limites `MAX_IMAGE_MB` (8) e `MAX_VIDEO_MB` (50), recusados enquanto chegam (sem ler tudo antes); `MEDIA_DISK_MB` (padrão 2048) para o total no disco; envio desligado com `MEDIA=off`.
+- [ ] Limite de envios por conexão e por IP, e de envios ao mesmo tempo.
+- [ ] `chat` e `channel-send` aceitam `media: {id, poster?}`; quem recebe ganha `{id, kind, mime, size, width, height, poster?}` e um `text` para apps antigos ("Imagem", "GIF", "Vídeo").
+- [ ] Apagados do disco: o arquivo de uma mensagem que saiu das 500 do canal, de um canal apagado, de uma call que esvaziou, e o que subiu sem virar mensagem.
+- [ ] `features` com `media` e os limites, para o app saber se mostra o botão.
 
-**Verificação:**
-- [ ] `npm test`: tipo pelo conteúdo (inclusive um GIF que é outra coisa por dentro), limite, id inválido, limpeza.
-- [ ] Manual: imagem, GIF e vídeo nos dois chats, no desktop e no Android; contraste da barra de envio.
+**Verificação:** `npm test` com ataques: tipo trocado (HTML, SVG, um "GIF" que é HTML, poliglota), id com `../` e outros formatos, token de outra conexão ou de outra sala, arquivo maior que o limite (o servidor corta no meio), corpo sem fim, imagem 100.000×100.000 px, disco cheio, envio sem mensagem, mensagem com o id de outro, reuso do id; e a limpeza.
 
-**Depende de:** T7 · **Arquivos:** `signaling-server/src/media.js` (novo), `server.js`, `channels.js`, `ui/chat-log.js`, `ui/chat-panel.js`, `tauri.conf.json` (CSP de `img-src`/`media-src`), testes · **Tamanho:** M
+**Arquivos:** `signaling-server/src/media.js` (novo), `server.js`, `channels.js`, `config.js`, `docker-compose.yml`, testes · **Tamanho:** M
+
+#### [ ] T13.B: O app manda e mostra
+**Critérios:**
+- [ ] Botão de anexo, colar e arrastar, nos dois chats; o app recusa antes de subir o que o servidor recusaria (tipo e tamanho).
+- [ ] Progresso e cancelar durante o envio.
+- [ ] Imagem e GIF com o tamanho reservado (sem pular o chat), carregados só quando aparecem na tela; a imagem abre maior com um clique.
+- [ ] GIF e WebP animados tocam; com "Animações: Desligado", aparecem parados (o primeiro quadro, por canvas) e tocam com um clique.
+- [ ] Vídeo com capa: o app de quem manda tira um quadro do vídeo e sobe como JPEG junto. Os outros veem a capa com um botão de tocar; o vídeo só baixa ao clicar, e toca sem som até a pessoa ligar.
+- [ ] Sem `media` no servidor, o botão some.
+
+**Verificação:** `npm test` (validação do que chega numa mensagem); manual no app com o bot; contraste nos 6 combos.
+
+**Arquivos:** `core/media.js` (novo), `ui/attach.js` (novo), `ui/chat-log.js`, `ui/chat-panel.js`, `ui/text-channel.js`, `core/signaling.js`, `core/server-session.js`, `tauri.conf.json` · **Tamanho:** M
+
+#### [ ] T13.C: Android e documentação
+- [ ] No celular: anexar da galeria, ver imagem, GIF e vídeo, tocar o vídeo.
+- [ ] Guia do servidor (as variáveis e o espaço em disco), `ARQUITETURA.md` (protocolo e HTTP).
+
+#### [ ] T13.D: GIFs recentes
+- [ ] O botão de anexo lista os últimos GIFs que a pessoa mandou neste servidor (guardados no app, até 24).
+- [ ] Mandar de novo reaproveita o arquivo no servidor enquanto ele existir (o servidor confere que a pessoa pode usá-lo); se ele sumiu, o app avisa e tira da lista.
 
 ## Checkpoint 4
 - [ ] No celular: zoom numa câmera, deslizar abre e fecha as gavetas, botões sem seleção nem realce azul e com retorno de toque, o PiP e o Voltar mandam para segundo plano com a call seguindo.
@@ -396,7 +422,7 @@ Pedido do usuário (08/11/2026). Os GIFs entraram aqui quando a T12.A foi cancel
 - [ ] Revisão com o usuário.
 
 ## Release 0.5.0
-- [ ] Docs (ARQUITETURA 4 e 10, CONTINUAR, guia do servidor com `DATA_DIR` e `MAX_UPLOAD_MB`), versão, tag, notas.
+- [ ] Docs (ARQUITETURA 4 e 10, CONTINUAR, guia do servidor com `DATA_DIR`, `MAX_IMAGE_MB`, `MAX_VIDEO_MB` e `MEDIA_DISK_MB`), versão, tag, notas.
 - [ ] Instalador testado numa máquina ou conta de teste; app 0.4.3 contra o servidor 0.5 e o contrário.
 
 ## Bugs para corrigir depois

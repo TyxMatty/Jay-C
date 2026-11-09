@@ -131,7 +131,7 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 - mandar uma imagem, um GIF e um vídeo nos dois chats, ver e tocar; um arquivo grande demais ou de outro tipo é recusado.
 
 ### Release 0.5.0
-- Documentação (ARQUITETURA seção 4 e 10, CONTINUAR, guia de configuração do servidor com `DATA_DIR` e `MAX_UPLOAD_MB`), versão, tag e notas.
+- Documentação (ARQUITETURA seção 4 e 10, CONTINUAR, guia de configuração do servidor com `DATA_DIR`, `MAX_IMAGE_MB`, `MAX_VIDEO_MB` e `MEDIA_DISK_MB`), versão, tag e notas.
 - Teste do instalador numa máquina ou conta de teste.
 
 ## Riscos e mitigação
@@ -139,7 +139,7 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 | Risco | Impacto | Mitigação |
 |---|---|---|
 | A shell nova (T9–T11) mexe em tudo que o usuário vê, inclusive no Android | Alto | Fazer cedo dentro da fase 3; manter `call-view.js` intacto (só muda onde ele é montado); medir contraste e testar no emulador em cada tarefa |
-| Arquivos (imagens, GIFs, vídeos) gastam o disco e a banda de quem hospeda | Médio | Limites de tamanho (`MAX_UPLOAD_MB`), apagar junto com a mensagem, o mesmo limite de envio do chat |
+| Arquivos (imagens, GIFs, vídeos) gastam o disco e a banda de quem hospeda | Médio | Limites de tamanho e do disco (`MAX_IMAGE_MB`, `MAX_VIDEO_MB`, `MEDIA_DISK_MB`), apagar junto com a mensagem, o mesmo limite de envio do chat |
 | Salas invisíveis só por nome: um nome curto é fácil de adivinhar | Baixo | Invisível exige senha (como no pedido); limite de tentativas por IP |
 | Persistência em JSON corromper numa queda | Médio | Gravar num arquivo temporário e renomear; testar com o servidor sendo morto no meio |
 | App 0.4 com servidor 0.5 e o contrário | Médio | `features`; teste com o instalador 0.4.3 (numa conta de teste) contra o servidor novo |
@@ -159,6 +159,6 @@ Cada tarefa termina testável, com commit, resumo e pergunta antes da próxima (
 7. **Invisível só com senha** (como entendi do pedido), ou pode haver sala fixa invisível sem senha? Proposta: só com senha.
 8. **Imagens e vídeos (T13), decidido pelo usuário em 08/11/2026** (fica como T13, depois da T12):
    - **Onde ficam os arquivos:** no servidor (`DATA_DIR/media/`), enviados pelo app; nada de links externos (a CSP e o IP de quem vê).
-   - **Limites:** imagem até 8 MB e vídeo até 50 MB. O host pode mudar pelo servidor (`MAX_UPLOAD_MB`).
+   - **Limites:** imagem até 8 MB e vídeo até 50 MB. O host pode mudar pelo servidor (`MAX_IMAGE_MB` e `MAX_VIDEO_MB`).
    - **Quanto tempo ficam:** como as mensagens. Nos canais, enquanto a mensagem estiver nas últimas 500. No chat da call, até a call esvaziar, porque o chat da call não tem histórico.
    - **Tipos (proposta, não perguntada):** PNG, JPEG, WebP e GIF; vídeo MP4 (H.264) e WebM, que o WebView2 e a WebView do Android tocam.
