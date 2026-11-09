@@ -534,3 +534,15 @@ O Jay-C se atualiza do mesmo jeito que o hub Jay-H atualiza os apps da linha Jay
 - **Publicação:** numa tag `v*`, o workflow do instalador cria a release em rascunho com o instalador (`docs/CONTINUAR.md`, seção 3).
 - **Medido:** o download pelo WinHTTP do instalador da 0.4.1 bateu o SHA-256 do GitHub; o app de dev dizendo 0.4.0 ofereceu a 0.4.1 no lobby e na Ajuda.
 - **Não medido:** o instalador abrindo e o Jay-C fechando de verdade, porque não rodamos instalador no PC do usuário com o Jay-C instalado. A primeira versão com auto-update é a 0.4.2, e quem está na 0.4.1 ou antes instala essa à mão ou pelo Jay-H.
+
+### Jay-C 0.5: servidores com salas, canais de texto e arquivos (pedido do usuário, depois da 0.4.3)
+
+O plano está em `tasks/plan.md` e o acompanhamento, com o que foi medido em cada tarefa, em `tasks/todo.md`.
+
+- **Servidor no estilo Discord:** coluna de servidores (os endereços salvos), lista de salas de call e canais de texto, a área principal e os membros à direita. No celular, as duas colunas viram gavetas (botões e deslizar o dedo).
+- **Salas fixas** (`DATA_DIR/rooms.json`), com senha (cadeado) e invisíveis (só pelo nome); gerenciadas no app por quem tem a `ADMIN_KEY`. A "Chamada direta" entra numa sala pelo nome, como antes.
+- **Canais de texto** com histórico (as últimas 500 mensagens de cada um) e a call encaixada: dá para ler um canal enquanto fala.
+- **Arquivos nos chats:** imagens, GIFs e vídeos, guardados no servidor (`DATA_DIR/media`), com a localização tirada antes de subir; GIFs recentes no clipe.
+- **Call:** mute e deafen ficam salvos entre calls; o deafen cala só as vozes, não as lives; destacar e dar zoom na câmera de alguém.
+- **Android:** Voltar e fechar o PiP mandam o app para segundo plano com a call seguindo (um serviço em primeiro plano do tipo microfone, com notificação).
+- **Convivência com a 0.4:** o app lê as `features` do servidor; com um servidor 0.4, ele mostra só a "Chamada direta". Um app 0.4 num servidor 0.5 entra nas salas pelo nome, como antes.

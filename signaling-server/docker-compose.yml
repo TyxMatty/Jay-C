@@ -30,7 +30,8 @@ services:
       # ALLOWED_ORIGINS: "http://tauri.localhost,tauri://localhost"
       # STUN/TURN servers handed to clients on join (only needed outside LAN/VPN).
       # ICE_SERVERS: '[{"urls":"stun:stun.l.google.com:19302"}]'
-      # The server's fixed rooms: ./data/rooms.json next to this file (Jay-C 0.5). On Linux, let the
+      # The server's data in ./data next to this file (Jay-C 0.5): the fixed rooms (rooms.json), the
+      # text channels (channels.json), their history and the chats' files (media/). On Linux, let the
       # container write it once: mkdir -p data && sudo chown 1000:1000 data
       DATA_DIR: /data
       # Whoever has this key manages the rooms from the app (the gear next to the server's name).

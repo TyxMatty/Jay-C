@@ -536,3 +536,15 @@ Jay-C updates itself the way the Jay-H hub updates the Jay apps, without a signi
 - **Publishing:** on a `v*` tag, the installer workflow creates a draft release with the installer (`docs/CONTINUAR.en.md`, section 3).
 - **Measured:** WinHTTP's download of the 0.4.1 installer matched GitHub's SHA-256; the dev app claiming 0.4.0 offered 0.4.1 in the lobby and in Help.
 - **Not measured:** the installer actually opening and Jay-C closing, because installers aren't run on the user's PC with Jay-C installed. The first version with auto-update is 0.4.2, and anyone on 0.4.1 or older installs that one by hand or through Jay-H.
+
+### Jay-C 0.5: servers with rooms, text channels and files (user's request, after 0.4.3)
+
+The plan is in `tasks/plan.md` and the tracking, with what was measured in each task, in `tasks/todo.md` (both in Portuguese).
+
+- **Discord-style server:** a column of servers (the saved addresses), a list of call rooms and text channels, the main area and the members on the right. On a phone, the two columns become drawers (buttons and swiping).
+- **Fixed rooms** (`DATA_DIR/rooms.json`), with a password (padlock) and hidden ones (by name only); managed in the app by whoever has the `ADMIN_KEY`. "Direct call" joins a room by name, as before.
+- **Text channels** with history (the last 500 messages of each) and the docked call: you can read a channel while talking.
+- **Files in the chats:** images, GIFs and videos, kept on the server (`DATA_DIR/media`), with the location removed before uploading; recent GIFs behind the clip.
+- **Call:** mute and deafen are kept between calls; deafen silences only the voices, not the lives; focus and zoom someone's camera.
+- **Android:** Back and closing the PiP send the app to the background with the call going on (a foreground service of type microphone, with a notification).
+- **Living with 0.4:** the app reads the server's `features`; with a 0.4 server it shows only "Direct call". A 0.4 app on a 0.5 server joins rooms by name, as before.

@@ -103,12 +103,12 @@ Abra a pasta do clone no Claude, no app desktop (aba Code) ou na CLI. O `CLAUDE.
 
 ## 5. Estado atual
 
-**Jay-C 0.5 em andamento (09/11/2026).** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoint 3 (falta a revisão do usuário), T12.B a T12.G, T13.A (o servidor guarda e entrega imagens, GIFs e vídeos), T13.B (o app manda e mostra, tirando a localização antes de subir) T13.C (no celular, e os docs) e T13.D (GIFs recentes no clipe; o servidor copia o GIF escolhido). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
+**Jay-C 0.5.0 (09/11/2026), versão subida; o instalador sai com a tag `v0.5.0`.** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoints 3 (falta a revisão do usuário) e 4, T12.B a T12.G, T13.A (o servidor guarda e entrega imagens, GIFs e vídeos), T13.B (o app manda e mostra, tirando a localização antes de subir) T13.C (no celular, e os docs) e T13.D (GIFs recentes no clipe; o servidor copia o GIF escolhido). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
 
 **Próximo:**
 1. **T12.F: feita** (09/11/2026, no celular, também com um APK fora do modo dev; lista em `tasks/todo.md`). Falta só ouvir de fato o mic com o app em segundo plano (com o DTX, contar pacotes não basta).
-2. **Checkpoint 4:** testado no celular em 09/11/2026 (tudo passou; lista em `tasks/todo.md`). Falta a revisão do usuário.
-3. A release 0.5.0.
+2. **Checkpoint 4:** testado no celular em 09/11/2026 e revisado pelo usuário (lista em `tasks/todo.md`).
+3. **Release 0.5.0:** docs e versão prontos; testado o app 0.4.3 instalado contra o servidor 0.5 e o app 0.5 contra o servidor 0.4.3 (resultados em `tasks/todo.md`). Falta: push, tag `v0.5.0`, as notas da release no rascunho e o instalador numa máquina ou conta de teste.
 
 **Trocar de PC com o celular:** o APK de debug não instala por cima do outro PC (a chave de debug de cada PC é diferente: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); desinstalar o `io.github.tyxmatty.jayc.debug` apaga só os dados do perfil de teste.
 
@@ -159,7 +159,7 @@ O iOS (etapa 15, só o código) ficou para depois do lançamento.
 - **Como regenerar:** `scripts/wolf-icon.ps1` e depois `tauri icon` (ver CLAUDE.md, "Ícone").
 - Publicado no instalador 0.3.1.
 
-**Depois da 0.4.3 (08/11/2026), ainda sem instalador** (plano da 0.5: `tasks/plan.md` e `tasks/todo.md`):
+**Entre a 0.4.3 e a 0.5.0 (08–09/11/2026)** (plano: `tasks/plan.md`; o que foi medido: `tasks/todo.md`; resumo em ARQUITETURA.md, seção 10, "Jay-C 0.5"):
 - **Deafen só da call:** silencia as vozes, e o som de uma live assistida continua tocando, com o volume dela (`core/playback.js`: a live vai direto para a saída, fora do canal das vozes). Coberto por teste; não medido no alto-falante (um bot de navegador não transmite o som da tela).
 - **Mute e deafen salvos entre calls** (`callAudio` no settings, `core/call-audio.js`): a próxima call começa como a anterior foi deixada, e o estado é salvo na hora em que muda (vale até se o app fechar no meio da call). Desligar o deafen volta o mic só se ele não estava mutado antes. Testado no app de dev: mutar, sair e voltar mutado; deafen, sair e voltar com deafen; desligar o deafen mantém o mic desligado.
 - **Salas do servidor (0.5, T3):** o servidor lê as salas fixas de `DATA_DIR/rooms.json` (`signaling-server/src/directory.js`), e uma conexão `hello` recebe a lista com quem está em cada sala e as mudanças ao vivo (`core/server-session.js`). O lobby mostra a lista ("Salas deste servidor"); um clique entra. Um servidor 0.4 responde `bad-message` ao `hello`, e a lista some (testado com um servidor falso: uma conexão só, sem tentar de novo). Testado no app de dev com um bot: a lista muda quando ele entra e muta, e de fora se vê o app entrar numa sala pelo clique. A sala invisível não aparece. Contraste medido no lobby: nenhum texto abaixo do mínimo.

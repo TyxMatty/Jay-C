@@ -105,12 +105,12 @@ Open the clone's folder in Claude, in the desktop app (Code tab) or the CLI. `CL
 
 ## 5. Current state
 
-**Jay-C 0.5 in progress (11/09/2026).** Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoint 3 (the user's review is missing), T12.B to T12.G, T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) T13.C (on a phone, and the docs) and T13.D (recent GIFs behind the clip; the server copies the picked GIF). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
+**Jay-C 0.5.0 (11/09/2026), version bumped; the installer comes with the `v0.5.0` tag.** Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoints 3 (the user's review is missing) and 4, T12.B to T12.G, T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) T13.C (on a phone, and the docs) and T13.D (recent GIFs behind the clip; the server copies the picked GIF). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
 
 **Next:**
 1. **T12.F: done** (11/09/2026, on the phone, also with an APK outside dev mode; list in `tasks/todo.md`). Only listening to the mic with the app in the background is left (with DTX, counting packets isn't enough).
-2. **Checkpoint 4:** tested on the phone on 11/09/2026 (all passed; list in `tasks/todo.md`). The user's review is left.
-3. The 0.5.0 release.
+2. **Checkpoint 4:** tested on the phone on 11/09/2026 and reviewed by the user (list in `tasks/todo.md`).
+3. **0.5.0 release:** docs and version ready; tested the installed 0.4.3 app against the 0.5 server and the 0.5 app against the 0.4.3 server (results in `tasks/todo.md`). Left: push, the `v0.5.0` tag, the release notes on the draft, and the installer on a test machine or account.
 
 **Changing PCs with the phone:** the debug APK doesn't install over the other PC's (each PC's debug key differs: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); uninstalling `io.github.tyxmatty.jayc.debug` only erases the test profile's data.
 
@@ -161,7 +161,7 @@ iOS (milestone 15, code only) was left for after launch.
 - **How to regenerate:** `scripts/wolf-icon.ps1` and then `tauri icon` (see CLAUDE.md, "Ícone").
 - Shipped in installer 0.3.1.
 
-**After 0.4.3 (08/11/2026), no installer yet** (0.5 plan: `tasks/plan.md` and `tasks/todo.md`):
+**Between 0.4.3 and 0.5.0 (11/08–09/2026)** (plan: `tasks/plan.md`; what was measured: `tasks/todo.md`; summary in ARQUITETURA.en.md, section 10, "Jay-C 0.5"):
 - **Deafen only the call:** it silences the voices, and a watched live's sound keeps playing at its own volume (`core/playback.js`: a live goes straight to the output, outside the voices bus). Covered by a test; not measured at the speakers (a browser bot doesn't send screen sound).
 - **Mute and deafen kept between calls** (`callAudio` in settings, `core/call-audio.js`): the next call starts as the last one was left, saved as it changes (it holds even if the app closes mid-call). Undeafening brings the mic back only if it wasn't muted before. Tested in the dev app: mute, leave, come back muted; deafen, leave, come back deafened; undeafening keeps the mic off.
 - **Server rooms (0.5, T3):** the server reads its fixed rooms from `DATA_DIR/rooms.json` (`signaling-server/src/directory.js`), and a `hello` connection gets the list with who is in each room and the live changes (`core/server-session.js`). The lobby shows the list ("Rooms on this server"); a click joins. A 0.4 server answers `hello` with `bad-message` and the list goes away (tested with a fake server: one connection, no retries). Tested in the dev app with a bot: the list changes when it joins and mutes, and from outside the app is seen joining a room by the click. The hidden room doesn't show. Contrast measured in the lobby: no text under the minimum.

@@ -66,7 +66,7 @@ Inside the repository, this builds the image from source:
 docker compose -f signaling-server/docker-compose.yml up -d --build
 ```
 
-End users only need `docker-compose.yml` in an empty folder and `docker compose up -d`. The image is pulled from the registry, which will be published in the release milestone.
+End users only need `docker-compose.yml` in an empty folder and `docker compose up -d`. Its comments list the settings (admin key, server name, file limits); the full table is in [docs/ARQUITETURA.en.md](docs/ARQUITETURA.en.md), section 4. The image is pulled from the registry, which will be published in the release milestone.
 
 ## Tests
 

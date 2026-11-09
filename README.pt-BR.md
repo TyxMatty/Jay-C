@@ -66,7 +66,7 @@ Dentro do repositório, o comando abaixo gera a imagem a partir do código-fonte
 docker compose -f signaling-server/docker-compose.yml up -d --build
 ```
 
-Usuários finais só precisam do `docker-compose.yml` numa pasta vazia e de `docker compose up -d`. A imagem é baixada do registry, que ainda vai ser publicado na etapa de release.
+Usuários finais só precisam do `docker-compose.yml` numa pasta vazia e de `docker compose up -d`. Os comentários dele listam as configurações (chave de admin, nome do servidor, limites dos arquivos); a tabela completa está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md), seção 4. A imagem é baixada do registry, que ainda vai ser publicado na etapa de release.
 
 ## Testes
 
