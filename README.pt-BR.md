@@ -6,21 +6,24 @@
 
 App leve e open-source de chamadas e compartilhamento de tela para desktop e mobile, com servidor de sinalização self-hosted via Docker.
 
-<p align="center"><img src="docs/images/call.png" alt="Uma chamada no Jay-C: a live de uma pessoa em destaque, os cards de quem está na sala e a barra de controles" width="820"></p>
+<p align="center"><img src="docs/images/call.png" alt="Uma chamada num servidor do Jay-C: as salas e os canais de texto do servidor à esquerda, a live de uma pessoa em destaque, os cards de quem está na sala e a barra de controles" width="820"></p>
 
 - **Voz limpa**, que não abafa o som dos outros apps.
 - **Lives de um jogo, uma janela ou da tela inteira**, com o som, em até 1080p60.
 - **Até 16 pessoas por sala**, com chat e o vídeo em destaque numa janelinha por cima de tudo (PiP).
+- **Servidores com salas e canais de texto**: salas fixas (com senha, ou invisíveis), canais com histórico, e imagens, GIFs e vídeos em todos os chats.
 - **No seu servidor ou no de um amigo**, sem contas e sem anúncios.
 
 <table>
   <tr>
-    <td><img src="docs/images/lobby-calm.png" alt="Tela inicial no estilo Calmo, em roxo"></td>
-    <td><img src="docs/images/lobby-neon.png" alt="Tela inicial no estilo Neon, em ciano"></td>
-    <td><img src="docs/images/lobby-soft.png" alt="Tela inicial no estilo Suave, em laranja"></td>
+    <td><img src="docs/images/server-calm.png" alt="Um canal de texto de um servidor no estilo Calmo, em roxo: mensagens com uma imagem e um GIF, as salas e os canais à esquerda e quem está nas calls à direita"></td>
+    <td><img src="docs/images/server-neon.png" alt="O mesmo canal no estilo Neon, em ciano"></td>
+    <td><img src="docs/images/server-soft.png" alt="O mesmo canal no estilo Suave, em laranja"></td>
   </tr>
   <tr align="center"><td>Calmo</td><td>Neon</td><td>Suave</td></tr>
 </table>
+
+<p align="center"><img src="docs/images/phone.png" alt="O Jay-C no celular: uma call com a live de uma pessoa e as câmeras, e a gaveta com as salas e os canais do servidor" width="400"></p>
 
 ## Baixar
 
