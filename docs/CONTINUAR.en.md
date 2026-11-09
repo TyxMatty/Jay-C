@@ -105,12 +105,13 @@ Open the clone's folder in Claude, in the desktop app (Code tab) or the CLI. `CL
 
 ## 5. Current state
 
-**Jay-C 0.5.0 (11/09/2026), version bumped; the installer comes with the `v0.5.0` tag.** Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoints 3 (the user's review is missing) and 4, T12.B to T12.G, T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) T13.C (on a phone, and the docs) and T13.D (recent GIFs behind the clip; the server copies the picked GIF). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
+**Jay-C 0.5.1 (11/09/2026), version bumped; the installer comes with the `v0.5.1` tag.** 0.5.0 plus profile pictures in channels (T14.A), mentions (T14.B), clickable links, drag and paste across the whole chat, and the guide with the admin key (section "Depois da 0.5.0" in `tasks/todo.md`). Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoints 3 (the user's review is missing) and 4, T12.B to T12.G, T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) T13.C (on a phone, and the docs) and T13.D (recent GIFs behind the clip; the server copies the picked GIF). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
 
 **Next:**
 1. **T12.F: done** (11/09/2026, on the phone, also with an APK outside dev mode; list in `tasks/todo.md`). Only listening to the mic with the app in the background is left (with DTX, counting packets isn't enough).
 2. **Checkpoint 4:** tested on the phone on 11/09/2026 and reviewed by the user (list in `tasks/todo.md`).
 3. **0.5.0 release:** docs and version ready; tested the installed 0.4.3 app against the 0.5 server and the 0.5 app against the 0.4.3 server (results in `tasks/todo.md`). Tag `v0.5.0` on `e5f746c` (the fix for Docker without a writable folder) and the release published on 11/09/2026 (notes in English and Portuguese, with images). The installer wasn't tested on a test machine or account before publishing.
+4. **0.5.1 release:** version bumped; `v0.5.1` tag and notes on the draft. The server changed (channel pictures and the @ list): hosts need to update and restart the server.
 
 **Changing PCs with the phone:** the debug APK doesn't install over the other PC's (each PC's debug key differs: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); uninstalling `io.github.tyxmatty.jayc.debug` only erases the test profile's data.
 

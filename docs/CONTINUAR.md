@@ -103,12 +103,13 @@ Abra a pasta do clone no Claude, no app desktop (aba Code) ou na CLI. O `CLAUDE.
 
 ## 5. Estado atual
 
-**Jay-C 0.5.0 (09/11/2026), versão subida; o instalador sai com a tag `v0.5.0`.** O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoints 3 (falta a revisão do usuário) e 4, T12.B a T12.G, T13.A (o servidor guarda e entrega imagens, GIFs e vídeos), T13.B (o app manda e mostra, tirando a localização antes de subir) T13.C (no celular, e os docs) e T13.D (GIFs recentes no clipe; o servidor copia o GIF escolhido). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
+**Jay-C 0.5.1 (09/11/2026), versão subida; o instalador sai com a tag `v0.5.1`.** A 0.5.0 com fotos de perfil nos canais (T14.A), menções (T14.B), links clicáveis, arrastar e colar no chat todo e o guia com a chave de admin (seção "Depois da 0.5.0" do `tasks/todo.md`). O acompanhamento está em `tasks/todo.md` e o plano em `tasks/plan.md`. Feito: fases 0 a 3, Checkpoints 3 (falta a revisão do usuário) e 4, T12.B a T12.G, T13.A (o servidor guarda e entrega imagens, GIFs e vídeos), T13.B (o app manda e mostra, tirando a localização antes de subir) T13.C (no celular, e os docs) e T13.D (GIFs recentes no clipe; o servidor copia o GIF escolhido). A T12.A (GIFs de um serviço de busca) foi cancelada: os GIFs são arquivos da T13, e o código do KLIPY ficou só no ramo local `t12a-klipy-gifs`, não publicado.
 
 **Próximo:**
 1. **T12.F: feita** (09/11/2026, no celular, também com um APK fora do modo dev; lista em `tasks/todo.md`). Falta só ouvir de fato o mic com o app em segundo plano (com o DTX, contar pacotes não basta).
 2. **Checkpoint 4:** testado no celular em 09/11/2026 e revisado pelo usuário (lista em `tasks/todo.md`).
 3. **Release 0.5.0:** docs e versão prontos; testado o app 0.4.3 instalado contra o servidor 0.5 e o app 0.5 contra o servidor 0.4.3 (resultados em `tasks/todo.md`). Tag `v0.5.0` no `e5f746c` (a correção do Docker sem pasta gravável) e release publicada em 09/11/2026 (notas em inglês e português, com imagens). O instalador não foi testado numa máquina ou conta de teste antes da publicação.
+4. **Release 0.5.1:** versão subida; tag `v0.5.1` e notas no rascunho. O servidor mudou (as fotos dos canais e a lista do @): quem hospeda precisa atualizar e reiniciar o servidor.
 
 **Trocar de PC com o celular:** o APK de debug não instala por cima do outro PC (a chave de debug de cada PC é diferente: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); desinstalar o `io.github.tyxmatty.jayc.debug` apaga só os dados do perfil de teste.
 

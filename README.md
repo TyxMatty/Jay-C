@@ -11,7 +11,7 @@ A lightweight, open-source app for calls and screen sharing on desktop and mobil
 - **Clear voice** that doesn't muffle your other apps.
 - **Stream a game, a window or the whole screen**, with its sound, up to 1080p60.
 - **Up to 16 people per room**, with chat and the featured video in a small always-on-top window (PiP).
-- **Servers with rooms and text channels**: fixed rooms (with a password, or hidden), channels with history, and images, GIFs and videos in every chat.
+- **Servers with rooms and text channels**: fixed rooms (with a password, or hidden), channels with history, @mentions, and images, GIFs and videos in every chat.
 - **On your server or a friend's**, no accounts and no ads.
 
 <table>

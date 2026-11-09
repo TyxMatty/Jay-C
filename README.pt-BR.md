@@ -11,7 +11,7 @@ App leve e open-source de chamadas e compartilhamento de tela para desktop e mob
 - **Voz limpa**, que não abafa o som dos outros apps.
 - **Lives de um jogo, uma janela ou da tela inteira**, com o som, em até 1080p60.
 - **Até 16 pessoas por sala**, com chat e o vídeo em destaque numa janelinha por cima de tudo (PiP).
-- **Servidores com salas e canais de texto**: salas fixas (com senha, ou invisíveis), canais com histórico, e imagens, GIFs e vídeos em todos os chats.
+- **Servidores com salas e canais de texto**: salas fixas (com senha, ou invisíveis), canais com histórico, menções com @, e imagens, GIFs e vídeos em todos os chats.
 - **No seu servidor ou no de um amigo**, sem contas e sem anúncios.
 
 <table>
