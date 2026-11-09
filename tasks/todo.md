@@ -447,7 +447,7 @@ Também: antes de subir, o app tira de onde a foto ou o vídeo foi feito, sem re
 
 ## Release 0.5.0
 - [x] Docs (ARQUITETURA 4 e 10, CONTINUAR, guia do servidor com `DATA_DIR`, `MAX_IMAGE_MB`, `MAX_VIDEO_MB` e `MEDIA_DISK_MB`), versão. A seção 4 já tinha as variáveis; o guia do servidor é o `docker-compose.yml` (comentários), e os READMEs agora apontam para ele e para a tabela.
-- [x] Tag `v0.5.0` e notas da release (09/11/2026). A primeira tag (no `24457da`) foi movida para o `e5f746c`, com o usuário de acordo: o CI mostrou que a imagem Docker caía sem uma pasta de dados gravável. O rascunho tem o instalador (2,36 MB) e as notas; publicar fica com o usuário.
+- [x] Tag `v0.5.0` e notas da release (09/11/2026). A primeira tag (no `24457da`) foi movida para o `e5f746c`, com o usuário de acordo: o CI mostrou que a imagem Docker caía sem uma pasta de dados gravável. Publicada em 09/11/2026 a pedido do usuário, com as notas em inglês e português e as imagens; o instalador não foi testado numa máquina de teste antes.
 - [ ] Instalador testado numa máquina ou conta de teste.
 - [x] App 0.4.3 contra o servidor 0.5 e o contrário. **Medido (09/11/2026):**
   - **App 0.4.3 instalado** (perfil de teste, sem mexer no do usuário) **no servidor 0.5**, sala `geral` pelo nome: entra, vê a câmera do bot 0.5 (1280×720), e o texto vai e volta no chat. A mensagem de GIF do bot aparece só com a legenda, sem erro na página. Um cliente 0.5 vê o app 0.4.3 na lista de `geral`.

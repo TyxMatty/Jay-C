@@ -108,7 +108,7 @@ Abra a pasta do clone no Claude, no app desktop (aba Code) ou na CLI. O `CLAUDE.
 **Próximo:**
 1. **T12.F: feita** (09/11/2026, no celular, também com um APK fora do modo dev; lista em `tasks/todo.md`). Falta só ouvir de fato o mic com o app em segundo plano (com o DTX, contar pacotes não basta).
 2. **Checkpoint 4:** testado no celular em 09/11/2026 e revisado pelo usuário (lista em `tasks/todo.md`).
-3. **Release 0.5.0:** docs e versão prontos; testado o app 0.4.3 instalado contra o servidor 0.5 e o app 0.5 contra o servidor 0.4.3 (resultados em `tasks/todo.md`). Tag `v0.5.0` no `e5f746c` (a correção do Docker sem pasta gravável) e rascunho da release com o instalador e as notas. Falta: testar o instalador numa máquina ou conta de teste e publicar.
+3. **Release 0.5.0:** docs e versão prontos; testado o app 0.4.3 instalado contra o servidor 0.5 e o app 0.5 contra o servidor 0.4.3 (resultados em `tasks/todo.md`). Tag `v0.5.0` no `e5f746c` (a correção do Docker sem pasta gravável) e release publicada em 09/11/2026 (notas em inglês e português, com imagens). O instalador não foi testado numa máquina ou conta de teste antes da publicação.
 
 **Trocar de PC com o celular:** o APK de debug não instala por cima do outro PC (a chave de debug de cada PC é diferente: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); desinstalar o `io.github.tyxmatty.jayc.debug` apaga só os dados do perfil de teste.
 

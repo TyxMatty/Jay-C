@@ -110,7 +110,7 @@ Open the clone's folder in Claude, in the desktop app (Code tab) or the CLI. `CL
 **Next:**
 1. **T12.F: done** (11/09/2026, on the phone, also with an APK outside dev mode; list in `tasks/todo.md`). Only listening to the mic with the app in the background is left (with DTX, counting packets isn't enough).
 2. **Checkpoint 4:** tested on the phone on 11/09/2026 and reviewed by the user (list in `tasks/todo.md`).
-3. **0.5.0 release:** docs and version ready; tested the installed 0.4.3 app against the 0.5 server and the 0.5 app against the 0.4.3 server (results in `tasks/todo.md`). Tag `v0.5.0` on `e5f746c` (the fix for Docker without a writable folder) and a draft release with the installer and the notes. Left: testing the installer on a test machine or account, and publishing.
+3. **0.5.0 release:** docs and version ready; tested the installed 0.4.3 app against the 0.5 server and the 0.5 app against the 0.4.3 server (results in `tasks/todo.md`). Tag `v0.5.0` on `e5f746c` (the fix for Docker without a writable folder) and the release published on 11/09/2026 (notes in English and Portuguese, with images). The installer wasn't tested on a test machine or account before publishing.
 
 **Changing PCs with the phone:** the debug APK doesn't install over the other PC's (each PC's debug key differs: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); uninstalling `io.github.tyxmatty.jayc.debug` only erases the test profile's data.
 
