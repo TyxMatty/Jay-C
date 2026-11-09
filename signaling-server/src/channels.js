@@ -69,10 +69,17 @@ export class Channels {
     for (const channel of this.channels.values()) for (const m of channel.messages) if (m.media) yield m.media;
   }
 
+  /** The profile picture ids of every message kept (what the picture store keeps, T14.A). */
+  avatars() {
+    const ids = new Set();
+    for (const channel of this.channels.values()) for (const m of channel.messages) if (typeof m.avatar === 'string') ids.add(m.avatar);
+    return ids;
+  }
+
   /** Adds a message (text and media already checked) and returns it as everyone gets it. */
-  post(name, { author, color = null, text, media = null, caption = null }) {
+  post(name, { author, color = null, avatar = null, text, media = null, caption = null }) {
     const channel = this.channels.get(name);
-    const message = { id: channel.nextId++, at: Date.now(), name: author, ...(color ? { color } : {}), text, ...(media ? { media, caption: caption ?? '' } : {}) };
+    const message = { id: channel.nextId++, at: Date.now(), name: author, ...(color ? { color } : {}), ...(avatar ? { avatar } : {}), text, ...(media ? { media, caption: caption ?? '' } : {}) };
     channel.messages.push(message);
     if (channel.messages.length > KEEP_MESSAGES) this.onDrop(channel.messages.splice(0, channel.messages.length - KEEP_MESSAGES));
     this.#scheduleSave(name);

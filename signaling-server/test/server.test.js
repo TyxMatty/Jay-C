@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from '../src/server.js';
@@ -738,5 +738,85 @@ describe('text channels (Jay-C 0.5)', () => {
     assert.deepEqual((await w.request('channel-history', { channel: 'papo', before: 1 })).data.messages, []);
     assert.equal((await outsider.request('channel-history', { channel: 'papo' })).error, 'not-in-server');
     for (const c of [admin, w, outsider]) c.close();
+  });
+});
+
+describe('profile pictures in text channels (T14.A)', () => {
+  const ANA = `data:image/png;base64,${'QW5h'.repeat(60)}`;
+  const NEW_ANA = `data:image/webp;base64,${'TmV3'.repeat(60)}`;
+  let dataDir;
+  let server;
+  let port;
+  const start = async () => {
+    server = startServer({ ...baseConfig, dataDir, adminKey: 'chave-do-host' }, { log: () => {} });
+    port = await server.ready;
+  };
+  const hello = async (name, avatar) => {
+    const client = connect(port);
+    await client.open();
+    client.send({ type: 'hello', name, ...(avatar ? { avatar } : {}) });
+    await client.next('server-state');
+    return client;
+  };
+  const files = () => readdirSync(join(dataDir, 'avatars'));
+
+  before(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'jayc-avatars-'));
+    writeFileSync(join(dataDir, 'channels.json'), JSON.stringify({ channels: [{ name: 'fotos' }] }));
+    await start();
+  });
+  after(async () => {
+    await server.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test('a message keeps the id of its picture, kept once, and the app asks for the pictures by id', async () => {
+    const ana = await hello('Ana', ANA);
+    const bia = await hello('Bia');
+    ana.send({ type: 'channel-send', channel: 'fotos', text: 'oi' });
+    const first = (await bia.next('channel-message')).message;
+    ana.send({ type: 'channel-send', channel: 'fotos', text: 'de novo' });
+    const second = (await bia.next('channel-message')).message;
+    bia.send({ type: 'channel-send', channel: 'fotos', text: 'sem foto' });
+    const third = (await bia.next('channel-message')).message; // the sender gets its own too
+    assert.match(first.avatar, /^[A-Za-z0-9_-]{22}$/);
+    assert.equal(second.avatar, first.avatar, 'the same picture, the same id');
+    assert.equal('avatar' in third, false, 'no picture, no field');
+    assert.equal(JSON.stringify(first).includes('base64'), false, 'the message never carries the picture');
+    assert.deepEqual(files(), [`${first.avatar}.txt`], 'kept once');
+
+    writeFileSync(join(dataDir, 'segredo.txt'), 'data:image/png;base64,c2VncmVkbw=='); // a .txt outside the avatars folder
+    const got = await bia.request('avatars', { ids: [first.avatar, 'A'.repeat(22), '../segredo', '..\segredo', 5] });
+    assert.deepEqual(got.data.avatars, { [first.avatar]: ANA }, 'only known ids, nothing else');
+    assert.equal((await bia.request('avatars', { ids: Array.from({ length: 101 }, (_, i) => `${i}`.padStart(22, 'x')) })).error, 'bad-request');
+    assert.equal((await bia.request('avatars', {})).error, 'bad-request');
+    const outsider = connect(port);
+    await outsider.open();
+    assert.equal((await outsider.request('avatars', { ids: [first.avatar] })).error, 'not-in-server');
+
+    // A new picture only for new messages; the old ones keep theirs.
+    ana.send({ type: 'hello', name: 'Ana', avatar: NEW_ANA }); // how the app updates a profile (ServerSession.setProfile)
+    await ana.next('server-state');
+    ana.send({ type: 'channel-send', channel: 'fotos', text: 'foto nova' });
+    const fourth = (await bia.next('channel-message')).message;
+    assert.notEqual(fourth.avatar, first.avatar);
+    assert.equal(files().length, 2);
+    assert.equal((await bia.request('channel-history', { channel: 'fotos' })).data.messages[0].avatar, first.avatar);
+    for (const c of [ana, bia, outsider]) c.close();
+  });
+
+  test('pictures survive a restart, and go with the last message that uses them', async () => {
+    await server.close();
+    await start();
+    const admin = await hello('Host');
+    const ids = (await admin.request('channel-history', { channel: 'fotos' })).data.messages.map((m) => m.avatar).filter(Boolean);
+    assert.equal(Object.keys((await admin.request('avatars', { ids })).data.avatars).length, 2, 'read back from the folder');
+
+    admin.send({ type: 'admin', key: 'chave-do-host' });
+    await admin.next('admin');
+    assert.equal((await admin.request('channel-delete', { name: 'fotos' })).ok, true);
+    assert.deepEqual(files(), [], 'no message left, no picture left');
+    assert.deepEqual((await admin.request('avatars', { ids })).data.avatars, {});
+    admin.close();
   });
 });

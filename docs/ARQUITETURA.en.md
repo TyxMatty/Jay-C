@@ -130,6 +130,7 @@ Client → server:
 | `admin` | `key` | (0.5) the server's key (`ADMIN_KEY`). Answer: `{type: "admin", ok: true}` and a `server-state` with `admin: true` that also has the hidden rooms (`hidden: true`); or `error` `not-admin` / `rate-limited` with `ref: "admin"` |
 | `channel-send` | `channel`, `text` (1–500 characters) and/or `media: {id, poster?}` | (0.5) a message in a text channel; only after `hello`. Everyone in the server session (the sender too) gets `channel-message`. Same limit as the call chat. Errors with `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
 | `channel-history` | `id`, `data`: `{channel, before?}` | (0.5) up to 50 messages older than id `before` (the newest without it), oldest first. Answer: `{messages}` |
+| `avatars` | `id`, `data`: `{ids}` (up to 100) | (0.5.1, T14.A) the profile pictures of channel messages, by id. Answer: `{avatars: {id: dataURL}}`, only with the ids the server has; errors `not-in-server`, `bad-request` |
 | `channel-create` / `channel-edit` / `channel-delete` | `id`, `data`: `{name, newName?}` | (0.5, admin only) like the room ones; errors `channel-exists`, `unknown-channel` |
 | `room-create` / `room-edit` / `room-delete` | `id`, `data`: `{name, newName?, password?, hidden?}` (`password: null` removes it) | (0.5, admin only) changes the fixed rooms and saves `rooms.json`; everyone gets a new `server-state`. Answered like SFU requests; errors `not-admin`, `bad-request` (includes hidden without a password), `room-exists`, `room-in-use` (renaming a room with people in it), `unknown-room`, `not-saved` |
 | *SFU request* | `id`, `data` | reply: `{type: "response", id, ok, data}` or `{…, ok: false, error}` |
@@ -164,7 +165,7 @@ Server → client:
 | `producer-closed` | `peerId`, `producerId` | only for consumers |
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) answer to `hello`: the visible fixed rooms and who is in each; `name` is `SERVER_NAME`, when set; `media` as in `joined` |
 | `room-update` | `room` (as in `server-state`) | (0.5) someone joined, left or changed their picture or color in a visible fixed room |
-| `channel-message` | `channel`, `message: {id, at, name, color?, text, media?, caption?}` | (0.5) a new message in a text channel (`id` grows per channel; `at` in ms) |
+| `channel-message` | `channel`, `message: {id, at, name, color?, avatar?, text, media?, caption?}` | (0.5) a new message in a text channel (`id` grows per channel; `at` in ms). (0.5.1) `avatar`: the id of the sender's picture (a hash; the picture comes from the `avatars` request), which stays with the message even if the person changes pictures |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) someone muted, unmuted, started or stopped a live (a small message, without the pictures) |
 | `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`; 0.5: `wrong-password`, `not-admin`), optional `ref` | |
 
@@ -187,7 +188,7 @@ Configuration through environment variables:
 | `RTC_LISTEN_IP` | 0.0.0.0 | media interface |
 | `ANNOUNCED_ADDRESS` | empty = the host each client used | address announced in the ICE candidates |
 | `MEDIASOUP_LOG_LEVEL` | warn | mediasoup log level |
-| `DATA_DIR` | `./data` | (0.5) folder with `rooms.json` (the fixed rooms), `channels.json` (the text channels) and `history/<channel>.json` (each one's last 500 messages, written ~0.3 s after they arrive). In Docker, `/data`, mounted from `./data` next to the compose file (on Linux, writable by uid 1000) |
+| `DATA_DIR` | `./data` | (0.5) folder with `rooms.json` (the fixed rooms), `channels.json` (the text channels) and `history/<channel>.json` (each one's last 500 messages, written ~0.3 s after they arrive). (0.5.1) `avatars/<id>.txt`: each profile picture a kept message uses, once, deleted when no message uses it. In Docker, `/data`, mounted from `./data` next to the compose file (on Linux, writable by uid 1000) |
 | `SERVER_NAME` | empty = its address | (0.5) the server's name in the app's server column and channel list (up to 32 characters) |
 | `MEDIA` | on | (0.5) `off` turns files in the chats off: no `media` in `features`, and the `/media` routes answer 404 |
 | `MAX_IMAGE_MB` / `MAX_VIDEO_MB` | 8 / 50 | (0.5) the largest image (and GIF) and video |

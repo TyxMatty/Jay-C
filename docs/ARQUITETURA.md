@@ -128,6 +128,7 @@ Cliente → servidor:
 | `admin` | `key` | (0.5) a chave do servidor (`ADMIN_KEY`). Resposta: `{type: "admin", ok: true}` e um `server-state` com `admin: true` e também as salas invisíveis (`hidden: true`); ou `error` `not-admin` / `rate-limited` com `ref: "admin"` |
 | `channel-send` | `channel`, `text` (1–500 caracteres) e/ou `media: {id, poster?}` | (0.5) mensagem num canal de texto; só depois do `hello`. Todos na sessão do servidor (inclusive quem mandou) recebem `channel-message`. Mesmo limite do chat da call. Erros com `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
 | `channel-history` | `id`, `data`: `{channel, before?}` | (0.5) até 50 mensagens mais antigas que o id `before` (as mais novas, sem ele), da mais antiga para a mais nova. Resposta: `{messages}` |
+| `avatars` | `id`, `data`: `{ids}` (até 100) | (0.5.1, T14.A) as fotos de perfil das mensagens dos canais, pelo id. Resposta: `{avatars: {id: dataURL}}`, só com os ids que o servidor tem; erros `not-in-server`, `bad-request` |
 | `channel-create` / `channel-edit` / `channel-delete` | `id`, `data`: `{name, newName?}` | (0.5, só admin) como as das salas; erros `channel-exists`, `unknown-channel` |
 | `room-create` / `room-edit` / `room-delete` | `id`, `data`: `{name, newName?, password?, hidden?}` (`password: null` tira a senha) | (0.5, só admin) muda as salas fixas e grava o `rooms.json`; todos recebem um `server-state` novo. Resposta como as do SFU; erros `not-admin`, `bad-request` (inclui invisível sem senha), `room-exists`, `room-in-use` (renomear uma sala com gente), `unknown-room`, `not-saved` |
 | *requisição SFU* | `id`, `data` | resposta: `{type: "response", id, ok, data}` ou `{…, ok: false, error}` |
@@ -162,7 +163,7 @@ Servidor → cliente:
 | `producer-closed` | `peerId`, `producerId` | só para quem consome |
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma; `name` é o `SERVER_NAME`, se houver; `media` como no `joined` |
 | `room-update` | `room` (como em `server-state`) | (0.5) alguém entrou, saiu ou trocou a foto ou a cor numa sala fixa visível |
-| `channel-message` | `channel`, `message: {id, at, name, color?, text, media?, caption?}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms) |
+| `channel-message` | `channel`, `message: {id, at, name, color?, avatar?, text, media?, caption?}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms). (0.5.1) `avatar`: o id da foto de quem mandou (um hash; a foto vem pelo pedido `avatars`), que fica com a mensagem mesmo se a pessoa trocar de foto |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) alguém mutou, desmutou, abriu ou fechou uma live (mensagem pequena, sem as fotos) |
 | `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`; 0.5: `wrong-password`, `not-admin`), `ref` opcional | |
 
@@ -185,7 +186,7 @@ Configuração por variáveis de ambiente:
 | `RTC_LISTEN_IP` | 0.0.0.0 | interface da mídia |
 | `ANNOUNCED_ADDRESS` | vazio = o host que cada cliente usou | endereço anunciado nos candidatos ICE |
 | `MEDIASOUP_LOG_LEVEL` | warn | nível de log do mediasoup |
-| `DATA_DIR` | `./data` | (0.5) pasta com o `rooms.json` (as salas fixas), o `channels.json` (os canais de texto) e `history/<canal>.json` (as últimas 500 mensagens de cada um, gravadas ~0,3 s depois de chegar). No Docker, `/data`, montada de `./data` ao lado do compose (no Linux, gravável pelo uid 1000) |
+| `DATA_DIR` | `./data` | (0.5) pasta com o `rooms.json` (as salas fixas), o `channels.json` (os canais de texto) e `history/<canal>.json` (as últimas 500 mensagens de cada um, gravadas ~0,3 s depois de chegar). (0.5.1) `avatars/<id>.txt`: cada foto de perfil usada por uma mensagem guardada, uma vez só, apagada quando nenhuma mensagem a usa. No Docker, `/data`, montada de `./data` ao lado do compose (no Linux, gravável pelo uid 1000) |
 | `SERVER_NAME` | vazio = o endereço | (0.5) o nome do servidor na coluna de servidores e na lista de canais do app (até 32 caracteres) |
 | `MEDIA` | ligado | (0.5) `off` desliga os arquivos nos chats: sem `media` em `features`, e as rotas `/media` respondem 404 |
 | `MAX_IMAGE_MB` / `MAX_VIDEO_MB` | 8 / 50 | (0.5) tamanho máximo de uma imagem (e GIF) e de um vídeo |

@@ -464,11 +464,15 @@ O arrastar nativo do Tauri estava ligado e não entregava o drop para a página 
 #### [x] Links clicáveis (3fc7bdb)
 http(s) nas mensagens viram links; no Windows abrem no navegador padrão. Falta: o clique real (confirmar com o usuário) e o Android.
 
-#### [ ] T14.A: Foto de perfil nas mensagens dos canais
+#### [x] T14.A: Foto de perfil nas mensagens dos canais
 Hoje a mensagem de canal guarda só nome e cor, e a lista mostra a inicial (o chat da call pega a foto de quem está na sala).
-- [ ] O servidor guarda cada foto uma vez (por hash, em `DATA_DIR`), e a mensagem leva só a referência; a foto sai quando nenhuma mensagem a usa.
-- [ ] O app busca as fotos que não conhece (um pedido só por página de mensagens) e guarda na memória.
-- [ ] Mensagens antigas (sem referência) seguem com a inicial; trocar a foto vale para as mensagens novas.
+- [x] O servidor guarda cada foto uma vez (por hash, em `DATA_DIR`), e a mensagem leva só a referência; a foto sai quando nenhuma mensagem a usa.
+- [x] O app busca as fotos que não conhece (um pedido só por página de mensagens) e guarda na memória.
+- [x] Mensagens antigas (sem referência) seguem com a inicial; trocar a foto vale para as mensagens novas.
+
+**Como ficou:** `signaling-server/src/avatars.js` guarda `DATA_DIR/avatars/<id>.txt` (id = 22 caracteres do SHA-256 da foto); o `channel-send` põe o id da foto de quem manda na mensagem; o pedido `avatars` devolve as fotos por id. Apagar uma mensagem (das 500, ou o canal) poda as fotos sem uso; no início, as que nenhuma mensagem usa saem. No app, a `ServerSession` guarda as fotos por id (`avatar`, `loadAvatars`, evento `avatars`), confere que são `data:image/...` de até 32 KB e nunca pede o mesmo id duas vezes; o canal redesenha mantendo a posição de quem lê.
+
+**Medido (09/11/2026):** testes do servidor: a mesma foto, o mesmo id e um arquivo só; a mensagem nunca leva a foto; pedidos com ids desconhecidos, com `../` (um `.txt` fora da pasta não vaza: sem a checagem do id, o teste falha), mais de 100 ids e sem `hello`; foto nova só nas mensagens novas; depois de reiniciar, as fotos voltam da pasta; apagar o canal apaga as fotos (sem a poda, o teste falha). Teste do app com um servidor falso: só imagens válidas e pequenas ficam, e nada é pedido duas vezes. No app de dev, com bots de verdade: a foto aparece no #papo para mensagens antigas e para uma pessoa nova que escreve com o canal aberto.
 **Verificação:** testes do servidor (guardar, deduplicar, apagar quando sai a última mensagem, limite de tamanho); no app, a foto aparece no canal, e um app 0.5.0 segue funcionando.
 
 #### [ ] T14.B: Mencionar pessoas (@nome)

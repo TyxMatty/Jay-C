@@ -45,12 +45,18 @@ export function createTextChannel({ session, channel, onRead }) {
     text: m.text,
     at: m.at,
     background: profileBackground(m.color ?? null, m.name),
+    avatar: session.avatar(m.avatar),
     ...(m.media !== undefined ? { media: m.media, caption: typeof m.caption === 'string' ? m.caption : '' } : {}),
   });
   const show = (options) => {
     empty.hidden = messages.length > 0;
     chatLog.replace(messages.map(toChat), options);
     if (messages.length) onRead(messages.at(-1).id);
+    session.loadAvatars(messages.map((m) => m.avatar));
+  };
+  // Pictures that arrived: drawn in place, keeping where the reader is.
+  const onAvatars = () => {
+    if (messages.some((m) => m.avatar && session.avatar(m.avatar))) show({ keepPlace: true });
   };
 
   const loadNewest = async () => {
@@ -90,6 +96,7 @@ export function createTextChannel({ session, channel, onRead }) {
     empty.hidden = true;
     chatLog.append(toChat(message), { follow: message.name === session.name });
     onRead(message.id);
+    session.loadAvatars([message.avatar]);
   };
   const onError = (e) => {
     status.textContent = t(SEND_ERRORS[e.detail.code] ?? 'The server did not accept your message (it may need updating).');
@@ -102,6 +109,7 @@ export function createTextChannel({ session, channel, onRead }) {
   session.addEventListener('message', onMessage);
   session.addEventListener('channel-error', onError);
   session.addEventListener('connected', onConnected);
+  session.addEventListener('avatars', onAvatars);
 
   let sending = false;
   form.addEventListener('submit', async (e) => {
@@ -139,6 +147,7 @@ export function createTextChannel({ session, channel, onRead }) {
       session.removeEventListener('message', onMessage);
       session.removeEventListener('channel-error', onError);
       session.removeEventListener('connected', onConnected);
+      session.removeEventListener('avatars', onAvatars);
     },
   };
 }

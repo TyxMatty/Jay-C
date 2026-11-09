@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { RoomRegistry, describePeer } from './rooms.js';
 import { Directory, ROOM_RE, checkPassword } from './directory.js';
 import { Channels } from './channels.js';
+import { AvatarStore, MAX_AVATARS_PER_REQUEST } from './avatars.js';
 import { TokenBucket } from './rate-limit.js';
 import { loadConfig } from './config.js';
 import { Sfu, resolveAnnouncedAddress } from './sfu.js';
@@ -122,7 +123,21 @@ export function startServer(config, { log = defaultLog } = {}) {
   const directory = new Directory({ dataDir: config.dataDir ?? null, log });
   /** The chats' files (Jay-C 0.5, T13): only with a data folder, and unless MEDIA=off. */
   let media = null;
-  const channels = new Channels({ dataDir: config.dataDir ?? null, log, onDrop: (messages) => media?.remove(messages.flatMap((m) => mediaIds(m.media))) });
+  let avatars = null;
+  const channels = new Channels({
+    dataDir: config.dataDir ?? null,
+    log,
+    onDrop: (messages) => {
+      media?.remove(messages.flatMap((m) => mediaIds(m.media)));
+      if (messages.some((m) => m.avatar)) avatars?.prune(channels.avatars());
+    },
+  });
+  /** The profile pictures of channel messages (T14.A); like files, a folder the server can't write turns them off. */
+  try {
+    avatars = new AvatarStore({ dataDir: config.dataDir ?? null, keep: channels.avatars(), log });
+  } catch (error) {
+    log('error', 'avatars folder not writable, channel messages go without pictures', { error: error?.message });
+  }
   if (config.media !== false && config.dataDir) {
     try {
       media = new MediaStore({
@@ -569,7 +584,8 @@ export function startServer(config, { log = defaultLog } = {}) {
         if (typeof msg.channel !== 'string' || !channels.has(msg.channel)) return fail('unknown-channel', 'channel-send');
         const parts = chatParts(msg, { channel: true });
         if (parts === null) return fail('bad-message', 'channel-send');
-        const message = channels.post(msg.channel, { author: peer.name, color: peer.color, ...parts });
+        const avatar = peer.avatar ? (avatars?.put(peer.avatar) ?? null) : null;
+        const message = channels.post(msg.channel, { author: peer.name, color: peer.color, avatar, ...parts });
         for (const watcher of watchers) watcher.send({ type: 'channel-message', channel: msg.channel, message });
       } else if (msg.type === 'channel-history' && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
         // A page of a channel's messages, older than `before` (the newest without it).
@@ -578,6 +594,18 @@ export function startServer(config, { log = defaultLog } = {}) {
         if (!watchers.has(peer)) return respond({ ok: false, error: 'not-in-server' });
         if (typeof channel !== 'string' || !channels.has(channel)) return respond({ ok: false, error: 'unknown-channel' });
         respond({ ok: true, data: { messages: channels.history(channel, before) } });
+      } else if (msg.type === 'avatars' && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
+        // The pictures of channel messages, by id (T14.A): unknown ids are left out.
+        const respond = (body) => peer.send({ type: 'response', id: msg.id, ...body });
+        const ids = msg.data?.ids;
+        if (!watchers.has(peer)) return respond({ ok: false, error: 'not-in-server' });
+        if (!Array.isArray(ids) || ids.length > MAX_AVATARS_PER_REQUEST) return respond({ ok: false, error: 'bad-request' });
+        const found = {};
+        for (const id of new Set(ids)) {
+          const dataUrl = avatars?.get(id);
+          if (dataUrl) found[id] = dataUrl;
+        }
+        respond({ ok: true, data: { avatars: found } });
       } else if (msg.type === 'admin') {
         admin(msg);
       } else if (Object.hasOwn(ADMIN_REQUESTS, msg.type) && (typeof msg.id === 'number' || typeof msg.id === 'string')) {

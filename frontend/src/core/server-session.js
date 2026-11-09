@@ -7,6 +7,10 @@ import { mediaConfig, httpBase } from './attachments.js';
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 10000];
 const REQUEST_TIMEOUT_MS = 10000;
+/** A channel message's picture id, and the pictures the server hands back (T14.A). */
+const AVATAR_ID = /^[A-Za-z0-9_-]{22}$/;
+const AVATAR_URL = /^data:image\/(?:webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
+const MAX_AVATAR_LENGTH = 32_000;
 
 /** A refused request or admin key: `code` is the server's error code. */
 export class ServerSessionError extends Error {
@@ -57,6 +61,8 @@ export class ServerSession extends EventTarget {
   /** Files in the channels (T13): this connection's token and the server's limits, or null. */
   media = null;
   #adminKey = null;
+  /** id -> data URL (null: asked, or the server has none). */
+  #avatars = new Map();
   #pendingAdmin = null;
   #nextId = 1;
   /** @type {Map<number, { resolve: Function, reject: Function, timer: number }>} */
@@ -123,6 +129,37 @@ export class ServerSession extends EventTarget {
   sendChannel(channel, text, media = null) {
     if (media && !this.media) return false;
     return this.#send({ type: 'channel-send', channel, ...(text ? { text } : {}), ...(media ? { media } : {}) });
+  }
+
+  /** The profile picture of a channel message, by its id (T14.A): a data URL, or null (not here yet, or none). */
+  avatar(id) {
+    return this.#avatars.get(id) ?? null;
+  }
+
+  /**
+   * Asks the server for the pictures of these ids it hasn't been asked for yet; fires 'avatars'
+   * when some arrive. An id the server doesn't know stays without one (no asking again).
+   */
+  async loadAvatars(ids) {
+    const wanted = [...new Set(ids)].filter((id) => typeof id === 'string' && AVATAR_ID.test(id) && !this.#avatars.has(id)).slice(0, 100);
+    if (!wanted.length) return;
+    for (const id of wanted) this.#avatars.set(id, null);
+    let found;
+    try {
+      found = (await this.request('avatars', { ids: wanted })).avatars;
+    } catch {
+      for (const id of wanted) this.#avatars.delete(id); // offline: the next page asks again
+      return;
+    }
+    let got = false;
+    for (const id of wanted) {
+      const url = found?.[id];
+      if (typeof url === 'string' && url.length <= MAX_AVATAR_LENGTH && AVATAR_URL.test(url)) {
+        this.#avatars.set(id, url);
+        got = true;
+      }
+    }
+    if (got) this.dispatchEvent(new CustomEvent('avatars'));
   }
 
   /** Up to 50 messages of `channel` older than id `before` (the newest without it), oldest first. */
