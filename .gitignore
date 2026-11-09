@@ -1,7 +1,9 @@
 node_modules/
 dist/
-# The signaling server's data (rooms.json) when run from the repo.
+# A local server's data (rooms, channels, history, pictures and files): never in a commit, whether
+# the server runs from signaling-server/ (npm run server) or from the repository root.
 signaling-server/data/
+/data/
 *.log
 .env
 .env.*
