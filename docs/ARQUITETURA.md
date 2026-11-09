@@ -121,12 +121,12 @@ Cliente → servidor:
 |---|---|---|
 | `join` | `room`, `name`, `avatar?`, `color?`, `password?` | entra na sala (cria se não existir). (0.5) Uma sala fixa com senha só com `password`; senão `error` `wrong-password` com `ref: "join"`. 10 tentativas por IP, depois uma a cada 5 s (`rate-limited`). O app reenvia a senha ao reconectar |
 | `profile` | `avatar` (data URL ou `null`), `color` (`{from, to?, angle?}` ou `null`) | troca a foto ou a cor de perfil durante a chamada; os outros recebem `peer-updated`. A cor só aceita `#rrggbb` e ângulo inteiro 0–360 |
-| `chat` | `text` (1–500 caracteres) | mensagem para a sala; os outros recebem `chat`. Nada fica guardado no servidor |
+| `chat` | `text` (1–500 caracteres) e/ou `media: {id, poster?}` | mensagem para a sala; os outros recebem `chat`. Nada fica guardado no servidor. (0.5) Com `media`, um arquivo que esta conexão subiu (ver "Arquivos nos chats"), e o `text` vira a legenda |
 | `screen-preview` | `image` (JPEG em data URL, até 48 000 caracteres, ou `null` ao parar) | uma imagem da própria live, a cada 6 s; os outros recebem `screen-preview`, e quem entra depois recebe a última no `joined`. Até 1 a cada 2 s (rajada de 3). Só é enviado se o `joined` listar `screen-preview` em `features` |
 | `leave` | — | sai da sala |
 | `hello` | `name`, `avatar?`, `color?` | (0.5) a conexão passa a acompanhar a lista de salas do servidor, sem entrar em call. Resposta: `server-state`. O app abre uma conexão só para isso, separada da call |
 | `admin` | `key` | (0.5) a chave do servidor (`ADMIN_KEY`). Resposta: `{type: "admin", ok: true}` e um `server-state` com `admin: true` e também as salas invisíveis (`hidden: true`); ou `error` `not-admin` / `rate-limited` com `ref: "admin"` |
-| `channel-send` | `channel`, `text` (1–500 caracteres) | (0.5) mensagem num canal de texto; só depois do `hello`. Todos na sessão do servidor (inclusive quem mandou) recebem `channel-message`. Mesmo limite do chat da call. Erros com `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
+| `channel-send` | `channel`, `text` (1–500 caracteres) e/ou `media: {id, poster?}` | (0.5) mensagem num canal de texto; só depois do `hello`. Todos na sessão do servidor (inclusive quem mandou) recebem `channel-message`. Mesmo limite do chat da call. Erros com `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
 | `channel-history` | `id`, `data`: `{channel, before?}` | (0.5) até 50 mensagens mais antigas que o id `before` (as mais novas, sem ele), da mais antiga para a mais nova. Resposta: `{messages}` |
 | `channel-create` / `channel-edit` / `channel-delete` | `id`, `data`: `{name, newName?}` | (0.5, só admin) como as das salas; erros `channel-exists`, `unknown-channel` |
 | `room-create` / `room-edit` / `room-delete` | `id`, `data`: `{name, newName?, password?, hidden?}` (`password: null` tira a senha) | (0.5, só admin) muda as salas fixas e grava o `rooms.json`; todos recebem um `server-state` novo. Resposta como as do SFU; erros `not-admin`, `bad-request` (inclui invisível sem senha), `room-exists`, `room-in-use` (renomear uma sala com gente), `unknown-room`, `not-saved` |
@@ -151,18 +151,18 @@ Servidor → cliente:
 
 | type | campos | |
 |---|---|---|
-| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features` | quem já está na sala, o que cada um publica e as capacidades do router. `features`: as mensagens e pedidos novos que o servidor aceita (hoje, `screen-preview`, `close-consumer` e `server-session`); um servidor antigo não manda o campo |
+| `joined` | `id`, `room`, `peers: [{id, name, avatar?, color?, preview?, producers: [{id, kind, source, paused}]}]`, `iceServers`, `routerRtpCapabilities`, `features`, `media?` | quem já está na sala, o que cada um publica e as capacidades do router. `features`: as mensagens e pedidos novos que o servidor aceita (hoje, `screen-preview`, `close-consumer`, `server-session` e, com arquivos ligados, `media`); um servidor antigo não manda o campo. `media`: `{token, maxImageBytes, maxVideoBytes}`, o token desta conexão para os arquivos |
 | `peer-joined` / `peer-left` | `id`, `name`, `avatar?`, `color?` (só no `peer-joined`) | |
 | `peer-updated` | `id`, `avatar`, `color` | alguém trocou ou tirou (`null`) a foto ou a cor de perfil |
-| `chat` | `id`, `name`, `text` | mensagem de alguém da sala (quebras de linha mantidas; caracteres de controle removidos) |
+| `chat` | `id`, `name`, `text`, `media?`, `caption?` | mensagem de alguém da sala (quebras de linha mantidas; caracteres de controle removidos). Com um arquivo: `media: {id, kind, mime, size, width?, height?, poster?}`, preenchido pelo servidor, e `caption` (a legenda, talvez vazia); o `text` é a legenda ou `[Image]`, `[GIF]`, `[Video]`, para apps sem arquivos |
 | `screen-preview` | `id`, `image` | uma imagem da live de alguém (`null` = parou). O card "Assistir live" do card da pessoa mostra a imagem |
 | `new-producer` | `peerId`, `producerId`, `kind`, `source`, `paused` | alguém começou a publicar uma faixa |
 | `producer-state` | `peerId`, `producerId`, `paused` | só para quem consome: mutou ou desligou a câmera, ou voltou |
 | `viewer-bandwidth` | `producerId`, `kbps` (`null` = ninguém assiste) | a cada 2 s, para quem transmite a tela: a menor banda entre quem assiste, como o mediasoup estima para cada um. A live nativa (uma camada só) fica abaixo dela |
 | `producer-closed` | `peerId`, `producerId` | só para quem consome |
-| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma; `name` é o `SERVER_NAME`, se houver |
+| `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma; `name` é o `SERVER_NAME`, se houver; `media` como no `joined` |
 | `room-update` | `room` (como em `server-state`) | (0.5) alguém entrou, saiu ou trocou a foto ou a cor numa sala fixa visível |
-| `channel-message` | `channel`, `message: {id, at, name, color?, text}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms) |
+| `channel-message` | `channel`, `message: {id, at, name, color?, text, media?, caption?}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms) |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) alguém mutou, desmutou, abriu ou fechou uma live (mensagem pequena, sem as fotos) |
 | `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`; 0.5: `wrong-password`, `not-admin`), `ref` opcional | |
 
@@ -187,6 +187,9 @@ Configuração por variáveis de ambiente:
 | `MEDIASOUP_LOG_LEVEL` | warn | nível de log do mediasoup |
 | `DATA_DIR` | `./data` | (0.5) pasta com o `rooms.json` (as salas fixas), o `channels.json` (os canais de texto) e `history/<canal>.json` (as últimas 500 mensagens de cada um, gravadas ~0,3 s depois de chegar). No Docker, `/data`, montada de `./data` ao lado do compose (no Linux, gravável pelo uid 1000) |
 | `SERVER_NAME` | vazio = o endereço | (0.5) o nome do servidor na coluna de servidores e na lista de canais do app (até 32 caracteres) |
+| `MEDIA` | ligado | (0.5) `off` desliga os arquivos nos chats: sem `media` em `features`, e as rotas `/media` respondem 404 |
+| `MAX_IMAGE_MB` / `MAX_VIDEO_MB` | 8 / 50 | (0.5) tamanho máximo de uma imagem (e GIF) e de um vídeo |
+| `MEDIA_DISK_MB` | 2048 | (0.5) todos os arquivos juntos, em `DATA_DIR/media`; passado isso, um envio novo recebe 507 até mensagens antigas saírem |
 | `ADMIN_KEY` | vazio = ninguém gerencia | (0.5) quem manda essa chave (`admin`) cria, edita e apaga as salas fixas pelo app. Comparada em tempo constante, nunca vai para log; 5 tentativas por IP, depois uma a cada 10 s |
 
 **Salas fixas (0.5).** `DATA_DIR/rooms.json`: `{ "rooms": [{ "name": "geral" }, { "name": "privada", "hidden": true }] }`. Só elas aparecem na lista, na ordem do arquivo; `hidden` as tira da lista (entra-se pelo nome). Uma sala aberta por um nome que não está ali (DC, ou um app 0.4) é temporária e nunca aparece. Um arquivo ilegível é ignorado (o servidor sobe sem salas fixas e avisa no log).
@@ -197,6 +200,15 @@ Proteções:
 - IDs de peer gerados pelo servidor, com `crypto.randomUUID()`.
 - Foto de perfil (`avatar`): só `data:image/(webp|jpeg|png);base64,…` com até 32 000 caracteres. SVG fica de fora, porque pode carregar script, e URLs remotas também, porque rastreariam quem vê. Uma foto inválida recusa o `join` ou o `profile` com `bad-message`. O campo só vai nas mensagens quando existe.
 - Endpoint `GET /health` para o `HEALTHCHECK` do Docker.
+
+**Arquivos nos chats (0.5, T13).** Imagens (PNG, JPEG, WebP), GIFs (GIF e WebP animado) e vídeos (MP4, WebM) vão por HTTP, na mesma porta da sinalização, não pelo WebSocket. Código em `signaling-server/src/media.js`; testes de ataque em `signaling-server/test/media.test.js` e `frontend/test/attachments.test.js`.
+- `POST /media`, com `Authorization: Bearer <token>` (o `media.token` do `joined` ou do `server-state`, um por conexão, que morre com ela) e o arquivo no corpo. Resposta 201 `{id, kind, mime, size, width?, height?}`. Recusas, com `{error}`: 401 `no-token`, 403 `not-in-chat` (sem call e sem `hello`), 413 `too-large`, 415 `bad-type` ou `too-big-image`, 429 `rate-limited`/`busy`/`too-many-pending`, 507 `disk-full`.
+- `GET /media/<id>`, com o mesmo cabeçalho: o arquivo, com `Content-Type` do tipo conferido, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox` e `Content-Disposition: inline`. Só vê quem está na call do arquivo (os do chat da call) ou na sessão do servidor (os dos canais); qualquer outro caso, inclusive um id que não existe, é 404. `OPTIONS` responde o CORS (`Access-Control-Allow-Origin: *`: não há cookies, o token decide).
+- O tipo vem dos primeiros bytes, nunca do que o app diz; o tamanho da imagem, do cabeçalho dela (mais de 8192 px num lado ou de 40 MP é recusado, contra bombas de descompressão). Os limites cortam o envio enquanto ele chega.
+- O id (16 bytes aleatórios, base64url) só vale numa mensagem da conexão que o subiu, uma vez, em até 10 minutos; o servidor preenche o resto (`kind`, `mime`, tamanhos, `poster`) do próprio registro. O `poster` de um vídeo é uma imagem da mesma conexão.
+- Apagados: com a mensagem que saiu das 500 do canal, com o canal apagado, quando a call esvazia, e o que subiu sem virar mensagem. Num reinício, ficam só os arquivos das mensagens dos canais.
+- Limites: 6 envios seguidos por conexão (depois um a cada 5 s), 20 por IP, 2 ao mesmo tempo por IP e 16 no total, e uploads sem mensagem até 2 vídeos por IP. Downloads: 4 ao mesmo tempo por conexão, 120 seguidos e depois 2/s. Um envio parado por 30 s é cortado.
+- No app (`core/attachments.js`, `core/attachment-net.js`): o arquivo sai sem de onde foi feito (JPEG sem EXIF/XMP/IPTC, com a orientação mantida; PNG e WebP sem texto e EXIF; MP4 com a localização zerada; WebM não é limpo), e o que chega é conferido contra a mensagem (tipo e tamanho) antes de virar um `blob:`. A CSP do app só ganhou `http: https:` em `connect-src`; imagens e vídeos continuam só de `blob:`.
 
 ## 5. Fluxos principais
 

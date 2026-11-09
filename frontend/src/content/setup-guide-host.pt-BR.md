@@ -83,3 +83,14 @@ O Jay-C 0.5 em diante mostra as salas do servidor ao lado dele, com quem está e
 Pra aparecer um nome no lugar do endereço, defina também `SERVER_NAME` (ex.: `$env:SERVER_NAME="Jogatina"`, ou no `docker-compose.yml`).
 
 Depois, clique na engrenagem ao lado do nome do servidor, em cima dos canais, e digite a chave uma vez. Dá pra criar canais de texto (o servidor guarda as últimas 500 mensagens de cada um) e salas, pôr senha numa (ela mostra um cadeado) e esconder uma sala com senha (só acha quem digitar o nome). O servidor guarda tudo na pasta `data` dele. Uma sala com qualquer outro nome funciona como antes, mas fica fora da lista.
+
+## 7. Fotos, GIFs e vídeos nos chats
+
+O Jay-C 0.5 em diante manda imagens (PNG, JPEG, WebP), GIFs e vídeos (MP4, WebM) no chat da call e nos canais de texto. Vem ligado, e os arquivos ficam no seu servidor: nenhum serviço de fora vê quem manda ou assiste.
+
+- **Onde ficam:** na pasta `data/media`. Um arquivo é apagado junto com a mensagem: quando ela sai das últimas 500 do canal, quando o canal é apagado ou quando a call esvazia (o chat da call não guarda histórico).
+- **Limites:** 8 MB por imagem e 50 MB por vídeo, e 2 GB pra todos juntos. Mude com `MAX_IMAGE_MB`, `MAX_VIDEO_MB` e `MEDIA_DISK_MB` (ex.: `$env:MEDIA_DISK_MB="10000"`, ou no `docker-compose.yml`). Passado o total, arquivos novos são recusados até mensagens antigas saírem.
+- **Banda:** todo mundo que vê um arquivo baixa ele do seu servidor. Vídeos só baixam quando alguém dá play.
+- **Pra desligar:** `MEDIA=off`.
+
+Só quem está naquela call, ou no seu servidor, vê os arquivos dela. Antes de uma foto ou vídeo subir, o app tira de onde ele foi feito (o GPS nos metadados).

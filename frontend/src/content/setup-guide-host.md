@@ -83,3 +83,14 @@ Jay-C 0.5 and newer list the server's rooms next to it, with who is in each. To 
 To show a name instead of the address, also set `SERVER_NAME` (e.g. `$env:SERVER_NAME="Game nights"`, or in `docker-compose.yml`).
 
 Then click the gear next to the server's name, above its channels, and type the key once. You can create text channels (the server keeps their last 500 messages) and rooms, give one a password (it shows a lock) and hide a room that has a password (only who types its name finds it). The server keeps them in its `data` folder. A room joined by any other name works as before, but stays out of the list.
+
+## 7. Pictures, GIFs and videos in the chats
+
+Jay-C 0.5 and newer can send images (PNG, JPEG, WebP), GIFs and videos (MP4, WebM) in the call's chat and in text channels. It's on by default, and the files stay on your server: no outside service sees who sends or watches them.
+
+- **Where they go:** the `data/media` folder. A file is deleted with its message: when it falls out of a channel's last 500 messages, when the channel is deleted, or when the call empties (the call's chat keeps no history).
+- **Limits:** 8 MB per image and 50 MB per video, and 2 GB for all of them together. Change them with `MAX_IMAGE_MB`, `MAX_VIDEO_MB` and `MEDIA_DISK_MB` (e.g. `$env:MEDIA_DISK_MB="10000"`, or in `docker-compose.yml`). Past the total, new files are refused until old messages leave.
+- **Bandwidth:** everyone who sees a file downloads it from your server. Videos only download when someone plays them.
+- **To turn it off:** `MEDIA=off`.
+
+Only people in that call, or on your server, can see its files. Before a photo or video goes up, the app takes out where it was taken (the GPS in its metadata).
