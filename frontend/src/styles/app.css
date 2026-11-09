@@ -3183,11 +3183,16 @@ html[data-activity-pip] .activity-pip-video {
   z-index: 1000;
 }
 
-/* Clipped too: in a window ~200 px wide the top bar overflows, and a page wider than the window
-   makes the WebView zoom out, leaving the video short of the window's edges. */
 html[data-activity-pip] body > :not(.activity-pip-video) {
   visibility: hidden;
   overflow: clip;
+}
+
+/* The page is never wider than the window. In one ~200 px wide (the floating window, also for a
+   moment after it closes) the top bar overflows, and Android's WebView zooms out to fit it: the
+   video falls short of the window, and back at full size the page stays zoomed in, scrolling. */
+body > :not(.activity-pip-video) {
+  overflow-x: clip;
 }
 
 /* ---------- Share panel (popover) ---------- */
