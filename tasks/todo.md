@@ -486,7 +486,9 @@ Decidido pelo usuário: ao digitar @ aparecem todos os conectados ao servidor (n
 
 **Medido (09/11/2026, app de dev com um bot "Bia" no servidor de teste):** "@b" digitado de verdade oferece "@Bia" (aria-selected, activedescendant), Enter insere e o bot recebe "oi @Bia olha isso"; a lista some ao apagar o @. Bia menciona Sam com Sam em "Chamada direta": o #papo ganha o @ ("Abrir #papo (mencionaram você)") e o som toca (3 notas), sem notificação (janela na frente); simulando a janela atrás (`document.hasFocus` falso na página), a notificação sai com "Bia mencionou você em #papo" e o texto (permissão concedida). O @ sobrevive a recarregar o app e some ao abrir o canal; lá, as 4 mensagens com @Sam ficam destacadas. Contraste sem falhas no canal com os destaques e com a lista aberta (no estilo do perfil de teste). Testes: a regra (nomes com espaço, maiúsculas, acento, nome que continua, e-mail), a lista do @, o servidor (`online` na entrada, ao renomear e ao sair, nome repetido uma vez) e o @ salvo.
 
-**Não medido:** a notificação aparecendo de fato na tela (pergunte ao usuário), o som de ouvido, as menções no chat da call com outra pessoa de verdade (a regra e o código são os mesmos do canal), e o Android (lá não há notificação de menção). Menções feitas com o app fechado não viram @ (o app só vê as que chegam ao vivo).
+**Confirmado pelo usuário:** a notificação apareceu na tela do Windows.
+
+**Não medido:** o som de ouvido, as menções no chat da call com outra pessoa de verdade (a regra e o código são os mesmos do canal), e o Android (lá não há notificação de menção). Menções feitas com o app fechado não viram @ (o app só vê as que chegam ao vivo).
 Vale nos canais e no chat da call. **Verificação:** a regra de quem foi mencionado (nomes com espaço, maiúsculas, nome que é parte de outro) em teste; no app, com um bot, os quatro efeitos.
 
 ## Bugs para corrigir depois
