@@ -55,7 +55,7 @@ const REQUESTS = new Set([
 ]);
 
 /** What this server accepts beyond the first protocol, in `joined` and `server-state`. */
-const SERVER_FEATURES = ['screen-preview', 'close-consumer', 'server-session'];
+const SERVER_FEATURES = ['screen-preview', 'close-consumer', 'server-session', 'replies'];
 
 /** HTTP status of each upload refusal (the body says the code too). */
 const UPLOAD_STATUS = { 'too-large': 413, 'bad-type': 415, 'too-big-image': 415, 'disk-full': 507, aborted: 400 };
@@ -595,10 +595,14 @@ export function startServer(config, { log = defaultLog } = {}) {
         if (!watchers.has(peer)) return fail('not-in-server', 'channel-send');
         if (!chatBucket.take()) return fail('rate-limited', 'channel-send');
         if (typeof msg.channel !== 'string' || !channels.has(msg.channel)) return fail('unknown-channel', 'channel-send');
+        // A reply (T15.F) names the message by id; the quote comes from the history, and a message
+        // that is no longer kept leaves the reply as a plain message.
+        if (msg.replyTo !== undefined && !Number.isInteger(msg.replyTo)) return fail('bad-message', 'channel-send');
         const parts = chatParts(msg, { channel: true });
         if (parts === null) return fail('bad-message', 'channel-send');
         const avatar = peer.avatar ? (avatars?.put(peer.avatar) ?? null) : null;
-        const message = channels.post(msg.channel, { author: peer.name, color: peer.color, avatar, ...parts });
+        const reply = msg.replyTo === undefined ? null : channels.quote(msg.channel, msg.replyTo);
+        const message = channels.post(msg.channel, { author: peer.name, color: peer.color, avatar, reply, ...parts });
         for (const watcher of watchers) watcher.send({ type: 'channel-message', channel: msg.channel, message });
       } else if (msg.type === 'channel-history' && (typeof msg.id === 'number' || typeof msg.id === 'string')) {
         // A page of a channel's messages, older than `before` (the newest without it).

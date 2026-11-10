@@ -531,8 +531,14 @@ O painel do chat era `position: absolute` sobre o palco e cobria a live. Agora, 
 
 **Medido (09/11/2026, na interface no navegador sem janela, num canal):** uma mensagem digitada de verdade com os três estilos sai com `strong`, `em` e `code`; `**@Sam** see *https://…*` destaca a menção e mantém o link clicável; "2 * 3 * 4" e `snake_case_name` ficam como digitados; `<b>` e `<img onerror>` dentro de código e de negrito aparecem como texto (nenhum elemento criado); contraste sem falhas. Testes: os três estilos, o que não é marcador, marcadores dentro de um endereço, HTML. Não medido: o chat da call (usa a mesma lista de mensagens) e os estilos Neon e Suave.
 
-#### [ ] T15.F: Responder a uma mensagem
-Citar a mensagem respondida em cima da resposta, nos canais e no chat da call. Precisa de um campo novo no protocolo (`replyTo`) e de servidor novo.
+#### [x] T15.F: Responder a uma mensagem (canais de texto)
+Cada mensagem de canal ganhou o botão Responder (aparece ao passar o mouse ou com o foco do teclado; no toque, fica sempre visível, mais apagado). A caixa mostra "Respondendo a Fulano: …" (Esc ou o X cancela), e a resposta sai com a citação em cima: quem e o começo da mensagem. Clicar na citação leva à mensagem, se ela ainda estiver na tela. Uma resposta a uma mensagem sua chama você como uma menção (destaque, @ no canal, som e notificação).
+
+**Como ficou:** o app manda só `replyTo` (o id); o servidor monta a citação a partir do próprio histórico (`Channels.quote`, 120 caracteres), então ninguém forja "Fulano disse X". O servidor anuncia a feature `replies`, e sem ela (servidor antigo) o botão não aparece. Um app antigo ignora o campo `reply` e mostra a resposta como mensagem comum. O app confere a citação que chega (`cleanReply`).
+
+**Medido (09/11/2026, na interface no navegador sem janela, com um bot):** o botão fica invisível até o mouse passar; um clique abre a barra com o foco na caixa; Esc fecha; responder de verdade (clique, digitar, Enviar) chega ao bot com `reply: {id: 1, name: "Bia", text: …}`; a resposta do bot a uma mensagem do Sam fica destacada para o Sam; clicar na citação marca a mensagem citada; contraste sem falhas. Testes do servidor: a citação vem do histórico (um `reply` forjado é ignorado), corta em 120, ids são por canal, mensagem que não existe vira mensagem comum, `replyTo` não inteiro é recusado, a citação fica no histórico. Teste do app: só citações bem formadas.
+
+**Fora desta tarefa:** respostas no chat da call. As mensagens de lá não têm id nem ficam no servidor; precisa de um id por mensagem e de um aviso do servidor a quem mandou (tarefa própria, se o usuário quiser). Não medido: toque no celular e os estilos Neon e Suave.
 
 #### [ ] T15.G: Retorno ao entrar e sair da call
 Os testers não perceberam retorno nenhum. Hoje há um som ao entrar (`cue('join')`) e nenhum ao sair. Medir primeiro (o som toca? "Sons de aviso" ligado?), depois decidir: som ao sair e um aviso visível.

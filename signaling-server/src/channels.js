@@ -4,6 +4,8 @@ import { ROOM_RE } from './directory.js';
 
 /** Messages kept per channel (the user's choice); older ones are dropped. */
 export const KEEP_MESSAGES = 500;
+/** How much of a message a reply to it quotes (T15.F). */
+export const QUOTE_CHARS = 120;
 /** Messages per history page. */
 export const PAGE = 50;
 /** Saving waits this long, so a burst of messages is one write. */
@@ -76,10 +78,19 @@ export class Channels {
     return ids;
   }
 
+  /**
+   * What a reply shows of message `id` of this channel (T15.F): who wrote it and the start of its
+   * text, taken from the history here, never from whoever replies. null when it's no longer kept.
+   */
+  quote(name, id) {
+    const message = this.channels.get(name)?.messages.find((m) => m.id === id);
+    return message ? { id: message.id, name: message.name, text: message.text.slice(0, QUOTE_CHARS) } : null;
+  }
+
   /** Adds a message (text and media already checked) and returns it as everyone gets it. */
-  post(name, { author, color = null, avatar = null, text, media = null, caption = null }) {
+  post(name, { author, color = null, avatar = null, text, media = null, caption = null, reply = null }) {
     const channel = this.channels.get(name);
-    const message = { id: channel.nextId++, at: Date.now(), name: author, ...(color ? { color } : {}), ...(avatar ? { avatar } : {}), text, ...(media ? { media, caption: caption ?? '' } : {}) };
+    const message = { id: channel.nextId++, at: Date.now(), name: author, ...(color ? { color } : {}), ...(avatar ? { avatar } : {}), ...(reply ? { reply } : {}), text, ...(media ? { media, caption: caption ?? '' } : {}) };
     channel.messages.push(message);
     if (channel.messages.length > KEEP_MESSAGES) this.onDrop(channel.messages.splice(0, channel.messages.length - KEEP_MESSAGES));
     this.#scheduleSave(name);

@@ -230,7 +230,7 @@ describe('signaling server', () => {
   test('screen previews reach the room, and latecomers get the last one', async () => {
     const jpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==';
     const a = await joined(port, 'room-preview', 'Alice');
-    assert.deepEqual(a.msg.features, ['screen-preview', 'close-consumer', 'server-session']);
+    assert.deepEqual(a.msg.features, ['screen-preview', 'close-consumer', 'server-session', 'replies']);
     const b = await joined(port, 'room-preview', 'Bob');
     a.client.send({ type: 'screen-preview', image: jpeg });
     assert.deepEqual(await b.client.next('screen-preview'), { type: 'screen-preview', id: a.msg.id, image: jpeg });
@@ -849,6 +849,62 @@ describe('who has the server open (T14.B, the @ list)', () => {
     assert.deepEqual((await ana.client.next('online')).names, ['Ana', 'Beatriz', 'Bia']);
     twin.client.close();
     assert.deepEqual((await ana.client.next('online')).names, ['Ana', 'Beatriz']);
+    ana.client.close();
+    bia.client.close();
+  });
+});
+
+describe('replies in text channels (T15.F)', () => {
+  let dataDir;
+  let server;
+  let port;
+  before(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'jayc-replies-'));
+    writeFileSync(join(dataDir, 'channels.json'), JSON.stringify({ channels: [{ name: 'papo' }, { name: 'outro' }] }));
+    server = startServer({ ...baseConfig, dataDir }, { log: () => {} });
+    port = await server.ready;
+  });
+  after(async () => {
+    await server.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test('a reply carries a quote taken from the history, never from whoever replies', async () => {
+    const open = async (name) => {
+      const client = connect(port);
+      await client.open();
+      client.send({ type: 'hello', name });
+      const state = await client.next('server-state');
+      return { client, state };
+    };
+    const ana = await open('Ana');
+    const bia = await open('Bia');
+    assert.ok(ana.state.features.includes('replies'));
+    const said = async (from, message) => {
+      from.client.send({ type: 'channel-send', ...message });
+      return (await ana.client.next('channel-message')).message;
+    };
+    const long = 'x'.repeat(300);
+    const first = await said(ana, { channel: 'papo', text: long });
+    const answer = await said(bia, { channel: 'papo', text: 'concordo', replyTo: first.id, reply: { id: 1, name: 'Chefe', text: 'forged' } });
+    assert.deepEqual(answer.reply, { id: first.id, name: 'Ana', text: 'x'.repeat(120) }, 'the name and the start of the text, from the server');
+    assert.equal(answer.text, 'concordo');
+
+    // A message of another channel, one that doesn't exist: a plain message, not an error.
+    const elsewhere = await said(ana, { channel: 'outro', text: 'noutro canal' });
+    assert.equal('reply' in (await said(bia, { channel: 'papo', text: 'cadê?', replyTo: 999 })), false);
+    assert.equal(elsewhere.id, 1);
+    const cross = await said(bia, { channel: 'outro', text: 'resposta', replyTo: 1 });
+    assert.equal(cross.reply.text, 'noutro canal', 'ids are per channel: #outro 1, not #papo 1');
+
+    // Not an integer: refused.
+    for (const replyTo of ['1', 1.5, null, { id: 1 }]) {
+      bia.client.send({ type: 'channel-send', channel: 'papo', text: 'x', replyTo });
+      assert.deepEqual(await bia.client.next('error'), { type: 'error', code: 'bad-message', ref: 'channel-send' });
+    }
+    // The quote stays in the history.
+    const page = (await ana.client.request('channel-history', { channel: 'papo' })).data.messages;
+    assert.deepEqual(page.find((m) => m.id === answer.id).reply, answer.reply);
     ana.client.close();
     bia.client.close();
   });

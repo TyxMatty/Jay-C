@@ -3538,6 +3538,106 @@ body > :not(.activity-pip-video) {
   background: color-mix(in srgb, var(--surface-2) 60%, transparent);
 }
 
+/* Replies (T15.F). The Reply button sits at the message's top right: on hover or keyboard focus,
+   and always (dimmed) where there is no hover (touch). */
+.chat-message {
+  position: relative;
+}
+
+.chat-reply-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  opacity: 0;
+  background: var(--surface);
+}
+
+.chat-message:hover .chat-reply-btn,
+.chat-reply-btn:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .chat-reply-btn {
+    opacity: 0.7;
+  }
+}
+
+/* The quote on top of a reply: who and the start of the message, on one line. */
+.chat-reply {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-bottom: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-reply:hover .chat-reply-text {
+  color: var(--text);
+}
+
+.chat-reply:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.chat-reply strong {
+  flex: none;
+  color: var(--text);
+}
+
+.chat-reply-icon {
+  flex: none;
+  display: inline-flex;
+}
+
+.chat-reply-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.chat-reply-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The message a quote led to, for a moment. */
+.chat-message.jumped {
+  background: var(--accent-soft);
+}
+
+/* "Replying to Ana: ..." over the message box. */
+.chat-replying {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.chat-replying-text {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 /* A message that mentions whoever reads it (T14.B): tinted, with a bar on the left. */
 .chat-message.mentions-me {
   background: var(--accent-soft);

@@ -2,6 +2,8 @@
 // (ui/text-channel.js): one avatar, name and time on top of each run of messages from the same
 // person within GROUP_MS (like Discord). Text is always inserted as text, never as HTML.
 import { h } from './dom.js';
+import { icons } from './icons.js';
+import { t } from '../core/i18n.js';
 import { mediaFigure } from './chat-media.js';
 import { validMedia } from '../core/attachments.js';
 import { splitLinks } from '../core/links.js';
@@ -56,31 +58,60 @@ function timeLabel(at) {
 
 /**
  * @param {{ label: string, max?: number, loader?: ReturnType<typeof import('../core/attachment-net.js').createMediaLoader>,
- *   mentions?: () => { names: string[], me: string } }} options
+ *   mentions?: () => { names: string[], me: string }, onReply?: (message: ChatMessage) => void }} options
  *   max: older messages are dropped past this; loader: fetches the files of messages (T13);
- *   mentions: the names that can be mentioned here and whoever reads it (T14.B).
+ *   mentions: the names that can be mentioned here and whoever reads it (T14.B); onReply: each
+ *   message with an `id` gets a Reply button (T15.F). A message with `reply` ({ id, name, text })
+ *   shows that quote on top, which goes to the message when it's on screen; `replyToMe` makes it
+ *   stand out like a mention.
  */
-export function createChatLog({ label, max = 200, loader = null, mentions = null }) {
+export function createChatLog({ label, max = 200, loader = null, mentions = null, onReply = null }) {
   const log = h('ol', { class: 'chat-log', role: 'log', 'aria-live': 'polite', 'aria-label': label });
+  /** Scrolls to message `id` and marks it for a moment (nothing when it's not on screen any more). */
+  const jump = (id) => {
+    const target = [...log.children].find((li) => li.dataset.id === String(id));
+    if (!target) return;
+    target.scrollIntoView({ block: 'center' });
+    target.classList.add('jumped');
+    setTimeout(() => target.classList.remove('jumped'), 1500);
+  };
 
   /** @param {ChatMessage} message @param {Element | null} previous the message shown before it */
   const item = (message, previous) => {
     const at = message.at ?? Date.now();
-    const continued = previous?.dataset.sender === message.sender && at - Number(previous.dataset.at) < GROUP_MS;
+    // A reply starts a group of its own: the quote goes above the name.
+    const continued = !message.reply && previous?.dataset.sender === message.sender && at - Number(previous.dataset.at) < GROUP_MS;
     const face = h(
       'span',
       { class: 'chat-avatar', 'aria-hidden': 'true' },
       message.avatar ? h('img', { src: message.avatar, alt: '' }) : ((message.initial ?? message.name).trim()[0] ?? '?').toUpperCase(),
     );
     if (message.background) face.style.setProperty('--tile-bg', message.background);
-    const body = h('div', { class: 'chat-body' }, h('div', { class: 'chat-meta' }, h('strong', {}, message.name), h('time', { datetime: new Date(at).toISOString() }, timeLabel(at))), ...content(message));
-    // A message that mentions whoever reads it stands out (never our own).
-    const forMe = !message.mine && Boolean(body.querySelector('.chat-mention.me'));
+    const quote = message.reply
+      ? h(
+          'button',
+          { type: 'button', class: 'chat-reply', title: t('Go to the message from {name}', { name: message.reply.name }), onClick: () => jump(message.reply.id) },
+          h('span', { class: 'chat-reply-icon', html: icons.reply, 'aria-hidden': 'true' }),
+          h('strong', {}, message.reply.name),
+          h('span', { class: 'chat-reply-text' }, message.reply.text),
+        )
+      : null;
+    const body = h('div', { class: 'chat-body' }, quote, h('div', { class: 'chat-meta' }, h('strong', {}, message.name), h('time', { datetime: new Date(at).toISOString() }, timeLabel(at))), ...content(message));
+    // A message that mentions whoever reads it, or answers them, stands out (never our own).
+    const forMe = !message.mine && (Boolean(body.querySelector('.chat-mention.me')) || Boolean(message.replyToMe));
+    const replyButton =
+      onReply && message.id != null
+        ? h('button', { type: 'button', class: 'icon-btn icon-btn-small chat-reply-btn', 'aria-label': t('Reply to {name}', { name: message.name }), title: t('Reply to {name}', { name: message.name }), html: icons.reply, onClick: () => onReply(message) })
+        : null;
     return h(
       'li',
-      { class: `chat-message${message.mine ? ' mine' : ''}${continued ? ' continued' : ''}${forMe ? ' mentions-me' : ''}`, dataset: { sender: message.sender, at: String(at) } },
+      {
+        class: `chat-message${message.mine ? ' mine' : ''}${continued ? ' continued' : ''}${forMe ? ' mentions-me' : ''}`,
+        dataset: { sender: message.sender, at: String(at), ...(message.id != null ? { id: String(message.id) } : {}) },
+      },
       face,
       body,
+      replyButton,
     );
   };
   /** A message's text, or its file and caption (a file that doesn't check out shows the text only). */

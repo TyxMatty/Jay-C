@@ -10,5 +10,15 @@ export function mergeMessages(a, b) {
 /** Whether `channel` ({ name, lastId }) has messages after the last one seen (`read`: { [name]: id }). */
 export const isUnread = (channel, read = {}) => channel.lastId > (read[channel.name] ?? 0);
 
+/**
+ * The quote a reply carries (T15.F), as the server sent it: `{ id, name, text }` when well-formed
+ * (the server takes it from its history), else null.
+ */
+export function cleanReply(reply) {
+  const { id, name, text } = reply && typeof reply === 'object' ? reply : {};
+  if (!Number.isInteger(id) || typeof name !== 'string' || !name || name.length > 32 || typeof text !== 'string' || text.length > 120) return null;
+  return { id, name, text };
+}
+
 /** Someone mentioned us there after the last message read (T14.B; `mentions`: channel -> message id). */
 export const isMentioned = (channel, read = {}, mentions = {}) => (mentions[channel.name] ?? 0) > (read[channel.name] ?? 0);

@@ -16,6 +16,14 @@ test('a channel is unread past the last message seen in it', () => {
   assert.equal(isUnread({ name: 'geral', lastId: 4 }, { geral: 3 }), true);
 });
 
+test('a reply quote from the server is shown only when well-formed', async () => {
+  const { cleanReply } = await import('../src/core/text-channels.js');
+  assert.deepEqual(cleanReply({ id: 3, name: 'Ana', text: 'oi', extra: '<b>' }), { id: 3, name: 'Ana', text: 'oi' });
+  for (const bad of [null, undefined, 'x', { id: '3', name: 'Ana', text: 'oi' }, { id: 3, name: '', text: 'oi' }, { id: 3, name: 'A'.repeat(33), text: 'oi' }, { id: 3, name: 'Ana', text: 'x'.repeat(121) }, { id: 3, name: 'Ana' }]) {
+    assert.equal(cleanReply(bad), null, JSON.stringify(bad));
+  }
+});
+
 test('the @ shows while a mention is newer than what was read', async () => {
   const { isMentioned } = await import('../src/core/text-channels.js');
   assert.equal(isMentioned({ name: 'papo' }, { papo: 4 }, { papo: 7 }), true);

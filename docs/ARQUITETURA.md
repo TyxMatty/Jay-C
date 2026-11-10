@@ -126,7 +126,7 @@ Cliente → servidor:
 | `leave` | — | sai da sala |
 | `hello` | `name`, `avatar?`, `color?` | (0.5) a conexão passa a acompanhar a lista de salas do servidor, sem entrar em call. Resposta: `server-state`. O app abre uma conexão só para isso, separada da call |
 | `admin` | `key` | (0.5) a chave do servidor (`ADMIN_KEY`). Resposta: `{type: "admin", ok: true}` e um `server-state` com `admin: true` e também as salas invisíveis (`hidden: true`); ou `error` `not-admin` / `rate-limited` com `ref: "admin"` |
-| `channel-send` | `channel`, `text` (1–500 caracteres) e/ou `media: {id, poster?}` | (0.5) mensagem num canal de texto; só depois do `hello`. Todos na sessão do servidor (inclusive quem mandou) recebem `channel-message`. Mesmo limite do chat da call. Erros com `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
+| `channel-send` | `channel`, `text` (1–500 caracteres) e/ou `media: {id, poster?}`, `replyTo?` | (0.5) mensagem num canal de texto; só depois do `hello`. Todos na sessão do servidor (inclusive quem mandou) recebem `channel-message`. Mesmo limite do chat da call. Erros com `ref: "channel-send"`: `not-in-server`, `unknown-channel`, `bad-message`, `rate-limited` |
 | `channel-history` | `id`, `data`: `{channel, before?}` | (0.5) até 50 mensagens mais antigas que o id `before` (as mais novas, sem ele), da mais antiga para a mais nova. Resposta: `{messages}` |
 | `avatars` | `id`, `data`: `{ids}` (até 100) | (0.5.1, T14.A) as fotos de perfil das mensagens dos canais, pelo id. Resposta: `{avatars: {id: dataURL}}`, só com os ids que o servidor tem; erros `not-in-server`, `bad-request` |
 | `channel-create` / `channel-edit` / `channel-delete` | `id`, `data`: `{name, newName?}` | (0.5, só admin) como as das salas; erros `channel-exists`, `unknown-channel` |
@@ -164,7 +164,7 @@ Servidor → cliente:
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma; `name` é o `SERVER_NAME`, se houver; `media` como no `joined` |
 | `online` | `names` | (0.5.1, T14.B) quem está com o servidor aberto (fez `hello`), cada nome uma vez; também vem em `server-state` (`online`). Sai só quando a lista muda. O app usa para a lista do @ |
 | `room-update` | `room` (como em `server-state`) | (0.5) alguém entrou, saiu ou trocou a foto ou a cor numa sala fixa visível |
-| `channel-message` | `channel`, `message: {id, at, name, color?, avatar?, text, media?, caption?}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms). (0.5.1) `avatar`: o id da foto de quem mandou (um hash; a foto vem pelo pedido `avatars`), que fica com a mensagem mesmo se a pessoa trocar de foto |
+| `channel-message` | `channel`, `message: {id, at, name, color?, avatar?, reply?, text, media?, caption?}` | (0.5) uma mensagem nova num canal de texto (`id` crescente por canal; `at` em ms). (0.5.1) `avatar`: o id da foto de quem mandou (um hash; a foto vem pelo pedido `avatars`), que fica com a mensagem mesmo se a pessoa trocar de foto |
 | `room-peer` | `room`, `id`, `micOn`, `live` | (0.5) alguém mutou, desmutou, abriu ou fechou uma live (mensagem pequena, sem as fotos) |
 | `error` | `code` (`room-full`, `bad-message`, `rate-limited`, `internal`; 0.5: `wrong-password`, `not-admin`), `ref` opcional | |
 
@@ -202,6 +202,8 @@ Proteções:
 - IDs de peer gerados pelo servidor, com `crypto.randomUUID()`.
 - Foto de perfil (`avatar`): só `data:image/(webp|jpeg|png);base64,…` com até 32 000 caracteres. SVG fica de fora, porque pode carregar script, e URLs remotas também, porque rastreariam quem vê. Uma foto inválida recusa o `join` ou o `profile` com `bad-message`. O campo só vai nas mensagens quando existe.
 - Endpoint `GET /health` para o `HEALTHCHECK` do Docker.
+
+**Respostas (depois da 0.5.1, T15.F).** `channel-send` aceita `replyTo`: o id de uma mensagem do mesmo canal. O servidor põe na mensagem nova `reply: {id, name, text}`, com o nome e os primeiros 120 caracteres tirados do **próprio histórico** (quem responde não manda a citação, então não dá para forjar uma). Se a mensagem citada já saiu das 500, a resposta segue como mensagem comum; um `replyTo` que não é inteiro dá `bad-message`. O servidor anuncia a feature `replies`, e o app só mostra o botão Responder com ela. O chat da call ainda não tem respostas (as mensagens de lá não têm id).
 
 **Arquivos nos chats (0.5, T13).** Imagens (PNG, JPEG, WebP), GIFs (GIF e WebP animado) e vídeos (MP4, WebM) vão por HTTP, na mesma porta da sinalização, não pelo WebSocket. Código em `signaling-server/src/media.js`; testes de ataque em `signaling-server/test/media.test.js` e `frontend/test/attachments.test.js`.
 - `POST /media`, com `Authorization: Bearer <token>` (o `media.token` do `joined` ou do `server-state`, um por conexão, que morre com ela) e o arquivo no corpo. Resposta 201 `{id, kind, mime, size, width?, height?}`. Recusas, com `{error}`: 401 `no-token`, 403 `not-in-chat` (sem call e sem `hello`), 413 `too-large`, 415 `bad-type` ou `too-big-image`, 429 `rate-limited`/`busy`/`too-many-pending`, 507 `disk-full`.

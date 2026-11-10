@@ -5,6 +5,7 @@
 
 import { mediaConfig, httpBase } from './attachments.js';
 import { mentionsMe } from './mentions.js';
+import { cleanReply } from './text-channels.js';
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 10000];
 const REQUEST_TIMEOUT_MS = 10000;
@@ -131,9 +132,9 @@ export class ServerSession extends EventTarget {
    * Sends a message to text channel `channel`, with a file this connection uploaded (`media`:
    * { id, poster? }) and `text` as its caption. False when not connected (nothing sent).
    */
-  sendChannel(channel, text, media = null) {
+  sendChannel(channel, text, media = null, replyTo = null) {
     if (media && !this.media) return false;
-    return this.#send({ type: 'channel-send', channel, ...(text ? { text } : {}), ...(media ? { media } : {}) });
+    return this.#send({ type: 'channel-send', channel, ...(text ? { text } : {}), ...(media ? { media } : {}), ...(Number.isInteger(replyTo) ? { replyTo } : {}) });
   }
 
   /** Everyone the server shows (T14.B): who has it open and who is in its calls, each name once. */
@@ -255,7 +256,8 @@ export class ServerSession extends EventTarget {
         this.dispatchEvent(new CustomEvent('message', { detail: { channel: msg.channel, message: msg.message } }));
         const { message } = msg;
         const words = [message.text, message.caption].filter((x) => typeof x === 'string').join(' ');
-        if (message.name !== this.name && mentionsMe(words, this.knownNames(), this.name)) {
+        // A reply to one of our messages calls us like a mention does (T15.F).
+        if (message.name !== this.name && (mentionsMe(words, this.knownNames(), this.name) || cleanReply(message.reply)?.name === this.name)) {
           this.dispatchEvent(new CustomEvent('mention', { detail: { channel: msg.channel, message } }));
         }
         return this.#changed();

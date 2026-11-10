@@ -8,7 +8,7 @@ import { createChatLog } from './chat-log.js';
 import { createAttach } from './attach.js';
 import { createMediaLoader } from '../core/attachment-net.js';
 import { profileBackground } from '../core/profile-color.js';
-import { mergeMessages } from '../core/text-channels.js';
+import { mergeMessages, cleanReply } from '../core/text-channels.js';
 import { t } from '../core/i18n.js';
 
 const MAX_LENGTH = 500;
@@ -29,7 +29,30 @@ export function createTextChannel({ session, channel, onRead }) {
   const loader = createMediaLoader(access);
   // Who can be mentioned here (T14.B): who has the server open, who is in its calls, who wrote here.
   const mentionNames = () => [...session.knownNames(), ...messages.map((m) => m.name)];
-  const chatLog = createChatLog({ label: t('Messages in #{channel}', { channel }), max: MAX_SHOWN, loader, mentions: () => ({ names: mentionNames(), me: session.name }) });
+  // Replying (T15.F): the message being answered, shown over the box until sent or cancelled.
+  let replyTo = null;
+  const replyingText = h('span', { class: 'chat-replying-text' });
+  const replying = h(
+    'div',
+    { class: 'chat-replying', hidden: true },
+    h('span', { class: 'chat-reply-icon', html: icons.reply, 'aria-hidden': 'true' }),
+    replyingText,
+    h('button', { type: 'button', class: 'icon-btn icon-btn-small', 'aria-label': t('Cancel reply'), title: t('Cancel reply'), html: icons.close, onClick: () => setReply(null) }),
+  );
+  const setReply = (message) => {
+    replyTo = message;
+    replying.hidden = !message;
+    replyingText.replaceChildren(...(message ? [t('Replying to {name}', { name: message.name }), ': ', h('span', { class: 'chat-reply-text' }, message.text)] : []));
+    input.focus();
+  };
+  const chatLog = createChatLog({
+    label: t('Messages in #{channel}', { channel }),
+    max: MAX_SHOWN,
+    loader,
+    mentions: () => ({ names: mentionNames(), me: session.name }),
+    // Only on a server that keeps the quote (0.5.2 on): an older one would drop it in silence.
+    onReply: session.features.includes('replies') ? (message) => setReply(message) : null,
+  });
   const empty = h('div', { class: 'chat-empty' }, h('span', { class: 'chat-empty-icon', html: icons.chat, 'aria-hidden': 'true' }), h('p', { class: 'hint' }, t('No messages here yet. Everyone on this server sees this channel.')));
   const input = h('input', { class: 'input', type: 'text', maxlength: MAX_LENGTH, placeholder: t('Message #{channel}', { channel }), 'aria-label': t('Message') });
   const status = h('p', { class: 'hint', 'aria-live': 'polite' });
@@ -44,6 +67,9 @@ export function createTextChannel({ session, channel, onRead }) {
   let loadingOlder = false;
   let reachedStart = false;
   const toChat = (m) => ({
+    id: m.id,
+    reply: cleanReply(m.reply),
+    replyToMe: m.name !== session.name && cleanReply(m.reply)?.name === session.name,
     sender: `name:${m.name}`,
     name: m.name,
     text: m.text,
@@ -130,16 +156,23 @@ export function createTextChannel({ session, channel, onRead }) {
       if (!upload) return; // failed or removed: the reason is under the box, the text stays
     }
     const ref = upload ? { id: upload.id, ...(upload.poster ? { poster: upload.poster.id } : {}) } : null;
-    if (session.sendChannel(channel, text, ref)) {
+    if (session.sendChannel(channel, text, ref, replyTo?.id ?? null)) {
       input.value = '';
       status.textContent = '';
+      if (replyTo) setReply(null);
       if (upload) attach.sent();
     } else {
       status.textContent = t('Not connected right now. Your message is still in the box.');
     }
   });
 
-  element.append(empty, chatLog.element, status, attach.element, form);
+  // Esc in the box gives up the reply (when the @ list didn't take the key).
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || !replyTo) return;
+    e.preventDefault();
+    setReply(null);
+  });
+  element.append(empty, chatLog.element, status, replying, attach.element, form);
   attach.refresh();
   loadNewest();
 
