@@ -58,12 +58,12 @@ export function mentionQuery(value, caret) {
   return { start: at, query };
 }
 
-/** The names to offer for `query` (not `me`): those starting with it first, then a word in them. */
+/** The names to offer for `query` (not `me`): those starting with it first, then those with it anywhere ("@a": matty, pizza). */
 export function mentionCandidates(names, query, me) {
   const q = query.toLocaleLowerCase();
   const unique = [...new Set(names.filter((n) => typeof n === 'string' && n.trim() && !(me && same(n, me))))];
   const starts = unique.filter((n) => n.toLocaleLowerCase().startsWith(q));
-  const inside = unique.filter((n) => !starts.includes(n) && n.toLocaleLowerCase().split(/\s+/).some((w) => w.startsWith(q)));
+  const inside = unique.filter((n) => !starts.includes(n) && n.toLocaleLowerCase().includes(q));
   const byName = (a, b) => a.localeCompare(b);
   return [...starts.sort(byName), ...inside.sort(byName)].slice(0, MAX_CANDIDATES);
 }

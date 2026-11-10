@@ -523,8 +523,8 @@ O painel do chat era `position: absolute` sobre o palco e cobria a live. Agora, 
 
 **Medido (09/11/2026, na interface no navegador sem janela):** botões de 73×40 px (antes 32×32), o texto acima deles, o nome da sala sem corte; um clique de verdade no mudo muda o rótulo e o `aria-pressed`; na gaveta do celular (384 px) o painel fica igual, sem rolagem lateral; contraste sem falhas nos dois. Não medido: no app de Windows em tela cheia (o mesmo CSS) e nos outros estilos.
 
-#### [ ] T15.D: @ acha pelo meio do nome
-"@a" oferece "matty" e "pizza": hoje só acha pelo começo do nome ou de uma palavra dele (`mentionCandidates`). Os que começam com o texto seguem primeiro.
+#### [x] T15.D: @ acha pelo meio do nome
+"@a" oferece "matty" e "pizza": a lista do @ agora acha o texto em qualquer parte do nome (`mentionCandidates`), com os nomes que começam com ele primeiro. Coberto por teste ("a" → Ana, matty, pizza; "att" → TyxMatty). A regra de quem foi mencionado numa mensagem não mudou.
 
 #### [ ] T15.E: Negrito, itálico e afins nas mensagens
 `**negrito**`, `*itálico*`, `` `código` `` (o `ui/markdown.js` já tem negrito e código para o guia). Só texto, nunca HTML.

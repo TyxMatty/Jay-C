@@ -40,8 +40,10 @@ test('the @ being typed, and what to offer', () => {
   assert.equal(mentionQuery('oi @Ana', 2), null, 'the caret before the @');
   assert.equal(mentionQuery(`@${'x'.repeat(33)}`, 34), null, 'longer than any name');
 
-  assert.deepEqual(mentionCandidates(names, 'a', 'Bia'), ['Ana', 'Ana Clara']);
+  assert.deepEqual(mentionCandidates(names, 'a', 'Bia'), ['Ana', 'Ana Clara', 'TyxMatty']);
   assert.deepEqual(mentionCandidates(names, 'cl', 'Bia'), ['Ana Clara'], 'a word inside the name');
+  assert.deepEqual(mentionCandidates(['matty', 'pizza', 'Ana', 'Bob'], 'a', null), ['Ana', 'matty', 'pizza'], 'anywhere in the name, those starting with it first');
+  assert.deepEqual(mentionCandidates(names, 'att', 'Bia'), ['TyxMatty'], 'the middle of a name');
   assert.deepEqual(mentionCandidates(names, '', 'TyxMatty'), ['Ana', 'Ana Clara', 'Bia', 'Zé'], 'not me');
   assert.deepEqual(mentionCandidates(['Bia', 'Bia', 'bia'], 'b', null).length, 2, 'each name once (different case is a different person)');
   assert.equal(mentionCandidates(Array.from({ length: 20 }, (_, i) => `P${i}`), 'p', null).length, MAX_CANDIDATES);
