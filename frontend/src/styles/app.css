@@ -2998,6 +2998,23 @@ fieldset > h3 {
   min-height: 0;
 }
 
+/* With room for both, the call's chat takes a column of its own and the call shrinks beside it
+   (testers: it floated over the live). Narrower (a phone), it stays over the call. 352px: the
+   panel's 340px and the call's 12px gap. */
+.call-main {
+  container: call-main / inline-size;
+}
+
+@container call-main (min-width: 640px) {
+  .call-main:has(> .chat-panel:not([hidden])) > :not(.chat-panel, .call-toast) {
+    margin-right: 352px;
+  }
+
+  .call-main:has(> .chat-panel:not([hidden])) > .call-toast {
+    left: calc(50% - 176px);
+  }
+}
+
 .call[data-bar='top'] {
   flex-direction: column-reverse;
 }

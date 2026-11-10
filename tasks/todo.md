@@ -513,8 +513,10 @@ Testes: os degraus do modo novo (inclusive pedidos de 1440p, 720p e 10 qps), os 
 #### [x] PiP: clique direito abria o menu do navegador
 O PiP próprio (janela `window.open`) mostrava o menu do WebView2 (Loop, Salvar quadro, Picture-in-picture). Agora o `contextmenu` é cancelado na janela do PiP (`core/pip.js`). Medido no app de dev: um clique direito de verdade (CDP) no vídeo do PiP chega com `defaultPrevented`.
 
-#### [ ] T15.B: Chat da call empurra a call, em vez de flutuar por cima
-O painel do chat é `position: absolute` sobre o palco e cobre a live. Passa a ocupar uma coluna ao lado (a call encolhe); no celular continua por cima.
+#### [x] T15.B: Chat da call empurra a call, em vez de flutuar por cima
+O painel do chat era `position: absolute` sobre o palco e cobria a live. Agora, quando a área da call tem 640 px ou mais, o resto da call encolhe 352 px e o chat fica ao lado (só CSS: `@container call-main` + `:has()` em `styles/app.css`); mais estreito que isso (celular, janela pequena), continua por cima.
+
+**Medido (09/11/2026, na interface no navegador sem janela, com um bot transmitindo):** com o chat aberto, o palco termina 12 px antes do chat, sem sobreposição, a 1400, 1100 (o tamanho padrão da janela: palco de 403 px), 1090 e 1000 px de janela; a 700 e a 384 px o chat fica por cima, como antes; fechar o chat devolve a largura toda. Sem rolagem lateral em nenhum tamanho. Contraste sem falhas com o chat aberto. Não medido: no app de Windows de verdade e no Android (é o mesmo CSS).
 
 #### [ ] T15.C: Painel "Voz conectada" maior, com os botões embaixo
 Botões maiores (em tela cheia ficam minúsculos) e "Voz conectada" + sala em cima, os botões numa linha embaixo, em vez de lado a lado.
