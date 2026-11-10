@@ -117,6 +117,9 @@ struct Taps {
     /// The slowest viewer's bandwidth (kbps) as the server sees it; 0 = nobody watching, u32::MAX =
     /// no report yet.
     viewer_kbps: Arc<AtomicU32>,
+    /// The worst share of packets a viewer lost, per thousand (the server's report); u32::MAX =
+    /// not told (an older server).
+    viewer_loss: Arc<AtomicU32>,
     /// How much later the share's sound reaches WebRTC (ms): the picture waits that long.
     audio_lead_ms: Arc<AtomicU32>,
 }
@@ -231,7 +234,7 @@ pub async fn native_live_start(source: SourceId, remote: RemoteArgs, quality: Qu
     stop_running();
     let stop = Arc::new(AtomicBool::new(false));
     let shared = Arc::new(Mutex::new(quality));
-    let taps = Taps { viewer_kbps: Arc::new(AtomicU32::new(u32::MAX)), ..Default::default() };
+    let taps = Taps { viewer_kbps: Arc::new(AtomicU32::new(u32::MAX)), viewer_loss: Arc::new(AtomicU32::new(u32::MAX)), ..Default::default() };
     let (ready_tx, ready_rx) = mpsc::channel();
     let thread = std::thread::Builder::new()
         .name("native-live".into())
@@ -316,11 +319,13 @@ pub fn native_live_unwatch() {
 }
 
 /// The server's estimate of the slowest viewer's bandwidth (kbps), or None when nobody watches.
-/// The live has one layer, so it has to fit the slowest viewer.
+/// The live has one layer, so it has to fit the slowest viewer. `loss`: the worst share of packets
+/// a viewer lost (0-1), when the server tells.
 #[tauri::command]
-pub fn native_live_viewer_kbps(kbps: Option<u32>) {
+pub fn native_live_viewer_kbps(kbps: Option<u32>, loss: Option<f32>) {
     if let Some(r) = RUNNING.lock().unwrap().as_ref() {
         r.taps.viewer_kbps.store(kbps.unwrap_or(0), Ordering::Relaxed);
+        r.taps.viewer_loss.store(loss.map_or(u32::MAX, |l| (l.clamp(0.0, 1.0) * 1000.0) as u32), Ordering::Relaxed);
     }
 }
 
@@ -465,6 +470,10 @@ unsafe fn run(
         let mut viewer_bytes = 0u64; // encoded since the last read
         let mut pace_reads = VecDeque::new(); // the last PACE_READS reads
         let mut limit: Option<u32> = None;
+        // The same limit for loss on the viewers' side (the server's report). Their estimate stays at
+        // the link's speed while retransmissions fill the link: a viewer on 1.3 Mbps got ~830 kbps
+        // of them and not one frame for minutes, with the live sending ~900 kbps (measured).
+        let mut viewer_limit: Option<u32> = None;
         // The encoder's bitrate: the budget under the step's cap, less while the send queue grows.
         let target = |budget: u32, s: Step, queue_ms: u64| {
             let room = PUSHBACK_FULL_MS - PUSHBACK_FROM_MS;
@@ -629,6 +638,7 @@ unsafe fn run(
             let viewers = taps.viewer_kbps.load(Ordering::Relaxed);
             if viewers == 0 {
                 viewer_budget = IDLE_KBPS;
+                viewer_limit = None;
                 viewer_reads.clear();
                 viewer_bytes = 0;
                 pace_reads.clear();
@@ -652,20 +662,24 @@ unsafe fn run(
                 let sent_kbps = (viewer_bytes * 8 / VIEWER_EVERY.as_millis() as u64) as u32;
                 viewer_bytes = 0;
                 viewer_budget = next_viewer_budget(viewer_budget, wanted, sent_kbps);
+                let lost = taps.viewer_loss.load(Ordering::Relaxed);
+                if lost != u32::MAX {
+                    viewer_limit = loss_limit(viewer_limit, budget.min(ladder.step().max_kbps), viewer_budget, lost as f32 / 1000.0);
+                }
             }
             // No report yet, or nobody watching: nobody's link to pace for.
             let pace = pace_reads.iter().max().map(|&r: &u32| r.max(PACE_MIN_KBPS));
             net.set_pace_kbps(pace);
             // The encoder never makes more than the pace lets out (with the usual headroom).
             let pace_budget = pace.map_or(u32::MAX, |p| (p as f64 * BUDGET_SHARE) as u32);
-            budget = limit.map_or(estimate_budget, |l| l.min(estimate_budget)).min(viewer_budget).min(pace_budget);
+            budget = limit.map_or(estimate_budget, |l| l.min(estimate_budget)).min(viewer_budget).min(pace_budget).min(viewer_limit.unwrap_or(u32::MAX));
             // Under the step's minimum, the budget steps down by itself (ladder.update).
             let too_big = skip_score > SKIP_STEP_DOWN && budget >= ladder.step().min_kbps && now - stepped_at >= SKIP_SETTLE;
             let changed = if too_big { ladder.too_big(now) } else { ladder.update(budget, now) };
             if let Some(tier) = changed.or(quality_changed.then_some(ladder.tier)) {
                 // Which part held the budget, for logs from the field.
                 log::info!(
-                    "native live: step {tier}, budget {budget} kbps (estimate {estimate_budget}, viewers {}, pace {}, loss limit {}){}",
+                    "native live: step {tier}, budget {budget} kbps (estimate {estimate_budget}, viewers {}, pace {}, loss limit {}, viewer loss limit {}){}",
                     match viewers {
                         u32::MAX => "?".to_string(),
                         0 => format!("none, {viewer_budget}"),
@@ -673,6 +687,7 @@ unsafe fn run(
                     },
                     pace.map_or("-".into(), |p| p.to_string()),
                     limit.map_or("-".into(), |l| l.to_string()),
+                    viewer_limit.map_or("-".into(), |l| l.to_string()),
                     if too_big { ", the send queue kept growing" } else { "" }
                 );
                 let s = ladder.step();

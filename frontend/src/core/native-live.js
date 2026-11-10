@@ -235,8 +235,11 @@ export async function startNativeLive({ source, request, quality, onEnded }) {
       close,
       stats: () => stats,
       setQuality: (next) => invoke('native_live_set_quality', { quality: nativeQuality(next) }),
-      /** The bandwidth of the slowest viewer (kbps), or null: the live stays under it. */
-      setViewerKbps: (kbps) => invoke('native_live_viewer_kbps', { kbps }).catch(() => {}),
+      /**
+       * The bandwidth of the slowest viewer (kbps), or null: the live stays under it. `loss`: the
+       * worst share of packets a viewer lost (0-1; an older server doesn't tell): the live cuts on it.
+       */
+      setViewerKbps: (kbps, loss) => invoke('native_live_viewer_kbps', { kbps, loss: Number.isFinite(loss) ? loss : null }).catch(() => {}),
       /** How much later the share's sound reaches WebRTC (ms, 0 = none): the picture waits that long. */
       setAudioLead: (ms) => invoke('native_live_audio_lead', { ms }).catch(() => {}),
     };

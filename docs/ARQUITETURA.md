@@ -159,7 +159,7 @@ Servidor → cliente:
 | `screen-preview` | `id`, `image` | uma imagem da live de alguém (`null` = parou). O card "Assistir live" do card da pessoa mostra a imagem |
 | `new-producer` | `peerId`, `producerId`, `kind`, `source`, `paused` | alguém começou a publicar uma faixa |
 | `producer-state` | `peerId`, `producerId`, `paused` | só para quem consome: mutou ou desligou a câmera, ou voltou |
-| `viewer-bandwidth` | `producerId`, `kbps` (`null` = ninguém assiste) | a cada 2 s, para quem transmite a tela: a menor banda entre quem assiste, como o mediasoup estima para cada um. A live nativa (uma camada só) fica abaixo dela |
+| `viewer-bandwidth` | `producerId`, `kbps` (`null` = ninguém assiste), `loss?` | a cada 2 s, para quem transmite a tela: a menor banda entre quem assiste, como o mediasoup estima para cada um. A live nativa (uma camada só) fica abaixo dela. `loss` (depois da 0.5.1): a pior fração de pacotes perdidos entre quem assiste (0–1, dos relatórios de recepção); acima de 10% a live corta o envio, como faz com a perda do próprio link (`loss_limit`). Sem isso, um link cheio de retransmissões deixava quem assiste sem imagem por minutos |
 | `producer-closed` | `peerId`, `producerId` | só para quem consome |
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) resposta ao `hello`: as salas fixas visíveis e quem está em cada uma; `name` é o `SERVER_NAME`, se houver; `media` como no `joined` |
 | `online` | `names` | (0.5.1, T14.B) quem está com o servidor aberto (fez `hello`), cada nome uma vez; também vem em `server-state` (`online`). Sai só quando a lista muda. O app usa para a lista do @ |

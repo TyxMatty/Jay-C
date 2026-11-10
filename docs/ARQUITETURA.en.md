@@ -161,7 +161,7 @@ Server → client:
 | `screen-preview` | `id`, `image` | a picture of someone's stream (`null` = stopped). The "Watch stream" card on their tile shows it |
 | `new-producer` | `peerId`, `producerId`, `kind`, `source`, `paused` | someone started publishing a track |
 | `producer-state` | `peerId`, `producerId`, `paused` | only for consumers: muted or turned the camera off, or back on |
-| `viewer-bandwidth` | `producerId`, `kbps` (`null` = nobody watching) | every 2 s, to whoever shares a screen: the smallest bandwidth among the viewers, as mediasoup estimates it towards each. The native live (a single layer) stays under it |
+| `viewer-bandwidth` | `producerId`, `kbps` (`null` = nobody watching), `loss?` | every 2 s, to whoever shares a screen: the smallest bandwidth among the viewers, as mediasoup estimates it towards each. The native live (a single layer) stays under it. `loss` (after 0.5.1): the worst share of packets lost among the viewers (0–1, from their receiver reports); above 10% the live cuts what it sends, as it does for loss on its own link (`loss_limit`). Without it, a link full of retransmissions left a viewer without a picture for minutes |
 | `producer-closed` | `peerId`, `producerId` | only for consumers |
 | `server-state` | `rooms: [{name, locked, peers: [{id, name, avatar?, color?, micOn, live}]}]`, `channels: [{name, lastId}]`, `features`, `name?`, `media?` | (0.5) answer to `hello`: the visible fixed rooms and who is in each; `name` is `SERVER_NAME`, when set; `media` as in `joined` |
 | `online` | `names` | (0.5.1, T14.B) who has the server open (sent `hello`), each name once; also in `server-state` (`online`). Sent only when the list changes. The app uses it for the @ list |

@@ -241,6 +241,10 @@ export class SfuRoom {
    * watching it, as mediasoup estimates it towards each of them. A native live has one layer and
    * its sender only sees its own link to us: without this it sent 1080p60 at ~7 Mbps to a viewer
    * on 4 Mbps, who then got no picture at all (measured).
+   * With it goes `loss`: the worst share of the live's packets a viewer lost (0-1, from their
+   * receiver reports). That estimate stays at the link's speed while the link is full of
+   * retransmissions: a viewer on 1.3 Mbps got ~830 kbps of them and no frame for minutes, with
+   * the live still sending ~900 kbps (measured). The sender cuts on the loss.
    */
   async reportViewerBandwidth() {
     if (this.#reporting) return;
@@ -262,8 +266,21 @@ export class SfuRoom {
         ),
       );
       for (const { owner, producer } of screens) {
-        const known = viewers.filter((member) => watches(member, producer) && estimates.get(member)).map((member) => estimates.get(member));
-        owner.peer.send({ type: 'viewer-bandwidth', producerId: producer.id, kbps: known.length ? Math.min(...known) : null });
+        const watching = viewers.filter((member) => watches(member, producer));
+        const known = watching.filter((member) => estimates.get(member)).map((member) => estimates.get(member));
+        // fractionLost: 0-255, from the viewer's last receiver report (absent before the first one).
+        const losses = await Promise.all(
+          watching
+            .flatMap((member) => [...member.consumers.values()].filter((c) => c.producerId === producer.id && !c.paused))
+            .map(async (consumer) => ((await consumer.getStats?.().catch(() => null)) ?? []).find((s) => s.type === 'outbound-rtp')?.fractionLost),
+        );
+        const lost = losses.filter((l) => Number.isFinite(l));
+        owner.peer.send({
+          type: 'viewer-bandwidth',
+          producerId: producer.id,
+          kbps: known.length ? Math.min(...known) : null,
+          ...(lost.length ? { loss: Math.round((Math.max(...lost) / 255) * 100) / 100 } : {}),
+        });
       }
     } finally {
       this.#reporting = false;

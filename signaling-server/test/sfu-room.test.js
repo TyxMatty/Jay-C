@@ -31,7 +31,7 @@ function fakeRouter() {
           return { ...events, id: `p${++n}`, kind, appData: data, paused };
         },
         async consume({ producerId, paused }) {
-          return {
+          const consumer = {
             ...events,
             id: `c${++n}`,
             producerId,
@@ -47,6 +47,8 @@ function fakeRouter() {
               this.paused = true;
             },
           };
+          (transport.consumers ??= []).push(consumer);
+          return consumer;
         },
       };
       router.transports.push(transport);
@@ -91,6 +93,21 @@ test('a screen sharer hears the slowest bandwidth among those watching, once per
   assert.deepEqual(await report(), [[screen, 8000]], 'Bob stopped watching');
   viewer.carol.transport.bps = undefined;
   assert.deepEqual(await report(), [[screen, null]], 'no estimate yet: no limit');
+
+  // The worst loss among the viewers goes along (their receiver reports: 0-255), once there is one.
+  const consumerOf = (name) => router.transports.flatMap((t) => t.consumers ?? []).find((c) => c.id === viewer[name].consumer);
+  viewer.carol.transport.bps = 8_000_000;
+  await room.resumeConsumer('bob', { consumerId: viewer.bob.consumer });
+  alice.sent.length = 0;
+  await room.reportViewerBandwidth();
+  assert.equal('loss' in alice.sent.at(-1), false, 'no receiver report yet: no loss field');
+  consumerOf('bob').getStats = async () => [{ type: 'outbound-rtp', fractionLost: 110 }];
+  consumerOf('carol').getStats = async () => [{ type: 'outbound-rtp', fractionLost: 5 }];
+  await room.reportViewerBandwidth();
+  assert.deepEqual([alice.sent.at(-1).kbps, alice.sent.at(-1).loss], [3000, 0.43], 'the slowest link, the worst loss');
+  await room.pauseConsumer('bob', { consumerId: viewer.bob.consumer });
+  await room.reportViewerBandwidth();
+  assert.equal(alice.sent.at(-1).loss, 0.02, 'only who is watching counts');
 
   // A stalled worker: the next round is skipped instead of piling up behind it.
   viewer.carol.transport.bps = 8_000_000;
