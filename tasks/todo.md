@@ -491,6 +491,36 @@ Decidido pelo usuário: ao digitar @ aparecem todos os conectados ao servidor (n
 **Não medido:** o som de ouvido, as menções no chat da call com outra pessoa de verdade (a regra e o código são os mesmos do canal), e o Android (lá não há notificação de menção). Menções feitas com o app fechado não viram @ (o app só vê as que chegam ao vivo).
 Vale nos canais e no chat da call. **Verificação:** a regra de quem foi mencionado (nomes com espaço, maiúsculas, nome que é parte de outro) em teste; no app, com um bot, os quatro efeitos.
 
+## Sugestões dos testers (09/11/2026, depois da 0.5.1)
+
+Ordem proposta: a T15.A primeiro (pedido principal do usuário); as outras, uma por vez.
+
+#### [ ] T15.A: Modo balanceado da live (movimento e nitidez)
+Hoje "Otimizar para" tem dois extremos: **Texto** segura a resolução e derruba os quadros (até 1080p5), e **Movimento** segura os quadros e derruba a resolução (até 360p). Com banda curta, a live fluida fica borrada e a nítida fica travada.
+- [ ] Terceira opção, **Balanceado**, entre as duas: a escada desce um pouco de cada (ex.: 1080p60 → 1080p30 → 720p30 → 720p20 → 540p20 → 540p15 → 360p15), nunca abaixo de 15 qps nem de 360p.
+- [ ] Vale na live nativa (`ladder.rs`: `steps` recebe o modo em vez de `detail: bool`) e na do navegador (`contentHint` vazio: o WebRTC equilibra sozinho).
+- [ ] O painel de transmissão mostra as três opções; a escolha salva continua valendo (quem tem Texto ou Movimento não muda).
+**Verificação:** `cargo test` da escada (os degraus do modo novo, e os dois antigos iguais a antes); `npm test`; no app, com o `udp-shaper` a ~2 Mbps e uma janela em movimento: resolução e qps recebidos nos três modos.
+**Decisão em aberto:** qual é o padrão para quem nunca escolheu (hoje Texto).
+
+#### [ ] T15.B: Chat da call empurra a call, em vez de flutuar por cima
+O painel do chat é `position: absolute` sobre o palco e cobre a live. Passa a ocupar uma coluna ao lado (a call encolhe); no celular continua por cima.
+
+#### [ ] T15.C: Painel "Voz conectada" maior, com os botões embaixo
+Botões maiores (em tela cheia ficam minúsculos) e "Voz conectada" + sala em cima, os botões numa linha embaixo, em vez de lado a lado.
+
+#### [ ] T15.D: @ acha pelo meio do nome
+"@a" oferece "matty" e "pizza": hoje só acha pelo começo do nome ou de uma palavra dele (`mentionCandidates`). Os que começam com o texto seguem primeiro.
+
+#### [ ] T15.E: Negrito, itálico e afins nas mensagens
+`**negrito**`, `*itálico*`, `` `código` `` (o `ui/markdown.js` já tem negrito e código para o guia). Só texto, nunca HTML.
+
+#### [ ] T15.F: Responder a uma mensagem
+Citar a mensagem respondida em cima da resposta, nos canais e no chat da call. Precisa de um campo novo no protocolo (`replyTo`) e de servidor novo.
+
+#### [ ] T15.G: Retorno ao entrar e sair da call
+Os testers não perceberam retorno nenhum. Hoje há um som ao entrar (`cue('join')`) e nenhum ao sair. Medir primeiro (o som toca? "Sons de aviso" ligado?), depois decidir: som ao sair e um aviso visível.
+
 ## Bugs para corrigir depois
 
 - [ ] **Android: conferir de ouvido o mic em segundo plano** (09/11/2026, Samsung SM-S711B): com o app em segundo plano, o bot recebeu 27–46 pacotes/s, contra 50 em primeiro plano. Com o DTX do Opus, isso pode ser só o som do ambiente variando (em silêncio são ~4,7/s), e a gravação seguiu `not silenced`. Falta ouvir alguém falando com o app em segundo plano para descartar picotes.
