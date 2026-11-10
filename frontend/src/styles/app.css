@@ -1938,10 +1938,11 @@ fieldset > h3 {
   color: var(--success);
 }
 
+/* The room on top and the buttons in a row under it, each a third of the width (testers: side by
+   side, the small buttons were hard to hit on a big screen). */
 .voice-panel {
-  display: flex;
-  align-items: center;
-  gap: 2px;
+  display: grid;
+  gap: 6px;
   padding: 8px;
   border-top: 1px solid var(--border);
   background: var(--surface);
@@ -1983,6 +1984,16 @@ fieldset > h3 {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.voice-panel-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.voice-panel-actions .icon-btn {
+  flex: 1;
+  width: auto;
 }
 
 .voice-panel .icon-btn[aria-pressed='true'] {

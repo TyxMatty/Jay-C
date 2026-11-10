@@ -11,7 +11,7 @@ import { t } from '../core/i18n.js';
  *   onMic / onDeafen: the call screen's own buttons (same checks, sounds and error messages).
  */
 export function createVoicePanel({ call, server, onOpen, onMic, onDeafen }) {
-  const button = (onClick) => h('button', { type: 'button', class: 'icon-btn icon-btn-small', onClick });
+  const button = (onClick) => h('button', { type: 'button', class: 'icon-btn', onClick });
   const mic = button(onMic);
   const deafen = button(onDeafen);
   const leave = button(() => call.leave());

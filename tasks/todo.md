@@ -518,8 +518,10 @@ O painel do chat era `position: absolute` sobre o palco e cobria a live. Agora, 
 
 **Medido (09/11/2026, na interface no navegador sem janela, com um bot transmitindo):** com o chat aberto, o palco termina 12 px antes do chat, sem sobreposição, a 1400, 1100 (o tamanho padrão da janela: palco de 403 px), 1090 e 1000 px de janela; a 700 e a 384 px o chat fica por cima, como antes; fechar o chat devolve a largura toda. Sem rolagem lateral em nenhum tamanho. Contraste sem falhas com o chat aberto. Não medido: no app de Windows de verdade e no Android (é o mesmo CSS).
 
-#### [ ] T15.C: Painel "Voz conectada" maior, com os botões embaixo
-Botões maiores (em tela cheia ficam minúsculos) e "Voz conectada" + sala em cima, os botões numa linha embaixo, em vez de lado a lado.
+#### [x] T15.C: Painel "Voz conectada" maior, com os botões embaixo
+"Voz conectada" e a sala ficam em cima, e os três botões (mic, deafen, sair) numa linha embaixo, cada um com um terço da largura. Antes ficavam lado a lado com o texto, a 32×32 px.
+
+**Medido (09/11/2026, na interface no navegador sem janela):** botões de 73×40 px (antes 32×32), o texto acima deles, o nome da sala sem corte; um clique de verdade no mudo muda o rótulo e o `aria-pressed`; na gaveta do celular (384 px) o painel fica igual, sem rolagem lateral; contraste sem falhas nos dois. Não medido: no app de Windows em tela cheia (o mesmo CSS) e nos outros estilos.
 
 #### [ ] T15.D: @ acha pelo meio do nome
 "@a" oferece "matty" e "pizza": hoje só acha pelo começo do nome ou de uma palavra dele (`mentionCandidates`). Os que começam com o texto seguem primeiro.
