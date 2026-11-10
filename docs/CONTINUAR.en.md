@@ -112,7 +112,7 @@ Open the clone's folder in Claude, in the desktop app (Code tab) or the CLI. `CL
 2. **Checkpoint 4:** tested on the phone on 11/09/2026 and reviewed by the user (list in `tasks/todo.md`).
 3. **0.5.0 release:** docs and version ready; tested the installed 0.4.3 app against the 0.5 server and the 0.5 app against the 0.4.3 server (results in `tasks/todo.md`). Tag `v0.5.0` on `e5f746c` (the fix for Docker without a writable folder) and the release published on 11/09/2026 (notes in English and Portuguese, with images). The installer wasn't tested on a test machine or account before publishing.
 4. **0.5.1 release:** published on 11/09/2026 (notes in English and Portuguese, with an image; the installer wasn't tested on a test machine first). The server changed (channel pictures and the @ list): hosts need to update and restart the server.
-5. **0.5.2 release:** version bumped. The server changed (the viewers' loss in `viewer-bandwidth`, and replies in channels): hosts need to update and restart. Left: tuning the live's recovery after a failed step up (bug list in `tasks/todo.md`) and replies in the call's chat.
+5. **0.5.2 release:** published on 11/10/2026 (notes in English and Portuguese, with two images; the installer wasn't tested on a test machine first). The server changed (the viewers' loss in `viewer-bandwidth`, and replies in channels): hosts need to update and restart. Left: tuning the live's recovery after a failed step up (bug list in `tasks/todo.md`) and replies in the call's chat.
 
 **Changing PCs with the phone:** the debug APK doesn't install over the other PC's (each PC's debug key differs: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`); uninstalling `io.github.tyxmatty.jayc.debug` only erases the test profile's data.
 
