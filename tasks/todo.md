@@ -495,13 +495,23 @@ Vale nos canais e no chat da call. **Verificação:** a regra de quem foi mencio
 
 Ordem proposta: a T15.A primeiro (pedido principal do usuário); as outras, uma por vez.
 
-#### [ ] T15.A: Modo balanceado da live (movimento e nitidez)
+#### [x] T15.A: Modo balanceado da live (movimento e nitidez)
 Hoje "Otimizar para" tem dois extremos: **Texto** segura a resolução e derruba os quadros (até 1080p5), e **Movimento** segura os quadros e derruba a resolução (até 360p). Com banda curta, a live fluida fica borrada e a nítida fica travada.
-- [ ] Terceira opção, **Balanceado**, entre as duas: a escada desce um pouco de cada (ex.: 1080p60 → 1080p30 → 720p30 → 720p20 → 540p20 → 540p15 → 360p15), nunca abaixo de 15 qps nem de 360p.
-- [ ] Vale na live nativa (`ladder.rs`: `steps` recebe o modo em vez de `detail: bool`) e na do navegador (`contentHint` vazio: o WebRTC equilibra sozinho).
-- [ ] O painel de transmissão mostra as três opções; a escolha salva continua valendo (quem tem Texto ou Movimento não muda).
-**Verificação:** `cargo test` da escada (os degraus do modo novo, e os dois antigos iguais a antes); `npm test`; no app, com o `udp-shaper` a ~2 Mbps e uma janela em movimento: resolução e qps recebidos nos três modos.
-**Decisão em aberto:** qual é o padrão para quem nunca escolheu (hoje Texto).
+- [x] Terceira opção, **Balanceado**, entre as duas: a escada desce um pouco de cada (1080p60 → 1080p30 → 720p30 → 720p20 → 540p20 → 540p15 → 360p15), nunca abaixo de 15 qps nem de 360p.
+- [x] Vale na live nativa (`ladder.rs`: `steps` recebe `Optimize` em vez de `detail: bool`; a página manda `optimize` no lugar de `motion`) e na do navegador (`contentHint` vazio: o WebRTC equilibra sozinho).
+- [x] O painel de transmissão mostra as três opções; a escolha salva continua valendo (quem tem Texto ou Movimento não muda). O padrão segue Texto.
+
+**Medido (09/11/2026, live nativa de uma janela de teste tipo jogo, 60% da imagem em movimento, 1080p60 pedido; quem assiste atrás do `udp-shaper` a 1,3 Mbps; 3 min por modo, o que quem assiste recebeu):**
+- **Texto:** 720p a 5 qps em 112 s de 180; 50 s sem quadro nenhum (8 congelamentos, 55,7 s) quando a escada tenta 1080p5 e a fila de envio cresce; 4.720 pacotes perdidos.
+- **Balanceado:** 540p a 20 qps em 129 s (mais 31 s a 15 qps e 16 s em 360p15), mediana de 20 qps e 913 kbps, nenhum segundo sem quadro; 107 pacotes perdidos. Os 2 congelamentos (12,6 s) são do começo da janela, saindo do estado travado do modo anterior.
+- **Movimento:** 360p a 30 qps, estável por ~90 s (950 kbps, sem perda); ao subir para 540p30, quem assiste ficou sem quadros (ver o bug abaixo).
+- A captura funciona com a janela fora da área visível do monitor (x = -2400), e não com ela minimizada.
+Testes: os degraus do modo novo (inclusive pedidos de 1440p, 720p e 10 qps), os dois antigos iguais a antes, e o `optimize` que a página manda (e a falta dele, de uma página antiga).
+
+**Não medido:** a live do navegador (Android, janela escolhida pelo seletor do sistema) no modo novo; lá é só o `contentHint` vazio.
+
+#### [x] PiP: clique direito abria o menu do navegador
+O PiP próprio (janela `window.open`) mostrava o menu do WebView2 (Loop, Salvar quadro, Picture-in-picture). Agora o `contextmenu` é cancelado na janela do PiP (`core/pip.js`). Medido no app de dev: um clique direito de verdade (CDP) no vídeo do PiP chega com `defaultPrevented`.
 
 #### [ ] T15.B: Chat da call empurra a call, em vez de flutuar por cima
 O painel do chat é `position: absolute` sobre o palco e cobre a live. Passa a ocupar uma coluna ao lado (a call encolhe); no celular continua por cima.
@@ -522,6 +532,8 @@ Citar a mensagem respondida em cima da resposta, nos canais e no chat da call. P
 Os testers não perceberam retorno nenhum. Hoje há um som ao entrar (`cue('join')`) e nenhum ao sair. Medir primeiro (o som toca? "Sons de aviso" ligado?), depois decidir: som ao sair e um aviso visível.
 
 ## Bugs para corrigir depois
+
+- [ ] **Live nativa: subir de degrau pode congelar quem assiste num link no limite** (medido em 09/11/2026 com 1,3 Mbps e a imagem de teste tipo jogo): em Movimento, a subida 360p30 → 540p30 deixou quem assiste sem quadros por dezenas de segundos (~100 pacotes perdidos/s, o shaper descartando ~40%, nenhum PLI pedido), com a escada alternando entre os dois degraus ("the send queue kept growing"); em Texto, o mesmo ao tentar 1080p5. Já era assim antes do modo balanceado. Suspeitas a medir: o quadro-chave da troca de tamanho estourando a fila do link, e o QP mínimo 26 impedindo o codificador de caber no orçamento com imagem difícil.
 
 - [ ] **Android: conferir de ouvido o mic em segundo plano** (09/11/2026, Samsung SM-S711B): com o app em segundo plano, o bot recebeu 27–46 pacotes/s, contra 50 em primeiro plano. Com o DTX do Opus, isso pode ser só o som do ambiente variando (em silêncio são ~4,7/s), e a gravação seguiu `not silenced`. Falta ouvir alguém falando com o app em segundo plano para descartar picotes.
 

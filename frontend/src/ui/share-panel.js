@@ -32,6 +32,7 @@ const MODES = [
 
 const OPTIMIZE = [
   ['detail', 'Text & detail'],
+  ['balanced', 'Balanced'],
   ['motion', 'Motion & games'],
 ];
 

@@ -291,7 +291,7 @@ Tudo fica no painel "Share" da chamada, que é um `popover`. As escolhas são sa
 |---|---|
 | Resolução | 360p, 480p, 720p, 1080p (padrão), 1440p ou Source |
 | FPS | 5, 15, 24, 30 (padrão) ou 60 |
-| Otimizar para | *Text & detail* (`contentHint: detail`, padrão) ou *Motion & games* (`motion`) |
+| Otimizar para | *Text & detail* (`contentHint: detail`, padrão), *Balanced* (sem `contentHint`; depois da 0.5.1) ou *Motion & games* (`motion`). Na live nativa, é a ordem dos degraus da escada (`ladder.rs`): Texto derruba os quadros primeiro, Movimento a resolução, Balanceado um pouco de cada, nunca abaixo de 15 qps |
 
 Bitrate automático: ~0,08 bit/pixel/quadro, e os quadros acima de 30 fps contam pela metade. Dá ≈5 Mbps em 1080p30 e ≈7,5 Mbps em 1080p60, entre 0,2 e 12 Mbps.
 

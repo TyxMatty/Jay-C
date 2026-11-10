@@ -810,7 +810,8 @@ export class Call extends EventTarget {
   async #applyCaptureQuality() {
     const track = this.local.screen;
     const { fps, resolution, optimizeFor } = this.screenQuality;
-    track.contentHint = optimizeFor === 'motion' ? 'motion' : 'detail';
+    // 'balanced': no hint, so the browser gives up some resolution and some frame rate.
+    track.contentHint = optimizeFor === 'motion' ? 'motion' : optimizeFor === 'balanced' ? '' : 'detail';
     const height = targetHeight(resolution);
     try {
       // Replaces the previous constraints, so "Source" lifts an earlier height cap.

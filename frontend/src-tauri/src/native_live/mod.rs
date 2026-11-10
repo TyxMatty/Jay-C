@@ -34,7 +34,7 @@ use windows::Win32::System::WinRT::Direct3D11::{CreateDirect3D11DeviceFromDXGIDe
 use windows::Win32::System::WinRT::{RoInitialize, RO_INIT_MULTITHREADED};
 
 use encoder::Encoder;
-use ladder::{loss_limit, step_size, steps, Ladder, Step};
+use ladder::{loss_limit, step_size, steps, Ladder, Optimize, Step};
 use sources::{Kind, SourceId};
 
 /// The encoder spends this share of the bandwidth estimate (the rest: RTX, RTCP, headroom).
@@ -143,9 +143,9 @@ pub struct Quality {
     pub max_height: Option<u32>,
     pub max_fps: u32,
     pub max_kbps: u32,
-    /// "Optimize for: motion": give up resolution before frame rate (the default is detail: text).
+    /// "Optimize for": what to give up first when the bandwidth falls short (the default is detail: text).
     #[serde(default)]
-    pub motion: bool,
+    pub optimize: Optimize,
 }
 
 /// The server's `createTransport` answer, trimmed to what the sender needs.
@@ -354,7 +354,7 @@ fn next_viewer_budget(budget: u32, wanted: u32, sent_kbps: u32) -> u32 {
 
 /// The quality ladder for the picked quality (its top step) and capture size.
 fn ladder_steps(q: &Quality, capture: (u32, u32)) -> Vec<Step> {
-    steps(q.max_height.unwrap_or(capture.1), q.max_fps.max(1), q.max_kbps, capture, !q.motion)
+    steps(q.max_height.unwrap_or(capture.1), q.max_fps.max(1), q.max_kbps, capture, q.optimize)
 }
 
 /// Error text for a failed Windows call, naming the part that failed.
@@ -734,7 +734,7 @@ mod tests {
 
     #[test]
     fn the_top_step_is_the_picked_quality() {
-        let q = |h: Option<u32>, fps: u32, motion: bool| Quality { max_height: h, max_fps: fps, max_kbps: 5000, motion };
+        let q = |h: Option<u32>, fps: u32, motion: bool| Quality { max_height: h, max_fps: fps, max_kbps: 5000, optimize: if motion { Optimize::Motion } else { Optimize::Detail } };
         let capture = (2560, 1440);
         let top = |q: Quality| ladder_steps(&q, capture)[0];
         assert_eq!((top(q(None, 60, false)).height, top(q(None, 60, false)).fps), (1440, 60)); // "Source"
@@ -743,6 +743,11 @@ mod tests {
         // Detail gives up frame rate first, motion resolution.
         assert_eq!(ladder_steps(&q(Some(1080), 60, false), capture)[1].height, 1080);
         assert_eq!(ladder_steps(&q(Some(1080), 60, true), capture)[1].height, 720);
+        // What the page sends: "optimize" by name, and nothing at all from an older page.
+        let parsed: Quality = serde_json::from_str(r#"{"maxHeight":1080,"maxFps":60,"maxKbps":5000,"optimize":"balanced"}"#).unwrap();
+        assert_eq!(parsed.optimize, Optimize::Balanced);
+        let old: Quality = serde_json::from_str(r#"{"maxHeight":null,"maxFps":30,"maxKbps":5000}"#).unwrap();
+        assert_eq!(old.optimize, Optimize::Detail);
     }
 
     /// Diagnostic for PCs with two GPUs: which GPU the capture device lands on, which hardware

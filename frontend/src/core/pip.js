@@ -127,6 +127,8 @@ function createWindowPip(handlers) {
     corner.className = 'corner';
     corner.append(buttons.close);
     doc.body.append(video, bar, corner);
+    // No browser menu on a right click (Loop, Save video frame as, the browser's own PiP...).
+    doc.addEventListener('contextmenu', (e) => e.preventDefault());
     // No title bar: pressing anywhere but a button moves the window.
     doc.addEventListener('mousedown', (e) => {
       if (e.button === 0 && !e.target.closest('button')) window.__TAURI_INTERNALS__.invoke('pip_drag').catch(() => {});

@@ -293,7 +293,7 @@ Everything is in the call's "Share" panel, which is a `popover`. The choices are
 |---|---|
 | Resolution | 360p, 480p, 720p, 1080p (default), 1440p or Source |
 | FPS | 5, 15, 24, 30 (default) or 60 |
-| Optimize for | *Text & detail* (`contentHint: detail`, default) or *Motion & games* (`motion`) |
+| Optimize for | *Text & detail* (`contentHint: detail`, default), *Balanced* (no `contentHint`; after 0.5.1) or *Motion & games* (`motion`). In the native live it is the order of the ladder's steps (`ladder.rs`): Text gives up frame rate first, Motion resolution, Balanced some of each, never under 15 fps |
 
 Automatic bitrate: ~0.08 bit/pixel/frame, with frames above 30 fps counting half. That gives ≈5 Mbps at 1080p30 and ≈7.5 Mbps at 1080p60, between 0.2 and 12 Mbps.
 

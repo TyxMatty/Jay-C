@@ -215,6 +215,7 @@ export default {
   "Window": "Janela",
   "Text & detail": "Texto e detalhes",
   "Motion & games": "Movimento e jogos",
+  "Balanced": "Balanceado",
   "Couldn't change the quality: {reason}": "Não deu pra mudar a qualidade: {reason}",
   "Sharing your window": "Transmitindo sua janela",
   "Sharing your screen": "Transmitindo sua tela",

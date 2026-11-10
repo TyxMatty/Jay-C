@@ -125,9 +125,9 @@ export function watchNativeLive(canvas, onFrame = () => {}) {
 export const livePreview = async () => new Blob([await invoke('native_live_preview')], { type: 'image/jpeg' });
 
 /**
- * The quality picked in Settings › Streaming, as the top of Rust's quality ladder. `motion`: when
- * the bandwidth falls short, give up resolution before frame rate (detail, the default, keeps the
- * resolution so text stays readable).
+ * The quality picked in Settings › Streaming, as the top of Rust's quality ladder. `optimize`: what
+ * to give up first when the bandwidth falls short: 'detail' (the default) gives up frame rate so
+ * text stays readable, 'motion' gives up resolution, 'balanced' some of each (ladder.rs).
  */
 export function nativeQuality({ resolution, fps, optimizeFor }, screen = window.screen, ratio = window.devicePixelRatio || 1) {
   const screenHeight = Math.round(screen.height * ratio);
@@ -137,7 +137,7 @@ export function nativeQuality({ resolution, fps, optimizeFor }, screen = window.
     maxHeight: targetHeight(resolution),
     maxFps: fps,
     maxKbps: Math.round(streamBitrate(width, height, fps) / 1000),
-    motion: optimizeFor === 'motion',
+    optimize: optimizeFor === 'motion' || optimizeFor === 'balanced' ? optimizeFor : 'detail',
   };
 }
 

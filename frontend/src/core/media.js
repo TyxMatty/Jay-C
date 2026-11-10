@@ -67,7 +67,7 @@ export const STREAM_RESOLUTIONS = [
 
 export const STREAM_FRAME_RATES = [5, 15, 24, 30, 60];
 
-/** `optimizeFor` maps to track.contentHint: crisp text vs. smooth movement when bandwidth is short. */
+/** `optimizeFor`: 'detail' (crisp text), 'motion' (smooth movement) or 'balanced' (some of each) when bandwidth is short. */
 export const DEFAULT_STREAM_QUALITY = Object.freeze({ resolution: '1080', fps: 30, optimizeFor: 'detail' });
 
 export const canShareScreen = () => Boolean(navigator.mediaDevices?.getDisplayMedia);

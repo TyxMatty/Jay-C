@@ -3,7 +3,9 @@
 //! The steps come from the quality picked in Settings (the top step) and what it's optimized for:
 //! "detail" (text, the default) keeps the resolution and gives up frame rate first, down to 5 fps at
 //! 1080p (~415 kbps) before going under it: a chat window for a viewer on 1.5 Mbps got 720p5 and
-//! 1080p5 instead of 540p10 (measured); "motion" keeps the frame rate and gives up resolution first.
+//! 1080p5 instead of 540p10 (measured); "motion" keeps the frame rate and gives up resolution first;
+//! "balanced" gives up some of each in turn, never under 15 fps (testers: smooth meant blurry and
+//! sharp meant choppy, with nothing in between).
 //! Steps that only change the frame rate keep the encoder (mod.rs, Encoder::set_fps): no keyframe. A step needs MIN_BPP bits per pixel per frame
 //! (frames above 30/s count half, as in core/media.js): below that it looks worse than the next one
 //! down. Measured on a 4 Mbps link: 1080p60 at 3.5 Mbps left the HUD text unreadable, worse than
@@ -20,6 +22,19 @@
 //! steps down: in the field a 30 s cap still meant a hitch every 30 s.
 
 use std::time::{Duration, Instant};
+
+/// "Optimize for" in the share panel: what the live gives up first when the bandwidth falls short.
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Optimize {
+    /// Text: frame rate first.
+    #[default]
+    Detail,
+    /// Games and video: resolution first.
+    Motion,
+    /// Some of each.
+    Balanced,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Step {
@@ -58,11 +73,11 @@ fn kbps(size: (u32, u32), fps: u32, bpp: f64) -> u32 {
 }
 
 /// The steps for a picked top (`height`, `fps`, `max_kbps`), best first.
-pub fn steps(height: u32, fps: u32, max_kbps: u32, capture: (u32, u32), detail: bool) -> Vec<Step> {
-    let shapes: &[(u32, u32)] = if detail {
-        &[(height, fps), (height, 30), (height, 15), (height, 10), (1080, 10), (1080, 5), (720, 5), (540, 5)]
-    } else {
-        &[(height, fps), (1080, fps), (720, fps), (720, 30), (540, 30), (360, 30), (360, 15)]
+pub fn steps(height: u32, fps: u32, max_kbps: u32, capture: (u32, u32), optimize: Optimize) -> Vec<Step> {
+    let shapes: &[(u32, u32)] = match optimize {
+        Optimize::Detail => &[(height, fps), (height, 30), (height, 15), (height, 10), (1080, 10), (1080, 5), (720, 5), (540, 5)],
+        Optimize::Motion => &[(height, fps), (1080, fps), (720, fps), (720, 30), (540, 30), (360, 30), (360, 15)],
+        Optimize::Balanced => &[(height, fps), (height, 30), (1080, 30), (720, 30), (720, 20), (540, 20), (540, 15), (360, 15)],
     };
     let mut out: Vec<Step> = Vec::new();
     for &(h, f) in shapes {
@@ -188,18 +203,33 @@ mod tests {
 
     #[test]
     fn detail_keeps_the_resolution_and_motion_keeps_the_frame_rate() {
-        assert_eq!(shape(&steps(1080, 60, 7500, FHD, true)), [(1080, 60), (1080, 30), (1080, 15), (1080, 10), (1080, 5), (720, 5), (540, 5)]);
-        assert_eq!(shape(&steps(1080, 60, 7500, FHD, false)), [(1080, 60), (720, 60), (720, 30), (540, 30), (360, 30), (360, 15)]);
+        assert_eq!(shape(&steps(1080, 60, 7500, FHD, Optimize::Detail)), [(1080, 60), (1080, 30), (1080, 15), (1080, 10), (1080, 5), (720, 5), (540, 5)]);
+        assert_eq!(shape(&steps(1080, 60, 7500, FHD, Optimize::Motion)), [(1080, 60), (720, 60), (720, 30), (540, 30), (360, 30), (360, 15)]);
         // Never above the pick, no repeats.
-        assert_eq!(shape(&steps(720, 30, 2000, FHD, true)), [(720, 30), (720, 15), (720, 10), (720, 5), (540, 5)]);
-        assert_eq!(shape(&steps(1440, 60, 12000, (2560, 1440), true)), [(1440, 60), (1440, 30), (1440, 15), (1440, 10), (1080, 10), (1080, 5), (720, 5), (540, 5)]);
+        assert_eq!(shape(&steps(720, 30, 2000, FHD, Optimize::Detail)), [(720, 30), (720, 15), (720, 10), (720, 5), (540, 5)]);
+        assert_eq!(shape(&steps(1440, 60, 12000, (2560, 1440), Optimize::Detail)), [(1440, 60), (1440, 30), (1440, 15), (1440, 10), (1080, 10), (1080, 5), (720, 5), (540, 5)]);
         // 1080p keeps going down to ~415 kbps (5 fps at 0.04 bpp).
-        assert_eq!(steps(1080, 60, 7500, FHD, true)[4].min_kbps, 415);
+        assert_eq!(steps(1080, 60, 7500, FHD, Optimize::Detail)[4].min_kbps, 415);
+    }
+
+    #[test]
+    fn balanced_gives_up_some_of_each_and_stays_at_15_fps_or_more() {
+        let s = steps(1080, 60, 7500, FHD, Optimize::Balanced);
+        assert_eq!(shape(&s), [(1080, 60), (1080, 30), (720, 30), (720, 20), (540, 20), (540, 15), (360, 15)]);
+        assert_eq!(shape(&steps(1440, 60, 12000, (2560, 1440), Optimize::Balanced))[..4], [(1440, 60), (1440, 30), (1080, 30), (720, 30)]);
+        assert_eq!(shape(&steps(720, 30, 2000, FHD, Optimize::Balanced)), [(720, 30), (720, 20), (540, 20), (540, 15), (360, 15)]);
+        // A pick under 15 fps keeps its own frame rate.
+        assert_eq!(shape(&steps(720, 10, 2000, FHD, Optimize::Balanced)), [(720, 10), (540, 10), (360, 10)]);
+        // Every step needs less than the one above, so the ladder always has somewhere to go.
+        assert!(s.windows(2).all(|w| w[1].min_kbps < w[0].min_kbps), "{s:?}");
+        // On ~2 Mbps: balanced gets 720p30, where detail gets 1080p15 and motion 720p30 then 540p30 under 1.1.
+        assert_eq!(fit(&s, 0, 2000), 2);
+        assert_eq!(fit(&s, 0, 900), 3); // 720p20
     }
 
     #[test]
     fn minimums_follow_the_pixels_and_each_cap_reaches_past_the_step_above() {
-        let s = steps(1080, 60, 7500, FHD, true);
+        let s = steps(1080, 60, 7500, FHD, Optimize::Detail);
         assert_eq!(s[0].min_kbps, 3732); // 1920x1080, 45 effective fps, 0.04 bpp
         assert_eq!(s[1].min_kbps, 2488);
         assert_eq!(s.last().unwrap().min_kbps, 0);
@@ -213,21 +243,21 @@ mod tests {
     #[test]
     fn starts_on_the_step_the_budget_covers() {
         let t0 = Instant::now();
-        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, true), 6000, t0).tier, 0);
-        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, true), 3000, t0).tier, 1);
-        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, true), 10, t0).tier, 6);
+        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 6000, t0).tier, 0);
+        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 3000, t0).tier, 1);
+        assert_eq!(Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 10, t0).tier, 6);
     }
 
     #[test]
     fn steps_down_after_2_s_under_the_minimum_or_at_once_far_under_it() {
         let t0 = Instant::now();
-        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, true), 6000, t0);
+        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 6000, t0);
         assert_eq!(l.update(3600, at(t0, 0)), None); // just under 3732: wait
         assert_eq!(l.update(3600, at(t0, 1500)), None);
         assert_eq!(l.update(3600, at(t0, 2000)), Some(1));
-        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, true), 6000, t0);
+        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 6000, t0);
         assert_eq!(l.update(2000, at(t0, 0)), Some(2)); // under 80%: at once, as far as needed
-        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, true), 6000, t0);
+        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 6000, t0);
         assert_eq!(l.update(3600, at(t0, 0)), None);
         assert_eq!(l.update(5000, at(t0, 1000)), None); // back up: the 2 s start over
         assert_eq!(l.update(3600, at(t0, 2500)), None);
@@ -236,7 +266,7 @@ mod tests {
     #[test]
     fn climbs_one_step_after_3_s_of_headroom() {
         let t0 = Instant::now();
-        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, true), 1300, t0); // 1080p15
+        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 1300, t0); // 1080p15
         assert_eq!(l.tier, 2);
         assert_eq!(l.update(9000, at(t0, 0)), None);
         assert_eq!(l.update(9000, at(t0, 2000)), None);
@@ -250,7 +280,7 @@ mod tests {
     #[test]
     fn a_climb_that_does_not_hold_waits_4_times_longer() {
         let t0 = Instant::now();
-        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, true), 3000, t0); // 1080p30
+        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 3000, t0); // 1080p30
         assert_eq!(l.update(9000, at(t0, 0)), None);
         assert_eq!(l.update(9000, at(t0, 3000)), Some(0));
         assert_eq!(l.update(2000, at(t0, 5000)), Some(2)); // fell 2 s after climbing: 12 s now
@@ -266,7 +296,7 @@ mod tests {
     #[test]
     fn the_wait_stops_at_2_min_and_halves_after_a_calm_minute() {
         let t0 = Instant::now();
-        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, true), 3000, t0);
+        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 3000, t0);
         for _ in 0..6 {
             l.climbed_at = Some(t0);
             l.down(1, t0);
@@ -279,7 +309,7 @@ mod tests {
     #[test]
     fn too_big_steps_down_once_and_stops_at_the_bottom() {
         let t0 = Instant::now();
-        let mut l = Ladder::new(steps(720, 30, 2000, FHD, true), 9000, t0);
+        let mut l = Ladder::new(steps(720, 30, 2000, FHD, Optimize::Detail), 9000, t0);
         assert_eq!(l.too_big(t0), Some(1));
         assert_eq!(l.too_big(t0), Some(2));
         assert_eq!(l.too_big(t0), Some(3));
@@ -290,10 +320,10 @@ mod tests {
     #[test]
     fn new_steps_keep_the_current_size_when_they_can() {
         let t0 = Instant::now();
-        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, true), 3000, t0); // 1080p30
-        l.set_steps(steps(1080, 30, 5000, FHD, true));
+        let mut l = Ladder::new(steps(1080, 60, 7500, FHD, Optimize::Detail), 3000, t0); // 1080p30
+        l.set_steps(steps(1080, 30, 5000, FHD, Optimize::Detail));
         assert_eq!((l.step().height, l.step().fps), (1080, 30));
-        l.set_steps(steps(720, 30, 2000, FHD, true));
+        l.set_steps(steps(720, 30, 2000, FHD, Optimize::Detail));
         assert_eq!((l.step().height, l.step().fps), (720, 30));
     }
 
