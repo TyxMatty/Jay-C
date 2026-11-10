@@ -24,7 +24,7 @@ import { findServer, nameServer } from '../core/servers.js';
 import { addRecentRoom } from '../core/recent-rooms.js';
 import { startDiscordPresence } from '../core/discord-presence.js';
 import { t } from '../core/i18n.js';
-import { alertMention } from '../core/mention-alert.js';
+import { alertMention, playAlert } from '../core/mention-alert.js';
 import { kindLabel } from '../core/attachments.js';
 
 const STATUS_LABELS = {
@@ -420,6 +420,8 @@ export function mountApp(root) {
         voicePanel.destroy();
         if (pane.what === 'call') showPane('home');
         refreshLists();
+        // We left (the call's own mixer is gone with it). Another room's join sound follows a switch.
+        if (!switching) playAlert('leave');
         if (reloadForLanguage && !switching) location.reload(); // not while joining another room
       };
       voice = { call, url, view: callView, name };

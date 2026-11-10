@@ -14,8 +14,8 @@ let bus = null;
 /** The window is in front and on screen (minimized or behind another window: false). */
 export const appInFront = () => document.hasFocus() && document.visibilityState === 'visible';
 
-/** The mention cue, on its own audio context (outside a call there is no mixer), to the chosen speakers. */
-function playSound() {
+/** Cue `name` (core/sounds.js) on its own audio context, to the chosen speakers: for when there is no call's mixer (a mention outside a call, the call we just left). */
+export function playAlert(name) {
   if (!settings.get().alertSounds) return;
   if (!context) {
     context = new AudioContext();
@@ -26,7 +26,7 @@ function playSound() {
   const sink = settings.get().outputDevice ?? '';
   if ((context.sinkId ?? '') !== sink) context.setSinkId?.(sink).catch(() => {});
   context.resume?.().catch(() => {});
-  playCue(context, bus, 'mention');
+  playCue(context, bus, name);
 }
 
 /** A Windows notification (the Windows app only: the commands are the notification plugin's). */
@@ -48,6 +48,6 @@ async function notify(title, body) {
 export function alertMention({ where, from, text, onScreen }) {
   const inFront = appInFront();
   if (onScreen && inFront) return;
-  playSound();
+  playAlert('mention');
   if (!inFront) notify(t('{name} mentioned you in {where}', { name: from, where }), String(text ?? '').slice(0, 200));
 }

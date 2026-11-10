@@ -540,8 +540,14 @@ Cada mensagem de canal ganhou o botão Responder (aparece ao passar o mouse ou c
 
 **Fora desta tarefa:** respostas no chat da call. As mensagens de lá não têm id nem ficam no servidor; precisa de um id por mensagem e de um aviso do servidor a quem mandou (tarefa própria, se o usuário quiser). Não medido: toque no celular e os estilos Neon e Suave.
 
-#### [ ] T15.G: Retorno ao entrar e sair da call
-Os testers não perceberam retorno nenhum. Hoje há um som ao entrar (`cue('join')`) e nenhum ao sair. Medir primeiro (o som toca? "Sons de aviso" ligado?), depois decidir: som ao sair e um aviso visível.
+#### [x] T15.G: Retorno ao entrar e sair da call
+**Medido antes (10/11/2026, app de dev, `output_meter` no alto-falante, sala em silêncio a −120 dB):** entrar toca (pico de −27 dB, ~1 s depois do clique, o tempo de conectar), mutar e desmutar tocam (−31 dB), e **sair não tocava nada**. A suspeita de que o som de entrada saía cortado, por tocar junto com a criação do áudio da call, não se confirmou.
+
+**Feito:** sair da call toca o som de saída (as três notas descendo, o mesmo de quando outra pessoa sai), por um tocador próprio, porque o áudio da call some junto com ela (`playAlert` em `core/mention-alert.js`, chamado no fim da call em `ui/app-shell.js`). Trocar de sala não toca a saída: vem o som de entrada da sala nova. Segue "Sons de aviso" e a saída de som escolhida.
+
+**Medido depois:** sair toca (pico de −29 dB, 0,3 s depois do clique); entrar, mutar e desmutar iguais a antes.
+
+**Não feito:** um aviso visual ao entrar ou sair (a tela já muda para a call e de volta); se os testers ainda não perceberem, vale perguntar a eles o que esperavam ver.
 
 ## Bugs para corrigir depois
 
