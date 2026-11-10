@@ -526,8 +526,10 @@ O painel do chat era `position: absolute` sobre o palco e cobria a live. Agora, 
 #### [x] T15.D: @ acha pelo meio do nome
 "@a" oferece "matty" e "pizza": a lista do @ agora acha o texto em qualquer parte do nome (`mentionCandidates`), com os nomes que começam com ele primeiro. Coberto por teste ("a" → Ana, matty, pizza; "att" → TyxMatty). A regra de quem foi mencionado numa mensagem não mudou.
 
-#### [ ] T15.E: Negrito, itálico e afins nas mensagens
-`**negrito**`, `*itálico*`, `` `código` `` (o `ui/markdown.js` já tem negrito e código para o guia). Só texto, nunca HTML.
+#### [x] T15.E: Negrito, itálico e código nas mensagens
+`**negrito**`, `*itálico*` e `` `código` `` nos canais e no chat da call (`core/chat-format.js`, desenhado em `ui/chat-log.js`). Só asteriscos e crases: o sublinhado fica como digitado (`snake_case`, endereços). Os estilos não atravessam linhas, não valem com espaço logo depois do marcador ("2 * 3 * 4" fica igual), e um marcador dentro de um endereço web é parte do endereço. Links e menções funcionam dentro de negrito e itálico; dentro de código nada é marcado. O texto continua sendo só texto, nunca HTML. É só no app: o servidor guarda a mensagem como foi digitada, e um app antigo mostra os asteriscos.
+
+**Medido (09/11/2026, na interface no navegador sem janela, num canal):** uma mensagem digitada de verdade com os três estilos sai com `strong`, `em` e `code`; `**@Sam** see *https://…*` destaca a menção e mantém o link clicável; "2 * 3 * 4" e `snake_case_name` ficam como digitados; `<b>` e `<img onerror>` dentro de código e de negrito aparecem como texto (nenhum elemento criado); contraste sem falhas. Testes: os três estilos, o que não é marcador, marcadores dentro de um endereço, HTML. Não medido: o chat da call (usa a mesma lista de mensagens) e os estilos Neon e Suave.
 
 #### [ ] T15.F: Responder a uma mensagem
 Citar a mensagem respondida em cima da resposta, nos canais e no chat da call. Precisa de um campo novo no protocolo (`replyTo`) e de servidor novo.

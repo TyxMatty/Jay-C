@@ -6,21 +6,30 @@ import { mediaFigure } from './chat-media.js';
 import { validMedia } from '../core/attachments.js';
 import { splitLinks } from '../core/links.js';
 import { markMentions } from '../core/mentions.js';
+import { splitFormat } from '../core/chat-format.js';
 
 /**
- * A message's text: web links clickable (they open in the browser: src-tauri/src/pip_window.rs) and
- * mentions marked (T14.B), with `me` (a mention of whoever reads it) set apart.
+ * A message's text: `code`, **bold** and *italic* (T15.E, core/chat-format.js), web links clickable
+ * (they open in the browser: src-tauri/src/pip_window.rs) and mentions marked (T14.B), with `me` (a
+ * mention of whoever reads it) set apart. Inside code, nothing else is marked.
  * @param {{ names: string[], me: string } | null} mentions
  */
 const chatText = (text, mentions) => {
-  const parts = mentions ? markMentions(splitLinks(text), mentions.names, mentions.me) : splitLinks(text);
-  return h(
-    'p',
-    { class: 'chat-text' },
-    ...parts.map((part) => {
+  const inline = (run) => {
+    const parts = mentions ? markMentions(splitLinks(run), mentions.names, mentions.me) : splitLinks(run);
+    return parts.map((part) => {
       if (part.url) return h('a', { href: part.url, target: '_blank', rel: 'noopener noreferrer' }, part.url);
       if (part.mention) return h('span', { class: `chat-mention${part.me ? ' me' : ''}` }, part.mention);
       return part.text;
+    });
+  };
+  return h(
+    'p',
+    { class: 'chat-text' },
+    ...splitFormat(text).flatMap((run) => {
+      if (run.style === 'code') return [h('code', {}, run.text)];
+      if (run.style) return [h(run.style === 'bold' ? 'strong' : 'em', {}, ...inline(run.text))];
+      return inline(run.text);
     }),
   );
 };

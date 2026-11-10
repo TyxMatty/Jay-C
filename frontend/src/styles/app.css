@@ -3593,6 +3593,15 @@ body > :not(.activity-pip-video) {
   overflow-wrap: anywhere;
 }
 
+/* `code` in a message (core/chat-format.js), as in the setup guide. */
+.chat-text code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.9em;
+}
+
 /* A web link in a message (core/links.js): the address itself, in the readable accent color. */
 .chat-text a {
   color: var(--accent-text, var(--accent));
