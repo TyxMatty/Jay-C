@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { splitFormat } from '../src/core/chat-format.js';
+import { splitFormat, plainText } from '../src/core/chat-format.js';
 
 test('code, bold and italic become runs, the markers go away', () => {
   assert.deepEqual(splitFormat('oi **pessoal**, rodem `npm test` *agora*!'), [
@@ -32,4 +32,9 @@ test('a marker inside a web address is part of the address', () => {
 
 test('HTML in a message is only ever text', () => {
   assert.deepEqual(splitFormat('**<img src=x onerror=alert(1)>**'), [{ text: '<img src=x onerror=alert(1)>', style: 'bold' }]);
+});
+
+test('a quote shows the text without the markers', () => {
+  assert.equal(plainText('who is hosting **game night** at *9pm*? run `npm test`'), 'who is hosting game night at 9pm? run npm test');
+  assert.equal(plainText('2 * 3 * 4'), '2 * 3 * 4');
 });

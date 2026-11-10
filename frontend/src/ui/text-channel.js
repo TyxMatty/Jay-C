@@ -10,6 +10,7 @@ import { createMediaLoader } from '../core/attachment-net.js';
 import { profileBackground } from '../core/profile-color.js';
 import { mergeMessages, cleanReply } from '../core/text-channels.js';
 import { t } from '../core/i18n.js';
+import { plainText } from '../core/chat-format.js';
 
 const MAX_LENGTH = 500;
 /** Loaded messages kept on the page (the server has at most 500 per channel). */
@@ -42,7 +43,7 @@ export function createTextChannel({ session, channel, onRead }) {
   const setReply = (message) => {
     replyTo = message;
     replying.hidden = !message;
-    replyingText.replaceChildren(...(message ? [t('Replying to {name}', { name: message.name }), ': ', h('span', { class: 'chat-reply-text' }, message.text)] : []));
+    replyingText.replaceChildren(...(message ? [t('Replying to {name}', { name: message.name }), ': ', h('span', { class: 'chat-reply-text' }, plainText(message.text))] : []));
     input.focus();
   };
   const chatLog = createChatLog({

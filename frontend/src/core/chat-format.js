@@ -31,3 +31,6 @@ export function splitFormat(text) {
   if (last < source.length) runs.push({ text: source.slice(last) });
   return runs;
 }
+
+/** The text without its style markers, for a one-line quote of it (a reply, T15.F). */
+export const plainText = (text) => splitFormat(text).map((run) => run.text).join('');

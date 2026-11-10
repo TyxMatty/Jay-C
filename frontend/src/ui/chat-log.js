@@ -8,7 +8,7 @@ import { mediaFigure } from './chat-media.js';
 import { validMedia } from '../core/attachments.js';
 import { splitLinks } from '../core/links.js';
 import { markMentions } from '../core/mentions.js';
-import { splitFormat } from '../core/chat-format.js';
+import { splitFormat, plainText } from '../core/chat-format.js';
 
 /**
  * A message's text: `code`, **bold** and *italic* (T15.E, core/chat-format.js), web links clickable
@@ -93,7 +93,7 @@ export function createChatLog({ label, max = 200, loader = null, mentions = null
           { type: 'button', class: 'chat-reply', title: t('Go to the message from {name}', { name: message.reply.name }), onClick: () => jump(message.reply.id) },
           h('span', { class: 'chat-reply-icon', html: icons.reply, 'aria-hidden': 'true' }),
           h('strong', {}, message.reply.name),
-          h('span', { class: 'chat-reply-text' }, message.reply.text),
+          h('span', { class: 'chat-reply-text' }, plainText(message.reply.text)),
         )
       : null;
     const body = h('div', { class: 'chat-body' }, quote, h('div', { class: 'chat-meta' }, h('strong', {}, message.name), h('time', { datetime: new Date(at).toISOString() }, timeLabel(at))), ...content(message));
