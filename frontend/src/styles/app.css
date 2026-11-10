@@ -920,7 +920,8 @@ html {
 .segmented {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  /* minmax(0, …): equal widths whatever the labels' lengths (plain 1fr let a long one take more). */
+  grid-auto-columns: minmax(0, 1fr);
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
@@ -932,6 +933,8 @@ html {
   display: grid;
   place-items: center;
   min-height: 34px;
+  padding: 0 6px;
+  text-align: center;
   border-radius: calc(var(--radius-control) - 3px);
   transition: background-color var(--dur-fast), color var(--dur-fast);
   font-size: 14px;

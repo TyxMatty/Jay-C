@@ -30,11 +30,18 @@ const MODES = [
   ['window', 'Window', icons.appWindow],
 ];
 
+// One word each, so the three fit side by side in any language; the line under them says what
+// the picked one gives up.
 const OPTIMIZE = [
-  ['detail', 'Text & detail'],
+  ['detail', 'Text'],
   ['balanced', 'Balanced'],
-  ['motion', 'Motion & games'],
+  ['motion', 'Motion'],
 ];
+const OPTIMIZE_HINTS = {
+  detail: 'Sharp text first: on a slow connection, the picture gets less smooth.',
+  balanced: 'A bit of both: gives up a little sharpness and a little smoothness.',
+  motion: 'Smooth movement first, for games and videos: the picture gets less sharp.',
+};
 
 function segmented(name, options, current, onChange) {
   return h(
@@ -90,6 +97,13 @@ export function createSharePanel(call, { onError }) {
       STREAM_FRAME_RATES.map((f) => h('option', { value: f, selected: f === q.fps }, `${f} fps`)),
     );
 
+    const optimizeHint = h('p', { class: 'hint', id: 'share-optimize-hint' }, t(OPTIMIZE_HINTS[q.optimizeFor] ?? OPTIMIZE_HINTS.detail));
+    const optimize = segmented('share-optimize', OPTIMIZE, q.optimizeFor, (v) => {
+      optimizeHint.textContent = t(OPTIMIZE_HINTS[v]);
+      updateQuality({ optimizeFor: v });
+    });
+    optimize.setAttribute('aria-describedby', optimizeHint.id);
+
     const start = async () => {
       startButton.disabled = true;
       try {
@@ -135,7 +149,8 @@ export function createSharePanel(call, { onError }) {
         'div',
         { class: 'field' },
         h('span', { class: 'field-label' }, t('Optimize for')),
-        segmented('share-optimize', OPTIMIZE, q.optimizeFor, (v) => updateQuality({ optimizeFor: v })),
+        optimize,
+        optimizeHint,
       ),
       h('p', { class: 'hint' }, soundHint(call)),
       h(
