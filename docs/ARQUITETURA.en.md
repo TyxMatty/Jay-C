@@ -531,19 +531,19 @@ Jay-C updates itself the way the Jay-H hub updates the Jay apps, without a signi
   - its name can't have slashes, and it is at most 200 MB;
   - its size and SHA-256 must match the `digest` GitHub computes for the file.
 
-  The page only says "update": the Rust side fetches the release again and decides what to download. Since 0.5.3 the download comes from the `jay-i` crate, which uses Windows' WinHTTP like our own code did before (section below).
+  The page only says "update": the Rust side fetches the release again and decides what to download. Since 0.5.4 the download comes from the `jay-i` crate, which uses Windows' WinHTTP like our own code did before (section below).
 - **Applying it:** Jay-C runs the Jay-I setup with `/P /UPDATE /R` and closes. The setup shows only progress and opens Jay-C again at the end. It updates in place and keeps the settings and shortcuts.
 - **Interface** (`core/update.js`):
   - a strip in the lobby, "Jay-C X is available.", with Update and Not now. Being in the lobby, it never shows during a call;
   - Settings › Help › About, with Check for updates and Update. During a call, it asks to leave first.
   - One check per launch, Windows app only.
 - **Publishing:** on a `v*` tag, the installer workflow creates a draft release with the installer (`docs/CONTINUAR.en.md`, section 3).
-- **Measured (0.4.2, with the old WinHTTP code):** the download of the 0.4.1 installer matched GitHub's SHA-256; the dev app claiming 0.4.0 offered 0.4.1 in the lobby and in Help. The code was replaced in 0.5.3 and this measurement doesn't cover it.
+- **Measured (0.4.2, with the old WinHTTP code):** the download of the 0.4.1 installer matched GitHub's SHA-256; the dev app claiming 0.4.0 offered 0.4.1 in the lobby and in Help. The code was replaced in 0.5.4 and this measurement doesn't cover it.
 - **Not measured:** the installer actually opening and Jay-C closing, because installers aren't run on the user's PC with Jay-C installed. The first version with auto-update is 0.4.2, and anyone on 0.4.1 or older installs that one by hand or through Jay-H.
 
-### The Jay-I setup and self-update (0.5.3)
+### The Jay-I setup and self-update (0.5.4)
 
-Jay-C 0.5.3 adopts [Jay-I](https://github.com/TyxMatty/Jay-I), the Jay line's shared installer and updater.
+Jay-C 0.5.4 adopts [Jay-I](https://github.com/TyxMatty/Jay-I), the Jay line's shared installer and updater.
 
 **What changed**
 - **The crate replaces our own code.** `src-tauri/src/update.rs` went from 258 to 102 lines. The WinHTTP client, the release lookup, the installer picking and the in-memory download with SHA-256 are gone. In came `jay_i::latest`, `pick_installer`, `download` (to a new temp folder) and `run` with `Mode::Update { relaunch: true }`. `sha2` and the `Win32_Networking_WinHttp` feature are gone too.
@@ -574,7 +574,7 @@ Jay-C 0.5.3 adopts [Jay-I](https://github.com/TyxMatty/Jay-I), the Jay line's sh
 9. **Network exposure:** only outgoing HTTPS, on demand, to `api.github.com` and `github.com`/`objects.githubusercontent.com`: one check per run, plus the download. No listening port. Measured: reading the code. Not measured: captured traffic.
 10. **Adversarial tests and release criteria:** the crate has its own tests for bad addresses, `digest`, sizes and names; Jay-C's test covers the mapping; `installer.test.js` pins the flags and the `MessageBox`es. `npm test`: 50/50 (server) and 136/136 (frontend); `cargo test`: 21 passed, 3 ignored. **Not exercised:** a real update end to end, and the workflow on GitHub Actions. Those wait for the first tag with the setup.
 
-**Measured:** local release builds, before (0.5.2, WinHTTP) and after (0.5.3, `jay-i`). `jay-c.exe` went from 5,824,000 to 5,843,456 bytes (+19 KB) and the NSIS installer from 2,437,561 to 2,444,953 bytes (+7 KB). With the crate's first version (ureq + rustls) they were 6,973,440 and 2,993,293 bytes. The Jay-I setup carrying the NSIS installer, built by the workflow step run by hand while still on that first version: 6,221,312 bytes (5.9 MB, under 15 MB; the NSIS file is inside byte for byte); not measured again with the current crate. The memory figures that follow are also from that first version. Memory at the lobby, 25 s after start, three rounds each: `jay-c.exe` stayed at ~58 MB working set (before ~61 MB); the tree with WebView2 ranged from 169 to 276 MB private in both versions, no difference above the noise. Not checked in those rounds: whether the GitHub check had finished.
+**Measured:** local release builds, before (0.5.2, WinHTTP) and after (0.5.4, `jay-i`). `jay-c.exe` went from 5,824,000 to 5,843,456 bytes (+19 KB) and the NSIS installer from 2,437,561 to 2,444,953 bytes (+7 KB). With the crate's first version (ureq + rustls) they were 6,973,440 and 2,993,293 bytes. The Jay-I setup carrying the NSIS installer, built by the workflow step run by hand while still on that first version: 6,221,312 bytes (5.9 MB, under 15 MB; the NSIS file is inside byte for byte); not measured again with the current crate. The memory figures that follow are also from that first version. Memory at the lobby, 25 s after start, three rounds each: `jay-c.exe` stayed at ~58 MB working set (before ~61 MB); the tree with WebView2 ranged from 169 to 276 MB private in both versions, no difference above the noise. Not checked in those rounds: whether the GitHub check had finished.
 **Not measured:** the real update (setup opening, NSIS in silent mode, Jay-C reopening), the workflow on GitHub Actions, and behavior behind a TLS-inspecting proxy.
 
 ### Jay-C 0.5: servers with rooms, text channels and files (user's request, after 0.4.3)

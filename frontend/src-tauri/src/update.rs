@@ -74,15 +74,15 @@ mod tests {
     use super::*;
     use jay_i::ReleaseAsset;
 
-    const URL: &str = "https://github.com/TyxMatty/Jay-C/releases/download/v0.5.3/Jay-C_0.5.3_x64-setup.exe";
+    const URL: &str = "https://github.com/TyxMatty/Jay-C/releases/download/v0.5.4/Jay-C_0.5.4_x64-setup.exe";
     const DIGEST: &str = "sha256:848005e8a2f42200b36f5553fd144a9d8aefdcbddbbf1ad49b56c65f473d63de";
 
     fn release(tag: &str, url: &str, digest: Option<&str>) -> Release {
         Release {
             tag_name: tag.into(),
-            html_url: "https://github.com/TyxMatty/Jay-C/releases/tag/v0.5.3".into(),
+            html_url: "https://github.com/TyxMatty/Jay-C/releases/tag/v0.5.4".into(),
             assets: vec![ReleaseAsset {
-                name: "Jay-C_0.5.3_x64-setup.exe".into(),
+                name: "Jay-C_0.5.4_x64-setup.exe".into(),
                 size: 5_000_000,
                 browser_download_url: url.into(),
                 digest: digest.map(Into::into),
@@ -92,11 +92,11 @@ mod tests {
 
     #[test]
     fn maps_a_release_for_the_page() {
-        let ok = to_latest(&release("v0.5.3", URL, Some(DIGEST)));
-        assert_eq!((ok.version.as_str(), ok.installable), ("0.5.3", true));
-        assert_eq!(ok.url, "https://github.com/TyxMatty/Jay-C/releases/tag/v0.5.3");
-        assert_eq!(to_latest(&release("V0.5.3", URL, Some(DIGEST))).version, "0.5.3");
-        assert!(!to_latest(&release("v0.5.3", URL, None)).installable);
-        assert!(!to_latest(&release("v0.5.3", &URL.replace("Jay-C/", "Jay-E/"), Some(DIGEST))).installable);
+        let ok = to_latest(&release("v0.5.4", URL, Some(DIGEST)));
+        assert_eq!((ok.version.as_str(), ok.installable), ("0.5.4", true));
+        assert_eq!(ok.url, "https://github.com/TyxMatty/Jay-C/releases/tag/v0.5.4");
+        assert_eq!(to_latest(&release("V0.5.4", URL, Some(DIGEST))).version, "0.5.4");
+        assert!(!to_latest(&release("v0.5.4", URL, None)).installable);
+        assert!(!to_latest(&release("v0.5.4", &URL.replace("Jay-C/", "Jay-E/"), Some(DIGEST))).installable);
     }
 }
