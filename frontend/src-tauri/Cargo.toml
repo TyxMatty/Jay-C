@@ -58,7 +58,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 # The shared updater of the Jay line (src/update.rs); bump together with the Jay-I `ref` in .github/workflows/installer.yml.
-jay-i = { git = "https://github.com/TyxMatty/Jay-I", rev = "f4f9ef07c0cf49abd1f53d3caa00c69e5aa1c90a" }
+jay-i = { git = "https://github.com/TyxMatty/Jay-I", rev = "60de872dee82c5be37d2ea15c5f94d0dddffde26" }
 # Native screen share over WebRTC (src/native_live); Windows' own crypto, no OpenSSL.
 str0m = { version = "0.25", default-features = false, features = ["wincrypto"] }
 

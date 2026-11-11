@@ -3,7 +3,7 @@
 //! run only if its size and SHA-256 match GitHub's digest. The asset is the Jay-I setup, run with
 //! `/P /UPDATE /R`: a progress window, the NSIS installer silently updates in place keeping
 //! settings and shortcuts, and Jay-C opens again. Jay-C exits right after starting it so the files
-//! can be replaced. The TLS now comes from the crate (ureq + rustls), not WinHTTP.
+//! can be replaced. The crate downloads with WinHTTP: the proxy and certificates of Windows.
 
 use jay_i::Release;
 use serde::Serialize;
