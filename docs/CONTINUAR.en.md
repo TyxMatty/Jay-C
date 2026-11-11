@@ -90,14 +90,14 @@ npm test           # tests
   - Rust tests that need a screen, Discord or live sound are `#[ignore]` and don't run there.
   - It also builds the server's Docker image (`signaling-server/Dockerfile`, context at the root) and checks that it starts and answers on `/health`. The image isn't published: its name on GHCR is an open decision.
   - The "CI" badge at the top of the READMEs shows the result of the last run on `main`.
-- **Installer on GitHub** (`.github/workflows/installer.yml`): on a `v*` tag or by hand from the Actions tab ("Installer › Run workflow"), it runs `npm run build` on a clean Windows machine. The `Jay-C_<version>_x64-setup.exe` is kept as the run's artifact and, on a tag, goes into a **draft release** (if the tag's release is already published, it isn't touched).
+- **Installer on GitHub** (`.github/workflows/installer.yml`): on a `v*` tag or by hand from the Actions tab ("Installer › Run workflow"), it runs `npm run build` on a clean Windows machine and, around the NSIS installer, builds the Jay-I setup (`jay-i/scripts/build-setup.ps1`, from a second checkout pinned by SHA). Only the setup's `Jay-C_<version>_x64-setup.exe` is kept as the run's artifact and, on a tag, goes into a **draft release** (if the tag's release is already published, it isn't touched). The tag must be `v` + the `tauri.conf.json` version, or the workflow fails.
 - **A new version, step by step:**
   1. bump the version in the same places as the "Versão 0.4.1" commit and record the changes in this document;
   2. commit, push, and `git tag vX.Y.Z` + `git push origin vX.Y.Z`;
   3. wait for the Installer workflow (~8–11 min): it creates the draft with the installer;
   4. test the installer on a test PC, write the notes in the draft and publish it.
 
-  Only the published release reaches Jay-C's auto-update (from 0.4.2 on) and Jay-H. The SHA-256 they check is the one GitHub computes for the release's installer.
+  Only the published release reaches Jay-C's auto-update (from 0.4.2 on) and Jay-H. The SHA-256 they check is the one GitHub computes for the release's installer (the Jay-I setup).
 
 ## 4. Claude Code on the new PC
 
@@ -105,7 +105,7 @@ Open the clone's folder in Claude, in the desktop app (Code tab) or the CLI. `CL
 
 ## 5. Current state
 
-**Jay-C 0.5.2 (11/10/2026), version bumped; the installer comes with the `v0.5.2` tag.** 0.5.1 plus the testers' suggestions (section "Sugestões dos testers" in `tasks/todo.md`): the live's Balanced mode, the fix for viewers freezing, the call's chat beside the call, a bigger voice panel, replies in channels, bold/italic/code, @ matching the middle of a name, and a sound on leaving. Before that, **Jay-C 0.5.1 (11/09/2026).** 0.5.0 plus profile pictures in channels (T14.A), mentions (T14.B), clickable links, drag and paste across the whole chat, and the guide with the admin key (section "Depois da 0.5.0" in `tasks/todo.md`). Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoints 3 (the user's review is missing) and 4, T12.B to T12.G, T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) T13.C (on a phone, and the docs) and T13.D (recent GIFs behind the clip; the server copies the picked GIF). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
+**Jay-C 0.5.3 (version bumped, no tag): the Jay-I setup in the release, and updating through the `jay-i` crate.** The app updates by running the setup quietly and reopens by itself (details in the section "The Jay-I setup and self-update (0.5.3)" of `docs/ARQUITETURA.en.md`). Before that, **Jay-C 0.5.2 (11/10/2026), version bumped; the installer came with the `v0.5.2` tag.** 0.5.1 plus the testers' suggestions (section "Sugestões dos testers" in `tasks/todo.md`): the live's Balanced mode, the fix for viewers freezing, the call's chat beside the call, a bigger voice panel, replies in channels, bold/italic/code, @ matching the middle of a name, and a sound on leaving. Before that, **Jay-C 0.5.1 (11/09/2026).** 0.5.0 plus profile pictures in channels (T14.A), mentions (T14.B), clickable links, drag and paste across the whole chat, and the guide with the admin key (section "Depois da 0.5.0" in `tasks/todo.md`). Tracking is in `tasks/todo.md` and the plan in `tasks/plan.md`. Done: phases 0 to 3, Checkpoints 3 (the user's review is missing) and 4, T12.B to T12.G, T13.A (the server keeps and serves images, GIFs and videos), T13.B (the app sends and shows them, removing the location before uploading) T13.C (on a phone, and the docs) and T13.D (recent GIFs behind the clip; the server copies the picked GIF). T12.A (GIFs from a search service) was cancelled: GIFs are T13 files, and the KLIPY code stayed only in the local branch `t12a-klipy-gifs`, not published.
 
 **Next:**
 1. **T12.F: done** (11/09/2026, on the phone, also with an APK outside dev mode; list in `tasks/todo.md`). Only listening to the mic with the app in the background is left (with DTX, counting packets isn't enough).
@@ -193,7 +193,7 @@ iOS (milestone 15, code only) was left for after launch.
 **Installer 0.4.2 (07/11/2026):** 0.4.1 with what's below, built by the installer workflow on GitHub (tag `v0.4.2`). The server didn't change: a 0.4.1 server works the same. It's the first version with auto-update; anyone on 0.4.1 or older installs this one by hand (or through Jay-H).
 
 **Between 0.4.1 and 0.4.2 (07/11/2026):**
-- **Auto-update:** Jay-C offers the newer release published on GitHub (in the lobby and in Settings › Help) and checks the installer's SHA-256, like Jay-H. It works from the first version that has it.
+- **Auto-update:** Jay-C offers the newer release published on GitHub (in the lobby and in Settings › Help) and checks the installer's SHA-256, like Jay-H. Since 0.5.3 it runs the Jay-I setup quietly and reopens Jay-C by itself. It works from the first version that has it.
 - **Native live stuttering and unreadable text** (report: "a huge bottleneck", remote server over Radmin VPN). Measured with a 4 Mbps limiter (details in `docs/spikes/10-live-nativa.md`, "Engasgos, texto ilegível e a escada"):
   - **the causes:** 300–500 KB keyframes every 4 s; str0m's queue growing to 1.5 s; the viewer cap holding the live at 720p30; the live's thread waiting up to 97 ms for the CPU;
   - **the fixes:** keyframes only on request, with a 50 ms buffer (4x smaller); the ladder follows "Optimize for" (text keeps the resolution); the send queue is measured, and the encoder lowers its bitrate or skips frames before it grows; the viewers' bandwidth is filtered; the thread joins MMCSS;
@@ -312,7 +312,7 @@ The server hasn't changed.
 
 **Installer 0.2.0 (04/11/2026):** brings the external test feedback (items 1–8) and the design review (A–E). For the next test, the friends install 0.2.0, the host restarts the server (the protocol changed: `pauseConsumer`, `chat`, `color`), and whoever can't hear sends the text from Settings › Help › Copy call diagnostics.
 
-**Windows installer:** `npm run build` produces `<target>\release\bundle\nsis\Jay-C_<version>_x64-setup.exe`. It takes ~7–9 min, because of LTO.
+**Windows installer:** `npm run build` produces the raw NSIS, `<target>\release\bundle\nsis\Jay-C_<version>_x64-setup.exe`. It takes ~7–9 min, because of LTO. The release file is the Jay-I setup, built around that NSIS by the workflow, or by hand with Jay-I's `scripts/build-setup.ps1` (it needs `CARGO_TARGET_DIR` outside OneDrive).
 
 **First external test:** on 03/11/2026, installer 0.1.0 was sent to the user's friends. The server is hosted by the user, and they connect through the user's IP (VPN or LAN), with ports 3000 and 40000 open. Without code signing, SmartScreen asks for "More info → Run anyway". Friends on Radmin VPN: the host is the user's Radmin IP (`26.x.x.x`).
 

@@ -18,7 +18,7 @@ Every milestone ends with something testable. The full plan, with the "done when
 - [x] **Look and feel:** three styles (Calm, Neon, Soft) in light and dark, custom colors, a movable call bar, the welcome tour and the wolf icon.
 - [x] **Audio controls:** volume per person and per stream, device selection, microphone volume and "only send when I speak".
 - [x] **Discord Rich Presence.**
-- [x] **Auto-update (Windows):** Jay-C offers a newer published release in the lobby and in Settings › Help, checks the installer against GitHub's SHA-256 (the same way as the Jay-H hub), then runs it. Version tags make a draft GitHub release with the installer.
+- [x] **Auto-update (Windows):** Jay-C offers a newer published release in the lobby and in Settings › Help, checks the installer against GitHub's SHA-256 (the same way as the Jay-H hub), then runs it quietly (the Jay-I setup) and reopens Jay-C. Version tags make a draft GitHub release with the installer.
 - [x] **Jay-A integration, client side (I1 to I4):** the named-pipe client, the filter selector, Jay-C's own filter kept running as a hot standby, and starting Jay-A when a call begins.
 
 ## Next

@@ -2,6 +2,10 @@
 # Actions tab. It is kept as the run's artifact, and on a tag it goes into a draft GitHub release.
 # Publishing stays a manual step (notes, checking the installer on a test PC): Jay-C's auto-update
 # and the Jay-H hub only see published releases.
+# The artifact and the draft release carry only the Jay-I setup that carries the NSIS installer,
+# never the raw NSIS file (both are named Jay-C_<version>_x64-setup.exe, and Jay-H and Jay-C's own
+# updater take the release asset ending in _x64-setup.exe). The Jay-I pin (ref of the second
+# checkout) must be bumped together with `jay-i` in frontend/src-tauri/Cargo.toml.
 name: Installer
 
 on:
@@ -21,28 +25,68 @@ jobs:
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}\target
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Jay-C's own updater and the Jay-H hub compare the tag with the installed version: a tag
+      # that isn't the app's version would offer an update forever.
+      - name: The tag is the app's version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = (Get-Content frontend/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME, tauri.conf.json $version" }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
       # The system-audio plugin's build.rs compiles WebRTC's audio processing with Meson + Ninja.
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.13'
       - run: python -m pip install meson ninja
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # the "stable" branch
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          workspaces: frontend/src-tauri -> ../../target
+          workspaces: |
+            frontend/src-tauri -> ../../target
+            jay-i -> ../target
       - run: npm ci
       # tauri build: vite build, cargo build --release, then the NSIS installer
       # (frontend/src-tauri/windows/installer.nsi, the project's own template).
       - run: npm run build
-      - uses: actions/upload-artifact@v7
+      # The release asset is the Jay-I setup (a small window that carries the NSIS installer above),
+      # pinned to the same commit as the jay-i dependency in frontend/src-tauri/Cargo.toml.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: TyxMatty/Jay-I
+          ref: f4f9ef07c0cf49abd1f53d3caa00c69e5aa1c90a
+          path: jay-i
+          persist-credentials: false
+      - name: Build the Jay-I setup around the NSIS installer
+        shell: pwsh
+        run: |
+          $version = (Get-Content frontend/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $name = "Jay-C_${version}_x64-setup.exe"
+          $nsis = Join-Path $env:CARGO_TARGET_DIR 'release/bundle/nsis'
+          $raw = @(Get-ChildItem -LiteralPath $nsis -Filter $name -File)
+          if ($raw.Count -ne 1) { throw "expected exactly one $name in $nsis, found $($raw.Count)" }
+          $out = Join-Path $PWD 'setup-out'
+          & (Join-Path $PWD 'jay-i/scripts/build-setup.ps1') `
+            -Payload $raw[0].FullName -Name Jay-C -Version $version -Exe jay-c.exe `
+            -Icon (Join-Path $PWD 'frontend/src-tauri/icons/icon.ico') `
+            -Mark (Join-Path $PWD 'frontend/src-tauri/icons/128x128@2x.png') `
+            -OutDir $out
+          if ($LASTEXITCODE -ne 0) { throw "build-setup.ps1 failed ($LASTEXITCODE)" }
+          $setup = @(Get-ChildItem -LiteralPath $out -File)
+          if ($setup.Count -ne 1 -or $setup[0].Name -ne $name) { throw "setup-out must hold only $name" }
+          # The setup stays small; the same size as the raw installer means it was copied by mistake.
+          if ($setup[0].Length -gt 15 * 1024 * 1024) { throw "$name is $($setup[0].Length) bytes, over 15 MB" }
+          if ($setup[0].Length -eq $raw[0].Length) { throw "$name is the raw NSIS installer, not the setup" }
+          Write-Host "$name ($($setup[0].Length) bytes)"
+      # Only the setup is uploaded: Jay-H and Jay-C's updater take any release asset ending in _x64-setup.exe.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Jay-C-installer-${{ github.ref_name }}
-          path: target/release/bundle/nsis/*.exe
+          path: setup-out/*_x64-setup.exe
           if-no-files-found: error
       # On a tag: a draft release with the installer. A published release is never touched: its
       # installer's SHA-256 is what Jay-C's auto-update and Jay-H check downloads against.
@@ -53,7 +97,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="$GITHUB_REF_NAME"
-          files=(target/release/bundle/nsis/*.exe)
+          files=(setup-out/*_x64-setup.exe)
           draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null || echo none)
           case "$draft" in
             none) gh release create "$tag" "${files[@]}" --draft --verify-tag --title "Jay-C ${tag#v}" --notes "Draft made by the Installer workflow: write the notes, check the installer, then publish." ;;

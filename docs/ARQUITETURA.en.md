@@ -420,7 +420,7 @@ Each milestone ends with something testable.
 **Windows installer** (`npm run build`, ~7–9 min with LTO):
 - **Type:** per-user NSIS (`installMode: currentUser`). Installs to `%LOCALAPPDATA%\Jay-C` without UAC, with a Start menu shortcut and an entry in "Apps" (publisher TyxMatty). WebView2 comes through the bootstrapper if missing (old Windows 10).
 - **Size:** a 1.47 MiB installer and a 3.9 MB `jay-c.exe`.
-- **No code signing:** SmartScreen warns on first run. A certificate costs money (open decision).
+- **No code signing:** SmartScreen warns on first run (this applies to the Jay-I setup and to the NSIS inside it). A certificate costs money (open decision).
 - **Reinstalling over it** updates the exe. The installer only closes a `jay-c.exe` that runs from the install folder (Restart Manager on the exact path), not the one from `tauri dev`.
 - **Camera and microphone without WebView2's prompt:** on a new profile, WebView2 asked "tauri.localhost wants to use your camera", and joining the room hung on "Joining…" until it was answered. Now `src-tauri/src/media_permissions.rs` allows camera and microphone in the `PermissionRequested` event, only for the app's own page (`http://tauri.localhost/`, and `localhost:5173` in dev). Other permissions keep WebView2's default. Windows' privacy settings still apply.
 
@@ -531,15 +531,51 @@ Jay-C updates itself the way the Jay-H hub updates the Jay apps, without a signi
   - its name can't have slashes, and it is at most 200 MB;
   - its size and SHA-256 must match the `digest` GitHub computes for the file.
 
-  The page only says "update": the Rust side fetches the release again and decides what to download. Downloads use Windows' WinHTTP (the system's TLS and proxy), not an HTTP library with its own TLS.
-- **Applying it:** Jay-C opens the installer and closes, and the person finishes in the installer. It updates in place and keeps the settings.
+  The page only says "update": the Rust side fetches the release again and decides what to download. Since 0.5.3 the download comes from the `jay-i` crate (ureq + rustls), no longer from Windows' WinHTTP (section below).
+- **Applying it:** Jay-C runs the Jay-I setup with `/P /UPDATE /R` and closes. The setup shows only progress and opens Jay-C again at the end. It updates in place and keeps the settings and shortcuts.
 - **Interface** (`core/update.js`):
   - a strip in the lobby, "Jay-C X is available.", with Update and Not now. Being in the lobby, it never shows during a call;
   - Settings › Help › About, with Check for updates and Update. During a call, it asks to leave first.
   - One check per launch, Windows app only.
 - **Publishing:** on a `v*` tag, the installer workflow creates a draft release with the installer (`docs/CONTINUAR.en.md`, section 3).
-- **Measured:** WinHTTP's download of the 0.4.1 installer matched GitHub's SHA-256; the dev app claiming 0.4.0 offered 0.4.1 in the lobby and in Help.
+- **Measured (0.4.2, with the old WinHTTP code):** the download of the 0.4.1 installer matched GitHub's SHA-256; the dev app claiming 0.4.0 offered 0.4.1 in the lobby and in Help. The code was replaced in 0.5.3 and this measurement doesn't cover it.
 - **Not measured:** the installer actually opening and Jay-C closing, because installers aren't run on the user's PC with Jay-C installed. The first version with auto-update is 0.4.2, and anyone on 0.4.1 or older installs that one by hand or through Jay-H.
+
+### The Jay-I setup and self-update (0.5.3)
+
+Jay-C 0.5.3 adopts [Jay-I](https://github.com/TyxMatty/Jay-I), the Jay line's shared installer and updater.
+
+**What changed**
+- **The crate replaces our own code.** `src-tauri/src/update.rs` went from 258 to 102 lines. The WinHTTP client, the release lookup, the installer picking and the in-memory download with SHA-256 are gone. In came `jay_i::latest`, `pick_installer`, `download` (to a new temp folder) and `run` with `Mode::Update { relaunch: true }`. `sha2` and the `Win32_Networking_WinHttp` feature are gone too.
+- **The rules are the same:** only the latest **published** release of `TyxMatty/Jay-C`; the `_x64-setup.exe` only from `https://github.com/TyxMatty/Jay-C/releases/download/`; plain name, up to 200 MB; size and SHA-256 equal to GitHub's `digest`. The page still only says "update" (`update_latest` and `update_install` didn't change; one update at a time; Settings refuses during a call; the lobby never shows during a call).
+- **New:** the Rust side refuses unless the release is newer than the running version. The installer now runs silently and the NSIS template allows downgrades, so the guard lives in the app.
+- **The release asset is now the Jay-I setup:** a small window in the Jay look with the NSIS installer inside. Jay-C runs it with `/P /UPDATE /R` and closes. The setup shows only progress and runs the NSIS with `/S /UPDATE /R`: it updates in place, keeps settings and shortcuts, and opens Jay-C again. Someone on 0.5.2 or older (their updater runs the asset with no arguments) sees the setup's confirm window and clicks Install once.
+- **The Jay-I version is pinned in two places that move together:** the `jay-i` git dependency in `frontend/src-tauri/Cargo.toml` (Windows only) and the `ref` of the second checkout in `.github/workflows/installer.yml`. Both point to commit `f4f9ef07c0cf49abd1f53d3caa00c69e5aa1c90a`.
+- **The workflow** (`installer.yml`): every action pinned by full SHA; a new step, "The tag is the app's version", fails a tag that isn't `v` + the `tauri.conf.json` version; after `npm run build`, a second checkout of `TyxMatty/Jay-I` at the pinned SHA (`persist-credentials: false`) and `jay-i/scripts/build-setup.ps1` builds `setup-out/Jay-C_<version>_x64-setup.exe` around the NSIS file. It fails if there isn't exactly one file, if it is over 15 MB, or if it is the same size as the raw NSIS file. The artifact and the draft release carry **only** `setup-out/` (both files share the name, and Jay-H and Jay-C's updater take the asset ending in `_x64-setup.exe`). The draft / overwrite / never-touch-a-published-release logic and the permissions (job `contents: write`, top level `contents: read`) didn't change.
+
+**Review of the NSIS template in silent mode** (`src-tauri/windows/installer.nsi`, unchanged). It differs from Tauri 2.12.4's stock template only in four "Jay-C:" blocks: lines 167–169 (`MUI_LANGDLL_ALWAYSSHOW`), 171–174 (colors), 254–259 (older version = update in place, inside `PageReinstall`) and 798–800 (`SHChangeNotify`).
+- Under `/S` NSIS shows no page and calls no page function: `PageReinstall` and `PageLeaveReinstall` (227–427, including the `MessageBox` at 414) never run. The language dialog is wrapped by MUI2's `${unless} ${Silent}`.
+- The `MessageBox` at 599 is the non-silent branch and is only compiled with `allowDowngrades=false` (Jay-C uses the default, `true`; checked in the rendered script). The one at 689 is only compiled with a `minimumWebview2Version` (Jay-C has none).
+- Restart Manager (`CheckIfAppIsRunning`, from Tauri's `utils.nsh`): in silent mode it force-closes a running `jay-c.exe` without asking; if that fails, it aborts with an exit code, no window.
+- The flags `/P`, `/NS`, `/UPDATE` (527–540) and `/R` (813) are read exactly as in the stock template.
+- Cases under `/S`: fresh install = `%LOCALAPPDATA%\Jay-C`, Start menu and desktop shortcuts (789–792); older version with `/UPDATE` = in place, shortcuts untouched (1002–1009, 1031–1038), no uninstall, relaunch with `/R` (811–818); same version or older = installs over without asking (the app can't get here because of the Rust guard; a person running an old setup by hand can, same as stock); leftover WiX or per-machine install = the HKLM scan lives in `PageReinstall`, so under `/S` it is **not** removed and the per-user install goes beside it (stock behaves the same; Jay-C never shipped an MSI).
+- Nothing waits forever without a window. Only `/P` alone (when WebView2 is missing and the setup can't show its window) still shows the language dialog, because of `MUI_LANGDLL_ALWAYSSHOW`: visible, not a hang. Left as is.
+- `frontend/test/installer.test.js` pins this: the four flags are still read, and the template has exactly 3 `MessageBox`.
+
+**The 10 security points**
+1. **Attack surface:** no new command and no port. The page still only calls `update_latest` and `update_install`, with no URL or path. Measured: the command list didn't change. Not measured: nothing beyond that.
+2. **Access control and IDOR:** no one else's data and no resource by id. The new guard (newer versions only) is in Rust and uses `jay_i::newer`, tested in the crate. Not measured: the guard inside `update_install` (no Jay-C test calls the command, since it would download and run the setup).
+3. **Data permissions:** the download goes to a new temp folder, and the installer keeps the person's settings without reading or deleting data. Measured: the reading of the NSIS template above. Not measured: the effect on settings in a real update.
+4. **Untrusted input in a sensitive operation:** GitHub's reply is untrusted input. The file's address, name, size (200 MB) and SHA-256 are checked before anything runs. Measured: the crate's own tests cover bad addresses, `digest`, sizes and names. Not measured: a malicious file from someone who can publish releases (see below).
+5. **Exposed credentials:** no key or token in the app. In the workflow, the Jay-I checkout uses `persist-credentials: false`, and only the job that needs it has `contents: write`. Measured: reading the workflow. Not measured: the run on GitHub Actions.
+6. **Authentication:** there is no login. Trust comes from the release being in the right repository and from the SHA-256. **The SHA-256 comes from GitHub's own `digest`:** it protects against a corrupted or swapped download, **not** against someone who can publish a release in the repository. The installers (the setup and the NSIS) are **unsigned**, and SmartScreen warns.
+7. **Resource abuse and races:** one update at a time; one check per run, plus the download; a file of up to 200 MB. The Rust side refuses anything not newer. Measured: the limits are in the code and in the crate's tests. Not measured: the updater fired twice at once, beyond the one-at-a-time guard.
+8. **Dependency chain:** the `jay-i` git dependency is pinned by commit; the CI's second checkout is pinned by the same SHA, with `persist-credentials: false`; every action is pinned by SHA. The updater's TLS moved from Windows to a Rust library (ureq + rustls, with `webpki-roots`: Mozilla's root list compiled into the exe). Effect: the updater **no longer uses** the system proxy or the Windows certificate store. A corporate proxy that inspects TLS makes the check fail, visibly, and nothing is installed. `cargo audit` on the new `Cargo.lock`: 510 crates (485 before), no vulnerabilities, and the same 5 allowed warnings as before (unmaintained or unsound crates from Tauri's Linux build: proc-macro-error, zbus_names, zvariant, zvariant_derive, glib).
+9. **Network exposure:** only outgoing HTTPS, on demand, to `api.github.com` and `github.com`/`objects.githubusercontent.com`: one check per run, plus the download. No listening port. Measured: reading the code. Not measured: captured traffic.
+10. **Adversarial tests and release criteria:** the crate has its own tests for bad addresses, `digest`, sizes and names; Jay-C's test covers the mapping; `installer.test.js` pins the flags and the `MessageBox`es. `npm test`: 50/50 (server) and 136/136 (frontend); `cargo test`: 21 passed, 3 ignored. **Not exercised:** a real update end to end, and the workflow on GitHub Actions. Those wait for the first tag with the setup.
+
+**Measured:** local release builds, before (0.5.2, WinHTTP) and after (0.5.3, `jay-i`). `jay-c.exe` went from 5,824,000 to 6,973,440 bytes (+1.1 MB, +20%: ureq, rustls, ring and Mozilla's roots). The NSIS installer went from 2,437,561 to 2,993,293 bytes (+0.56 MB). The Jay-I setup carrying that NSIS installer, built by the workflow step run by hand: 6,221,312 bytes (5.9 MB, under 15 MB; the NSIS file is inside byte for byte). Memory at the lobby, 25 s after start, three rounds each: `jay-c.exe` stayed at ~58 MB working set (before ~61 MB); the tree with WebView2 ranged from 169 to 276 MB private in both versions, no difference above the noise. Not checked in those rounds: whether the GitHub check had finished.
+**Not measured:** the real update (setup opening, NSIS in silent mode, Jay-C reopening), the workflow on GitHub Actions, and behavior behind a TLS-inspecting proxy.
 
 ### Jay-C 0.5: servers with rooms, text channels and files (user's request, after 0.4.3)
 
