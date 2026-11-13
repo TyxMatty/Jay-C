@@ -4,6 +4,7 @@
 import { h } from './dom.js';
 import { MAX_VOLUME } from '../core/playback.js';
 import { t } from '../core/i18n.js';
+import { fullscreenElement } from '../core/fullscreen.js';
 
 export function createAudioMenu() {
   const title = h('h2', { class: 'audio-menu-title', id: 'audio-menu-title' });
@@ -38,6 +39,13 @@ export function createAudioMenu() {
     target?.set({ muted: mute.checked });
     render();
   });
+  // In full screen the menu lives inside the tile (see open), whose own handlers would take these:
+  // a click toggles the focus, a double click the full screen, the wheel and keys zoom.
+  for (const type of ['click', 'dblclick', 'pointerdown', 'pointerup', 'wheel', 'keydown']) el.addEventListener(type, (e) => e.stopPropagation());
+  el.addEventListener('contextmenu', (e) => (e.preventDefault(), e.stopPropagation()));
+
+  /** Where the menu lives when nothing is in full screen (set on the first open). */
+  let home = null;
 
   return {
     element: el,
@@ -59,6 +67,11 @@ export function createAudioMenu() {
         ),
       );
       actions.hidden = !options.actions?.length;
+      // While something is in full screen, Chrome only hit-tests inside it: a menu outside shows
+      // on top but its clicks fall through to the video (measured). So it moves inside.
+      home ??= el.parentElement;
+      const host = fullscreenElement() ?? home;
+      if (host && el.parentElement !== host) host.append(el);
       el.showPopover();
       // From the keyboard the event has no pointer position: anchor to the tile instead.
       const anchor = event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : event.currentTarget.getBoundingClientRect();
