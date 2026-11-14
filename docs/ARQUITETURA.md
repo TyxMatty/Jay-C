@@ -410,7 +410,7 @@ Cada etapa termina com algo testável.
 | Parte | Entrega | Estado |
 |---|---|---|
 | 14.A | **Instalador Windows** (NSIS, `.exe`) gerado localmente | ✅ |
-| 14.B | **APK de release** assinado (ARM 64 e 32 bits) | |
+| 14.B | **APK de release** assinado (ARM 64 e 32 bits) | ✅ (14/11/2026, 0.5.5). Chave do autor fora do repositório; o Gradle a acha pelo `gen/android/keystore.properties` (no `.gitignore`): `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. Build: `npx tauri android build --apk --target aarch64 armv7` em `frontend/`, com as variáveis do `android-dev.ps1`; sai em `gen/android/app/build/outputs/apk/universal/release/`. Sem a chave, o APK sai sem assinatura. Perder a chave = não dá para atualizar por cima; guarde uma cópia. Ícones: `python scripts/android-icon.py` depois do `tauri icon` |
 | 14.C | **GitHub Actions:** com uma tag `v*`, gera `.exe`, `.apk` e a imagem no GHCR, e monta um rascunho de Release com o `docker-compose.yml` | |
 | 14.D | **Ícone** do usuário em todos os tamanhos (`tauri icon`): o lobo do Jay-C, com o traço engrossado e a cabeça preenchida (`scripts/wolf-icon.ps1`), na cor de cada estilo | ✅ |
 | 14.E | **Publicação** e teste do guia do zero numa máquina limpa | |
